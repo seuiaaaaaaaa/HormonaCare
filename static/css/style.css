@@ -5049,7 +5049,7 @@ select {
 }
 
 .calendar-board {
-    order: 1;
+    order: 2;
     flex: 1.7;
     padding: 20px;
 }
@@ -5062,7 +5062,7 @@ select {
 }
 
 .calendar-top {
-    order: 2;
+    order: 1;
 }
 
 .calendar-under {
