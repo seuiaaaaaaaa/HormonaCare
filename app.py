@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
+from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, has_request_context, jsonify, redirect, render_template, request, session, url_for
 import httpx
@@ -74,6 +75,20 @@ push_scheduler_started = False
 runtime_init_lock = threading.Lock()
 runtime_init_started = False
 runtime_init_complete = False
+try:
+    APP_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "Asia/Manila"))
+except Exception:
+    APP_TIMEZONE = None
+
+
+def app_now():
+    if APP_TIMEZONE is None:
+        return datetime.now()
+    return datetime.now(APP_TIMEZONE).replace(tzinfo=None)
+
+
+def app_today():
+    return app_now().date()
 
 
 def base64url_encode(raw_bytes):
@@ -1374,20 +1389,18 @@ def register_routes(app):
         login_attempts.pop(username, None)
 
     def get_or_create_today_lifestyle_log(user):
-        today = date.today()
+        today = app_today()
         log = LifestyleLog.query.filter_by(user_id=user.id, log_date=today).first()
         if log:
             return log
 
-        latest = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).first()
         log = LifestyleLog(
             user_id=user.id,
             log_date=today,
-            sleep_hours=latest.sleep_hours if latest else 7,
-            water_intake_liters=latest.water_intake_liters if latest else 2,
-            diet_quality=latest.diet_quality if latest else "Balanced",
-            exercise_minutes=latest.exercise_minutes if latest else 30,
-            # Keep each day independent so feedback entries do not carry into a new log.
+            sleep_hours=0,
+            water_intake_liters=0,
+            diet_quality="Not logged",
+            exercise_minutes=0,
             notes="",
         )
         db.session.add(log)
@@ -2018,7 +2031,7 @@ def register_routes(app):
         return records
 
     def medication_log_window(target_day=None):
-        day = target_day or date.today()
+        day = target_day or app_today()
         day_start = datetime.combine(day, datetime.min.time())
         return day_start, day_start + timedelta(days=1)
 
@@ -4896,7 +4909,7 @@ def register_routes(app):
                         dosage=medication.dosage,
                         scheduled_time=medication.time_of_day,
                         notes=medication.notes,
-                        taken_at=datetime.now(),
+                        taken_at=app_now(),
                     )
                 )
         elif requested_status == "pending" and medication.status == "taken":
@@ -4938,15 +4951,16 @@ def register_routes(app):
     def lifestyle():
         user = current_user()
         logs = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).all()
+        today = app_today()
+        latest_log = next((log for log in logs if log.log_date == today), None)
         suggestions = []
         today_summary = None
-        if logs:
-            latest = logs[0]
+        if latest_log:
             assessment = health_assessment_for_inputs(
-                sleep_hours=latest.sleep_hours,
-                water_intake=latest.water_intake_liters,
+                sleep_hours=latest_log.sleep_hours,
+                water_intake=latest_log.water_intake_liters,
                 stress_level=5,
-                activity_minutes=latest.exercise_minutes,
+                activity_minutes=latest_log.exercise_minutes,
             )
             suggestions = assessment["recommendations"]
             today_summary = {
@@ -4973,10 +4987,7 @@ def register_routes(app):
                     "tone": assessment["sleep_evaluation"]["tone"],
                 },
             }
-        latest_log = logs[0] if logs else None
         decrypt_model_fields(logs, ["notes"])
-        if latest_log:
-            latest_log.notes = decrypt_text(latest_log.notes)
         latest_log_details = parse_lifestyle_notes(latest_log.notes if latest_log else "")
         latest_exercise_entry = latest_log_details["exercise_entries"][-1] if latest_log_details["exercise_entries"] else None
         latest_food_entry = latest_log_details["food_entries"][-1] if latest_log_details["food_entries"] else None

@@ -73,6 +73,7 @@ body {
     font-family: "Plus Jakarta Sans", sans-serif;
     background: var(--bg);
     color: var(--ink);
+    overflow-x: hidden;
 }
 
 body,
@@ -855,8 +856,10 @@ svg {
 
 .app-shell {
     display: grid;
-    grid-template-columns: 256px 1fr;
+    grid-template-columns: 256px minmax(0, 1fr);
     min-height: 100vh;
+    max-width: 100vw;
+    overflow-x: hidden;
 }
 
 .sidebar {
@@ -1147,11 +1150,14 @@ svg {
 
 .main-content {
     padding: 28px 36px 40px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .content-shell {
     width: min(100%, 1180px);
     margin: 0 auto;
+    min-width: 0;
 }
 
 .flash-stack {
@@ -3097,6 +3103,7 @@ button {
     justify-content: space-between;
     gap: 16px;
     padding: 18px 20px;
+    min-width: 0;
 }
 
 .schedule-left {
@@ -3146,6 +3153,12 @@ button {
     gap: 14px;
     flex-direction: column;
     flex-shrink: 0;
+}
+
+.schedule-left p,
+.clean-med-card p {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .time-label {
@@ -3467,6 +3480,7 @@ select {
     border-radius: 20px;
     padding: 20px;
     min-height: 220px;
+    min-width: 0;
 }
 
 .lifestyle-summary-card {
@@ -4436,6 +4450,8 @@ select {
     display: flex;
     gap: 24px;
     align-items: flex-start;
+    min-width: 0;
+    width: 100%;
 }
 
 .appointments-layout-single {
@@ -4444,6 +4460,7 @@ select {
 
 .appointments-col {
     flex: 1;
+    min-width: 0;
 }
 
 .appointments-col-full {
@@ -4488,6 +4505,7 @@ select {
     border-radius: 22px;
     box-shadow: var(--shadow);
     padding: 20px;
+    min-width: 0;
 }
 
 .appt-top {
@@ -4581,6 +4599,8 @@ select {
     border-radius: 14px;
     padding: 12px 14px;
     margin-bottom: 16px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .history-note {

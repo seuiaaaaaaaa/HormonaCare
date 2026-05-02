@@ -58,7 +58,8 @@ def decrypt_text(value):
         return value
     cipher = _build_cipher()
     if not cipher:
-        return value.replace(ENCRYPTION_PREFIX, "", 1)
+        # Do not leak encrypted tokens into the UI when a deploy is missing the field key.
+        return ""
     token = value.replace(ENCRYPTION_PREFIX, "", 1).encode("utf-8")
     try:
         return cipher.decrypt(token).decode("utf-8")
