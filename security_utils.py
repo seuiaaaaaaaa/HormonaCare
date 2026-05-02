@@ -36,12 +36,17 @@ def _build_cipher():
     if not encryption_available():
         return None
     key = os.getenv("FIELD_ENCRYPTION_KEY", "").encode("utf-8")
-    return Fernet(key)
+    try:
+        return Fernet(key)
+    except (TypeError, ValueError):
+        return None
 
 
 def encrypt_text(value):
     if not value:
         return value or ""
+    if not isinstance(value, str):
+        value = str(value)
     if value.startswith(ENCRYPTION_PREFIX):
         return value
     cipher = _build_cipher()
@@ -54,6 +59,8 @@ def encrypt_text(value):
 def decrypt_text(value):
     if not value:
         return value or ""
+    if not isinstance(value, str):
+        return ""
     if not value.startswith(ENCRYPTION_PREFIX):
         return value
     cipher = _build_cipher()

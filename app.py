@@ -93,7 +93,10 @@ def looks_like_unreadable_encrypted_text(value):
 
 
 def decrypt_display_text(value):
-    decrypted_value = decrypt_text(value)
+    try:
+        decrypted_value = decrypt_text(value)
+    except Exception:
+        return ""
     if looks_like_unreadable_encrypted_text(decrypted_value):
         return ""
     return decrypted_value or ""
