@@ -217,6 +217,21 @@ body.theme-dark .wellness-recommendation-box {
     border-color: rgba(159, 176, 207, 0.16);
 }
 
+body.theme-dark .wellness-status-explanation,
+body.theme-dark .wellness-confidence-label,
+body.theme-dark .wellness-recommendation-copy p {
+    color: #cbd9f1;
+}
+
+body.theme-dark .wellness-section-label,
+body.theme-dark .wellness-visual-label {
+    color: #9fb2d2;
+}
+
+body.theme-dark .wellness-mini-label {
+    color: #b7c8e4;
+}
+
 body.theme-dark .mood-check-card,
 body.theme-dark .mood-trends-card {
     border-color: rgba(127, 145, 175, 0.24);

@@ -1777,7 +1777,7 @@ def register_routes(app):
 
     def build_weekly_wellness_rows(user, days=7):
         """Build a rolling window of summarized wellness rows for trend analysis."""
-        end_date = date.today()
+        end_date = app_today()
         start_date = end_date - timedelta(days=days - 1)
         lifestyle_logs = (
             LifestyleLog.query.filter(
@@ -1810,37 +1810,56 @@ def register_routes(app):
                 "exercise_entries": [],
                 "food_entries": [],
             }
+            has_lifestyle_data = False
+            if lifestyle_log:
+                has_lifestyle_data = any(
+                    [
+                        (lifestyle_log.sleep_hours or 0) > 0,
+                        (lifestyle_log.water_intake_liters or 0) > 0,
+                        (lifestyle_log.exercise_minutes or 0) > 0,
+                        bool(parsed_notes["exercise_entries"]),
+                        bool(parsed_notes["food_entries"]),
+                        (lifestyle_log.diet_quality or "").strip().lower() not in {"", "not logged"},
+                    ]
+                )
             exercise_summary = summarize_daily_exercise(
                 parsed_notes["exercise_entries"],
-                fallback_minutes=lifestyle_log.exercise_minutes if lifestyle_log else 0,
+                fallback_minutes=lifestyle_log.exercise_minutes if has_lifestyle_data else 0,
             )
             food_summary = summarize_daily_food(
                 parsed_notes["food_entries"],
-                fallback_category=lifestyle_log.diet_quality if lifestyle_log else "",
+                fallback_category=lifestyle_log.diet_quality if has_lifestyle_data else "",
+            )
+            sleep_hours = lifestyle_log.sleep_hours if has_lifestyle_data and lifestyle_log.sleep_hours > 0 else None
+            exercise_minutes = lifestyle_log.exercise_minutes if has_lifestyle_data and lifestyle_log.exercise_minutes > 0 else None
+            water_intake = (
+                lifestyle_log.water_intake_liters
+                if has_lifestyle_data and lifestyle_log.water_intake_liters > 0
+                else None
             )
             rows.append(
                 {
                     "date": row_date,
                     "mood": mental_log.mood if mental_log else "Okay",
                     "stress_level": mental_log.stress_level if mental_log else None,
-                    "sleep_hours": lifestyle_log.sleep_hours if lifestyle_log else None,
-                    "sleep_duration": lifestyle_log.sleep_hours if lifestyle_log else None,
+                    "sleep_hours": sleep_hours,
+                    "sleep_duration": sleep_hours,
                     "sleep_quality": getattr(lifestyle_log, "sleep_quality", None) if lifestyle_log else None,
-                    "physical_activity": lifestyle_log.exercise_minutes if lifestyle_log else None,
-                    "exercise_minutes": lifestyle_log.exercise_minutes if lifestyle_log else None,
-                    "water_intake": lifestyle_log.water_intake_liters if lifestyle_log else None,
+                    "physical_activity": exercise_minutes,
+                    "exercise_minutes": exercise_minutes,
+                    "water_intake": water_intake,
                     "heart_rate": getattr(lifestyle_log, "heart_rate", None) if lifestyle_log else None,
                     "daily_steps": getattr(lifestyle_log, "daily_steps", None) if lifestyle_log else None,
-                    "food_classification": food_summary["label"],
-                    "exercise_summary": exercise_summary["label"],
+                    "food_classification": food_summary["label"] if has_lifestyle_data else "Not logged",
+                    "exercise_summary": exercise_summary["label"] if has_lifestyle_data else "No Activity",
                     "hydration_status": (
                         "Low Hydration"
-                        if lifestyle_log and lifestyle_log.water_intake_liters < 1.5
+                        if water_intake is not None and water_intake < 1.5
                         else "Hydration Level Supporting PCOS Management"
-                        if lifestyle_log
+                        if water_intake is not None
                         else None
                     ),
-                    "has_user_data": bool(lifestyle_log or mental_log),
+                    "has_user_data": bool(has_lifestyle_data or mental_log),
                 }
             )
 

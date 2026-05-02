@@ -70,6 +70,9 @@ def _summarize_week(rows):
     logged_days = 0
 
     for row in rows:
+        if row.get("has_user_data") is False:
+            continue
+
         sleep_value = _extract_first_number(row, ["sleep_hours", "sleep_duration"])
         hydration_value = _extract_first_number(row, ["water_intake"])
         exercise_value = _extract_first_number(row, ["physical_activity", "exercise_minutes"])
@@ -173,13 +176,16 @@ def build_weekly_chart_points(daily_rows):
     for index, row in enumerate(rows):
         row_date = row.get("date")
         label = row_date.strftime("%a") if hasattr(row_date, "strftime") else fallback_labels[index]
-        raw_values.append(_calculate_daily_wellness_score(row))
+        raw_values.append(_calculate_daily_wellness_score(row) if row.get("has_user_data", True) else None)
         labels.append(label)
 
     chart_points = []
     for index, value in enumerate(raw_values):
-        normalized = _clamp((value + 0.25) / 1.0, 0.0, 1.0)
-        height = round(30 + (normalized * 40))
+        if value is None:
+            height = 18
+        else:
+            normalized = _clamp((value + 0.25) / 1.0, 0.0, 1.0)
+            height = round(30 + (normalized * 40))
         chart_points.append({"label": labels[index], "height": height})
 
     return chart_points
@@ -222,6 +228,7 @@ def build_weekly_wellness_trend(daily_rows):
     rows = list(daily_rows or [])
     current_week_rows = rows[-7:]
     current_week_summary = _summarize_week(current_week_rows)
+    model_rows = [row for row in current_week_rows if row.get("has_user_data", True)]
     logged_days = current_week_summary["logged_days"]
 
     if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
@@ -243,7 +250,7 @@ def build_weekly_wellness_trend(daily_rows):
         }
 
     try:
-        prediction_input = build_weekly_prediction_input(current_week_rows)
+        prediction_input = build_weekly_prediction_input(model_rows)
         predicted_label = predict_wellness(prediction_input)
         model_bundle = get_weekly_wellness_trend_bundle()
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
@@ -264,7 +271,7 @@ def build_weekly_wellness_trend(daily_rows):
             "has_sufficient_data": True,
         }
 
-    factors = identify_weekly_trend_factors(current_week_rows, predicted_label=predicted_label)
+    factors = identify_weekly_trend_factors(model_rows, predicted_label=predicted_label)
     tone_map = {
         "Improving": "success",
         "Stable": "info",
