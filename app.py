@@ -80,7 +80,23 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260502-stylefix")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260502-appointmentsfix")
+
+
+ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
+
+
+def looks_like_unreadable_encrypted_text(value):
+    if not isinstance(value, str):
+        return False
+    return bool(ENCRYPTED_TEXT_RE.fullmatch(value.strip()))
+
+
+def decrypt_display_text(value):
+    decrypted_value = decrypt_text(value)
+    if looks_like_unreadable_encrypted_text(decrypted_value):
+        return ""
+    return decrypted_value or ""
 
 
 def app_now():
@@ -258,7 +274,7 @@ def unpack_appointment_meta_for_push(notes_blob):
         "status": "scheduled",
         "notes_text": "",
     }
-    notes_blob = decrypt_text(notes_blob)
+    notes_blob = decrypt_display_text(notes_blob)
     if not notes_blob or not notes_blob.startswith("__META__"):
         return default_meta
     try:
@@ -1541,7 +1557,7 @@ def register_routes(app):
             "exercise_entries": [],
             "food_entries": [],
         }
-        decrypted_blob = decrypt_text(note_blob)
+        decrypted_blob = decrypt_display_text(note_blob)
         if not decrypted_blob:
             return parsed
 
@@ -1892,19 +1908,26 @@ def register_routes(app):
         return encrypt_text("__META__" + json.dumps(meta))
 
     def unpack_appointment_notes(notes_blob):
+        decrypted_blob = decrypt_display_text(notes_blob)
         default_meta = {
             "specialty": "General Checkup",
             "location": "Clinic location",
             "reminder_enabled": False,
             "status": "scheduled",
-            "notes_text": notes_blob or "",
+            "notes_text": decrypted_blob if decrypted_blob and not decrypted_blob.startswith("__META__") else "",
         }
-        notes_blob = decrypt_text(notes_blob)
-        if not notes_blob or not notes_blob.startswith("__META__"):
+        if not decrypted_blob or not decrypted_blob.startswith("__META__"):
             return default_meta
         try:
-            parsed = json.loads(notes_blob.replace("__META__", "", 1))
-            return {**default_meta, **parsed}
+            parsed = json.loads(decrypted_blob.replace("__META__", "", 1))
+            return {
+                **default_meta,
+                "specialty": parsed.get("specialty") or default_meta["specialty"],
+                "location": parsed.get("location") or default_meta["location"],
+                "reminder_enabled": bool(parsed.get("reminder_enabled")),
+                "status": parsed.get("status") or default_meta["status"],
+                "notes_text": decrypt_display_text(parsed.get("notes_text", "")),
+            }
         except json.JSONDecodeError:
             return default_meta
 
@@ -1981,7 +2004,7 @@ def register_routes(app):
         all_appointments = Appointment.query.filter(Appointment.user_id == user.id).order_by(Appointment.appointment_date.asc()).all()
         decorated = []
         for appointment in all_appointments:
-            appointment.prescription = decrypt_text(appointment.prescription)
+            appointment.prescription = decrypt_display_text(appointment.prescription)
             meta = unpack_appointment_notes(appointment.notes)
             decorated.append(
                 {
@@ -2034,7 +2057,7 @@ def register_routes(app):
         return encrypt_text("__CYCLE__" + json.dumps(payload))
 
     def unpack_cycle_details(stored_value):
-        decrypted_value = decrypt_text(stored_value)
+        decrypted_value = decrypt_display_text(stored_value)
         fallback = {"symptoms": decrypted_value or "", "notes": ""}
         if not decrypted_value or not decrypted_value.startswith("__CYCLE__"):
             return fallback
@@ -2049,7 +2072,7 @@ def register_routes(app):
             for field_name in field_names:
                 raw_value = getattr(record, field_name, None)
                 if isinstance(raw_value, str) and raw_value:
-                    setattr(record, field_name, decrypt_text(raw_value))
+                    setattr(record, field_name, decrypt_display_text(raw_value))
         return records
 
     def medication_log_window(target_day=None):

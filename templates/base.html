@@ -141,7 +141,7 @@
             </a>
         </aside>
         <main class="main-content">
-            <div class="content-shell">
+            <div class="content-shell content-shell-{{ (request.endpoint or 'default')|replace('_', '-') }}">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     <script id="notification-config" type="application/json">
                         {{ {

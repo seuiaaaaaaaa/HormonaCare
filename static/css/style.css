@@ -800,6 +800,7 @@ body.theme-dark .history-note {
     border-color: #31456a;
     background: #162238;
     color: var(--ink);
+    word-break: break-all;
 }
 
 body.theme-dark .history-follow-up strong {
@@ -4564,11 +4565,14 @@ select {
 }
 
 .appointments-layout {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1.45fr);
     gap: 24px;
     align-items: flex-start;
     min-width: 0;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .appointments-layout-single {
@@ -4578,10 +4582,17 @@ select {
 .appointments-col {
     flex: 1;
     min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .appointments-col-full {
     width: 100%;
+}
+
+.content-shell-appointments {
+    width: 100%;
+    margin: 0;
 }
 
 .appointments-section-head {
@@ -4613,6 +4624,7 @@ select {
 .appt-card-stack {
     display: grid;
     gap: 18px;
+    min-width: 0;
 }
 
 .appt-card,
@@ -4623,6 +4635,9 @@ select {
     box-shadow: var(--shadow);
     padding: 20px;
     min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .appt-top {
@@ -4630,6 +4645,12 @@ select {
     justify-content: space-between;
     gap: 14px;
     align-items: flex-start;
+    min-width: 0;
+}
+
+.appt-top > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .appt-top h3,
@@ -4652,6 +4673,8 @@ select {
     text-align: right;
     display: grid;
     gap: 6px;
+    flex: 0 0 auto;
+    max-width: 44%;
 }
 
 .appt-date-block span {
@@ -4666,6 +4689,13 @@ select {
     margin: 16px 0 12px;
     color: #5f78a1;
     font-weight: 600;
+    min-width: 0;
+}
+
+.appt-inline-meta > *,
+.history-primary-meta > * {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .appt-meta-line {
@@ -4718,11 +4748,15 @@ select {
     margin-bottom: 16px;
     overflow-wrap: anywhere;
     word-break: break-word;
+    white-space: pre-wrap;
+    max-width: 100%;
+    min-width: 0;
 }
 
 .history-note {
     border-color: var(--line);
     background: #fbfdff;
+    word-break: break-all;
 }
 
 .history-specialty {
@@ -4744,6 +4778,7 @@ select {
     gap: 8px;
     color: #5f78a1;
     font-weight: 700;
+    min-width: 0;
 }
 
 .history-meta-divider {
@@ -4771,6 +4806,8 @@ select {
     display: grid;
     gap: 8px;
     margin-bottom: 16px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .history-note-block .history-note {
@@ -7282,6 +7319,14 @@ body.theme-dark .settings-password-method span:last-child {
 
     .profile-meta-list-personal {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .appointments-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .content-shell-appointments {
+        width: 100%;
     }
 
     .app-shell,
