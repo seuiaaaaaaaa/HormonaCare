@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set taken_count = medications|selectattr('status', 'equalto', 'taken')|list|length %}
+{% set total_count = medications|length %}
+{% set percent = ((taken_count / total_count) * 100) if total_count else 0 %}
+
+<section class="page-head with-action">
+    <div>
+        <h1><span class="title-icon blue"><span class="nav-icon nav-pill"></span></span> PCOS Medication Tracker</h1>
+        <p>Log daily medications and supplements that support your PCOS care plan.</p>
+    </div>
+    <div class="page-head-actions">
+        <button class="dark-button" type="button" onclick="openMedicationModal()">+ Add Medication</button>
+    </div>
+</section>
+
+<section class="panel-card progress-panel meds-progress-panel">
+    <div class="progress-copy">
+        <h3>Today's PCOS Routine</h3>
+        <p>You have logged {{ taken_count }} out of {{ total_count }} medications or supplements in your PCOS routine today.</p>
+        <div class="wide-progress">
+            <span style="width: {{ percent }}%"></span>
+        </div>
+    </div>
+    <div class="progress-circle">{{ percent|round|int }}%</div>
+</section>
+
+<section class="subsection-title">
+    <h2><span class="section-icon slate"></span> PCOS Schedule</h2>
+</section>
+
+<section class="med-schedule-list">
+    {% for medication in medications %}
+        <article class="schedule-card clean-med-card {% if medication.status == 'taken' %}done{% elif medication.status == 'pending' %}current{% endif %}">
+            <div class="schedule-left">
+                <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                    <input type="hidden" name="status" value="{{ 'pending' if medication.status == 'taken' else 'taken' }}">
+                    <button class="check-badge med-check {% if medication.status == 'taken' %}is-done{% endif %}" type="submit">{{ '&#10003;'|safe if medication.status == 'taken' else '' }}</button>
+                </form>
+                <div>
+                    <h3 class="{% if medication.status == 'taken' %}struck{% endif %}">{{ medication.name }}</h3>
+                    <p>{{ medication.dosage }} <span class="subtle-dot"></span> {{ medication.notes or 'Take with food' }}</p>
+                </div>
+            </div>
+            <div class="schedule-right">
+                <span class="time-label {% if medication.status == 'pending' %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') }}</span>
+                <form
+                    method="post"
+                    action="{{ url_for('medication_delete', medication_id=medication.id) }}"
+                    class="med-delete-form"
+                    data-confirm-dialog
+                    data-confirm-title="Delete medication?"
+                    data-confirm-message="This will remove {{ medication.name }} from your PCOS routine."
+                    data-confirm-action="Delete Medication"
+                >
+                    <button class="med-delete-button" type="submit" aria-label="Delete {{ medication.name }}" title="Delete {{ medication.name }}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 8h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 8z" fill="currentColor"></path>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </article>
+    {% else %}
+        <div class="empty-state">No medications yet in your PCOS routine.</div>
+    {% endfor %}
+</section>
+
+<section class="med-adherence-banner">
+    <strong>Adherence Reminder:</strong>
+    Consistent medication timing is key for managing insulin resistance in PCOS. Set alarms in the app to avoid missing doses.
+</section>
+
+<section class="lifestyle-actions medication-history-actions">
+    <a class="history-button" href="{{ url_for('medication_history') }}">
+        <span class="history-button-icon" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="none">
+                <path d="M10 5.5V10L13 11.75M17 10A7 7 0 1 1 14.95 5.05L17 5M17 2.75V5H14.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+        </span>
+        <span>Medication History</span>
+    </a>
+</section>
+
+<div class="modal-backdrop" id="medication-modal" hidden onclick="closeMedicationModal()">
+    <div class="modal-card medication-modal" onclick="event.stopPropagation()">
+        <button class="modal-close" type="button" onclick="closeMedicationModal(); return false;">&times;</button>
+        <h2>Add New Medication</h2>
+        <p>Enter the details of your medication or supplement and set up reminders for your PCOS routine.</p>
+        <form method="post" class="form-grid">
+            <div class="two-up-form">
+                <label>Medication Name *<input type="text" name="name" placeholder="e.g., Metformin" required></label>
+                <label>Dosage *<input type="text" name="dosage" placeholder="e.g., 500mg" required></label>
+            </div>
+            <label>Frequency
+                <select name="frequency">
+                    <option>Daily</option>
+                    <option>Twice Daily</option>
+                    <option>Weekly</option>
+                </select>
+            </label>
+            <div class="two-up-form">
+                <label>Start Date *<input type="date" name="start_date" required></label>
+                <label>End Date (Optional)<input type="date" name="end_date"></label>
+            </div>
+            <label>Time(s) *<input type="time" name="time_of_day" required></label>
+            <label>Notes (Optional)<textarea name="notes" rows="3" placeholder="Any additional information..."></textarea></label>
+            <label class="reminder-toggle">
+                <div>
+                    <strong>Enable Reminders</strong>
+                    <p>Get notified when it's time to take this medication as part of your PCOS support plan</p>
+                </div>
+                <input type="checkbox" name="reminder_enabled">
+            </label>
+            <div class="modal-actions">
+                <button type="submit" class="schedule-button meds-submit">Add Medication</button>
+                <button type="button" class="outline-wide" onclick="closeMedicationModal(); return false;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openMedicationModal() {
+    const modal = document.getElementById("medication-modal");
+    if (modal) modal.hidden = false;
+}
+
+function closeMedicationModal() {
+    const modal = document.getElementById("medication-modal");
+    if (modal) modal.hidden = true;
+}
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        closeMedicationModal();
+    }
+});
+</script>
+{% endblock %}

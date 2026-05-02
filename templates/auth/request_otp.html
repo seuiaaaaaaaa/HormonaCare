@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block auth_content %}
+<section class="auth-center-shell">
+    <div class="auth-mock-card">
+        <div class="auth-heart-badge"></div>
+        <h1>Email OTP</h1>
+        <p class="auth-subtitle">Enter your HormonaCare email and we'll send a one-time code.</p>
+        <form method="post" class="form-grid auth-form-tight" novalidate>
+            <label>Email
+                <div class="auth-input-wrap {% if form_errors.username %}is-invalid{% endif %}">
+                    <span class="auth-input-icon user"></span>
+                    <input type="email" name="username" value="{{ form_values.username }}" placeholder="you@example.com" required>
+                </div>
+                {% if form_errors.username %}<small class="field-error">{{ form_errors.username }}</small>{% endif %}
+            </label>
+            <button type="submit" class="auth-gradient-button">Send OTP</button>
+        </form>
+        <p class="auth-footer-link">Already have your code? <a href="{{ url_for('verify_otp') }}">Verify OTP</a></p>
+        <p class="auth-footer-link">Want to use your password instead? <a href="{{ url_for('login') }}">Back to Sign In</a></p>
+    </div>
+</section>
+{% endblock %}

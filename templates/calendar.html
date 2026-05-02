@@ -1,0 +1,427 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1><span class="title-icon pink"><span class="nav-icon nav-calendar"></span></span><span class="cycle-flower-title" aria-hidden="true"></span> PCOS Cycle Insight Calendar</h1>
+        <p>Track your cycle and review PCOS-aware insights shaped by your recent logs.</p>
+    </div>
+    <button class="dark-button period-log-button" type="button" onclick="openCycleModal(currentSelectedCycleDate)">
+        <span class="button-drop-icon" aria-hidden="true"></span>
+        Log Period
+    </button>
+</section>
+
+<section class="calendar-layout">
+    <div class="calendar-main">
+        <div class="calendar-top">
+            <article class="panel-card side-focus cycle-insights-card">
+                <div class="cycle-insights-header">
+                    <div class="ovulation-ring"></div>
+                    <div class="cycle-insights-heading">
+                        <span class="cycle-insights-kicker">PCOS forecast</span>
+                        <h3>PCOS Cycle Insights</h3>
+                        <p class="cycle-insights-summary">
+                            {% if cycle_info.needs_flow_log_prompt %}
+                                Please log your flow to keep your cycle timing up to date.
+                            {% else %}
+                                {{ cycle_info.insight_summary }}
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="cycle-insights-grid">
+                    <div class="prediction-box cycle-insights-prediction">
+                        <div class="prediction-box-top">
+                            <span class="prediction-label">PCOS Period Outlook</span>
+                            <span class="prediction-badge">
+                                {% if cycle_info.needs_flow_log_prompt %}
+                                    Update needed
+                                {% elif cycle_info.prediction_ready %}
+                                    Adaptive PCOS estimate
+                                {% else %}
+                                    Learning PCOS pattern
+                                {% endif %}
+                            </span>
+                        </div>
+                        <strong>{{ cycle_info.prediction_text }}</strong>
+                        <p class="prediction-status">
+                            {% if cycle_info.needs_flow_log_prompt %}
+                                Please log your flow to keep your cycle timing up to date.
+                            {% else %}
+                                {{ cycle_info.prediction_basis }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="cycle-insights-meta">
+                        <div class="insight-chip">
+                            <span class="status-line">PCOS confidence</span>
+                            <strong>{{ cycle_info.confidence_message }}</strong>
+                        </div>
+                        <div class="insight-chip">
+                            <span class="status-line">PCOS pattern</span>
+                            <strong>{{ cycle_info.pattern_summary }}</strong>
+                        </div>
+                        {% if cycle_info.average_cycle_length and cycle_info.prediction_ready %}
+                            <div class="insight-chip">
+                                <span class="status-line">Average cycle</span>
+                                <strong>{{ cycle_info.average_cycle_length }} days</strong>
+                                {% if cycle_info.min_cycle_length and cycle_info.max_cycle_length %}
+                                    <span class="insight-support">Recent range {{ cycle_info.min_cycle_length }}-{{ cycle_info.max_cycle_length }} days</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        {% if cycle_info.period_length_label != 'Not enough logged flow data' %}
+                            <div class="insight-chip">
+                                <span class="status-line">Menstruation length</span>
+                                <strong>{{ cycle_info.period_length_label }}</strong>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if cycle_info.anovulation_warning %}
+                    <p class="pcos-note">{{ cycle_info.anovulation_warning }}</p>
+                {% else %}
+                    <p class="pcos-note">{{ cycle_info.uncertainty_note }}</p>
+                {% endif %}
+            </article>
+        </div>
+
+        <article class="panel-card calendar-board">
+            <div class="calendar-head">
+                <h3><span class="month-icon"></span> {{ calendar_month }}</h3>
+                <div class="calendar-nav">
+                    <a class="calendar-nav-link" href="{{ url_for('calendar', view_month=previous_month, selected=selected_date.strftime('%Y-%m-%d')) }}" aria-label="Previous month">&lt;</a>
+                    <a class="calendar-nav-link" href="{{ url_for('calendar', view_month=next_month, selected=selected_date.strftime('%Y-%m-%d')) }}" aria-label="Next month">&gt;</a>
+                </div>
+            </div>
+            <div class="calendar-weekdays">
+                <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+            </div>
+            <div class="calendar-grid">
+                {% for cell in calendar_days %}
+                    {% if cell %}
+                        <button
+                            type="button"
+                            class="calendar-cell {{ cell.phase }} {% if cell.period_start %}period-start{% endif %} {% if cell.is_today %}today{% endif %} {% if cell.selected %}selected{% endif %}"
+                            onclick="selectCycleDate('{{ cell.date_iso }}', this)"
+                            data-date="{{ cell.date_iso }}"
+                            data-phase="{{ cell.phase_name }}"
+                            data-cycle-day="{{ cell.cycle_day }}"
+                            data-cycle-day-label="{{ cell.cycle_day_label }}"
+                            data-flow="{{ cell.flow_level }}"
+                            data-period-start="{{ 'true' if cell.period_start else 'false' }}"
+                            data-symptoms="{{ cell.symptoms }}"
+                            data-notes="{{ cell.notes }}"
+                            data-has-data="{{ 'true' if cell.has_data else 'false' }}"
+                        >
+                            <span class="calendar-number">{{ cell.day }}</span>
+                            <span class="calendar-glyph">
+                                {% if cell.phase == 'period' %}
+                                    <span class="glyph-drop" aria-hidden="true"></span>
+                                {% elif cell.phase == 'ovulation' %}
+                                    <span class="glyph-sun" aria-hidden="true"></span>
+                                {% elif cell.phase == 'fertile' %}
+                                    <span class="glyph-flower" aria-hidden="true"></span>
+                                {% endif %}
+                            </span>
+                        </button>
+                    {% else %}
+                        <div class="calendar-cell empty"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </article>
+
+        <div class="calendar-under">
+            <article class="cycle-info-warning">
+                <div class="warning-icon"></div>
+                <div>
+                    <strong>
+                        {% if cycle_info.needs_flow_log_prompt %}
+                            Please log your flow to keep your cycle timing up to date.
+                        {% elif cycle_info.anovulation_warning %}
+                            {{ cycle_info.anovulation_warning }}
+                        {% elif cycle_prompts %}
+                            {{ cycle_prompts[0] }}
+                        {% else %}
+                            {{ cycle_info.tracking_message }}
+                        {% endif %}
+                    </strong>
+                    {{ cycle_prompts[1] if cycle_prompts|length > 1 else cycle_info.uncertainty_note }}
+                </div>
+            </article>
+        </div>
+    </div>
+
+    <div class="calendar-side">
+        <a class="panel-card legend-card legend-card-link" href="{{ url_for('cycle_phases') }}" aria-label="Open the cycle phase guide">
+            <div class="legend-card-head">
+                <h3>LEGEND</h3>
+                <span class="legend-card-action">
+                    Learn phases
+                    <span class="legend-card-arrow" aria-hidden="true"></span>
+                </span>
+            </div>
+            <div class="legend-row"><span class="legend-dot period-start"></span> Period Start</div>
+            <div class="legend-row"><span class="legend-dot period"></span> Continuing Period Day</div>
+            {% if cycle_info.phase_estimation_enabled %}
+                <div class="legend-row"><span class="legend-dot fertile"></span> Possible Follicular / Fertile Window</div>
+                <div class="legend-row"><span class="legend-dot ovulation"></span> Possible Ovulation</div>
+                <div class="legend-row"><span class="legend-dot luteal"></span> Luteal Phase</div>
+                <p class="legend-note">These highlights adjust as more PCOS cycle and symptom logs are recorded.</p>
+            {% elif cycle_info.has_cycle_history %}
+                <p class="legend-note">We're still learning your PCOS pattern. More phase detail appears after a few logged cycles.</p>
+            {% endif %}
+            <p class="legend-cta">Tap to open a simple guide for each phase and why timing can vary from person to person.</p>
+        </a>
+
+        <article class="panel-card cycle-day-detail">
+            <div class="panel-head">
+                <h3 id="selected-day-label">{{ selected_entry.date_label }}</h3>
+                <span class="mini-tag" id="selected-day-phase">{{ selected_entry.phase }}</span>
+            </div>
+            <div class="cycle-day-detail-grid">
+                <div class="cycle-stat-card">
+                    <span class="status-line">Cycle Day</span>
+                    <strong id="selected-cycle-day">{{ selected_entry.cycle_day }}</strong>
+                </div>
+                <div class="cycle-stat-card">
+                    <span class="status-line">Flow</span>
+                    <strong id="selected-flow-level">{{ selected_entry.flow_level }}</strong>
+                </div>
+            </div>
+            <div class="cycle-detail-list">
+                <div class="cycle-detail-item">
+                    <span class="cycle-detail-label">Symptoms</span>
+                    <p id="selected-symptoms">{{ selected_entry.symptoms or 'No symptoms logged yet.' }}</p>
+                </div>
+                <div class="cycle-detail-item">
+                    <span class="cycle-detail-label">Notes</span>
+                    <p id="selected-notes">{{ selected_entry.notes or 'No notes for this day.' }}</p>
+                </div>
+            </div>
+            <div class="smart-prompt-actions">
+                <button type="button" class="inline-action" onclick="openCycleModal(currentSelectedCycleDate)">Edit Day Log</button>
+                <form method="post" id="mark-period-form">
+                    <input type="hidden" name="log_date" id="mark-period-date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="mark_period_start" value="1">
+                    <input type="hidden" name="cycle_day" value="1">
+                    <button type="submit" class="inline-action muted">Mark Period Start</button>
+                </form>
+                <form method="post" id="end-period-form">
+                    <input type="hidden" name="log_date" id="end-period-date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="save_day_details" value="1">
+                    <input type="hidden" name="end_period" value="1">
+                    <input type="hidden" name="cycle_day" id="end-period-cycle-day" value="{{ selected_entry.cycle_day_value }}">
+                    <input type="hidden" name="flow_level" value="No Flow">
+                    <button type="submit" class="inline-action muted">End Period</button>
+                </form>
+                <form
+                    method="post"
+                    id="delete-cycle-form"
+                    data-confirm-dialog
+                    data-confirm-title="Remove day log?"
+                    data-confirm-message="This will remove the saved cycle log for {{ selected_entry.date_label }}."
+                    data-confirm-action="Remove Day Log"
+                >
+                    <input type="hidden" name="log_date" id="delete-cycle-date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="delete_day_log" value="1">
+                    <button type="submit" class="inline-action danger-light">Remove Day Log</button>
+                </form>
+            </div>
+        </article>
+    </div>
+</section>
+
+<div class="modal-backdrop" id="cycle-log-modal" hidden onclick="closeCycleModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <button class="modal-close" type="button" onclick="closeCycleModal(); return false;">&times;</button>
+        <h2>Log Day Details - <span id="modal-date-label">{{ selected_date.strftime('%b %d, %Y') }}</span></h2>
+        <p>Track your symptoms and flow for this day. PCOS tracking stays flexible, so no fixed duration is assumed.</p>
+        <form method="post" class="form-grid">
+            <input type="hidden" name="log_date" id="cycle-log-date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
+            <input type="hidden" name="mark_period_start" id="mark-period-start-flag" value="">
+            <input type="hidden" name="save_day_details" value="1">
+            <label>Cycle Day
+                <input type="number" name="cycle_day" id="cycle-day-field" min="1" value="{{ selected_entry.cycle_day_value }}">
+            </label>
+            <label>
+                <input type="checkbox" name="period_start" id="period-start-checkbox" value="1" {% if selected_entry.period_start %}checked{% endif %}>
+                This day is the start of a new period (Cycle Day 1)
+            </label>
+            <label>Flow Level
+                <select name="flow_level" id="flow-level-field">
+                    <option value="" {% if not selected_entry.flow_value %}selected{% endif %}>Select flow</option>
+                    <option value="No Flow" {% if selected_entry.flow_value == 'No Flow' %}selected{% endif %}>No Flow</option>
+                    <option value="Light" {% if selected_entry.flow_value == 'Light' %}selected{% endif %}>Light</option>
+                    <option value="Medium" {% if selected_entry.flow_value == 'Medium' %}selected{% endif %}>Medium</option>
+                    <option value="Heavy" {% if selected_entry.flow_value == 'Heavy' %}selected{% endif %}>Heavy</option>
+                </select>
+            </label>
+            <div class="symptom-grid">
+                {% for symptom in ['Cramps', 'Bloating', 'Headache', 'Fatigue', 'Mood swings', 'Acne', 'Breast tenderness', 'Back pain', 'Nausea', 'Irritability'] %}
+                    <label class="symptom-pill" for="symptom-{{ loop.index }}">
+                        <input
+                            type="checkbox"
+                            id="symptom-{{ loop.index }}"
+                            class="symptom-checkbox"
+                            value="{{ symptom }}"
+                            onchange="syncSymptomsFromChecks()"
+                        >
+                        <span>{{ symptom }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+            <label>Symptoms
+                <textarea name="symptoms" id="symptoms-field" rows="3" placeholder="Selected symptoms will appear here">{{ selected_entry.symptoms if selected_entry else '' }}</textarea>
+            </label>
+            <label>Notes (Optional)
+                <textarea name="notes" id="cycle-notes-field" rows="3" placeholder="Any additional notes...">{{ selected_entry.notes if selected_entry else '' }}</textarea>
+            </label>
+            <div class="modal-actions">
+                <button type="submit" class="magenta-button">Save</button>
+                <button type="button" class="outline-wide" onclick="closeCycleModal(); return false;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentSelectedCycleDate = "{{ selected_date.strftime('%Y-%m-%d') }}";
+
+function formatCycleDateLabel(isoDate) {
+    const dateValue = new Date(isoDate + "T00:00:00");
+    return dateValue.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function setSelectedCycleDate(isoDate) {
+    currentSelectedCycleDate = isoDate;
+
+    const input = document.getElementById("cycle-log-date");
+    const label = document.getElementById("modal-date-label");
+    const detailLabel = document.getElementById("selected-day-label");
+    const markPeriodDate = document.getElementById("mark-period-date");
+    const endPeriodDate = document.getElementById("end-period-date");
+    const deleteCycleDate = document.getElementById("delete-cycle-date");
+
+    if (input) input.value = isoDate;
+    if (markPeriodDate) markPeriodDate.value = isoDate;
+    if (endPeriodDate) endPeriodDate.value = isoDate;
+    if (deleteCycleDate) deleteCycleDate.value = isoDate;
+    if (label) label.textContent = formatCycleDateLabel(isoDate);
+    if (detailLabel) detailLabel.textContent = formatCycleDateLabel(isoDate);
+}
+
+function syncSymptomPills(rawValue) {
+    const selectedSymptoms = new Set(
+        (rawValue || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+    );
+
+    document.querySelectorAll(".symptom-checkbox").forEach((checkbox) => {
+        checkbox.checked = selectedSymptoms.has(checkbox.value);
+        checkbox.closest(".symptom-pill")?.classList.toggle("active", checkbox.checked);
+    });
+}
+
+function syncSymptomsFromChecks() {
+    const symptomsField = document.getElementById("symptoms-field");
+    if (!symptomsField) return;
+    const selectedSymptoms = Array.from(document.querySelectorAll(".symptom-checkbox:checked"))
+        .map((checkbox) => checkbox.value.trim())
+        .filter(Boolean);
+    symptomsField.value = selectedSymptoms.join(", ");
+    syncSymptomPills(symptomsField.value);
+}
+
+function selectCycleDate(isoDate, button) {
+    const detailPhase = document.getElementById("selected-day-phase");
+    const detailCycleDay = document.getElementById("selected-cycle-day");
+    const detailFlow = document.getElementById("selected-flow-level");
+    const detailSymptoms = document.getElementById("selected-symptoms");
+    const detailNotes = document.getElementById("selected-notes");
+    const cycleDayInput = document.getElementById("cycle-day-field");
+    const endPeriodCycleDay = document.getElementById("end-period-cycle-day");
+    const flowField = document.getElementById("flow-level-field");
+    const notesField = document.getElementById("cycle-notes-field");
+    const symptomsField = document.getElementById("symptoms-field");
+    const markPeriodFlag = document.getElementById("mark-period-start-flag");
+    const periodStartCheckbox = document.getElementById("period-start-checkbox");
+    setSelectedCycleDate(isoDate);
+    if (markPeriodFlag) markPeriodFlag.value = "";
+    document.querySelectorAll(".calendar-cell.selected").forEach((cell) => cell.classList.remove("selected"));
+    if (button) {
+        button.classList.add("selected");
+        if (detailPhase) detailPhase.textContent = button.dataset.phase || "Not enough data";
+        if (detailCycleDay) detailCycleDay.textContent = button.dataset.cycleDayLabel || "Log more cycle data";
+        if (detailFlow) {
+            detailFlow.textContent = button.dataset.hasData === "true"
+                ? (button.dataset.flow || (button.dataset.periodStart === "true" ? "Period start marked" : "Logged"))
+                : "Not logged";
+        }
+        if (detailSymptoms) detailSymptoms.textContent = button.dataset.symptoms || "No symptoms logged yet.";
+        if (detailNotes) detailNotes.textContent = button.dataset.notes || "No notes for this day.";
+        if (cycleDayInput && button.dataset.cycleDay) cycleDayInput.value = button.dataset.cycleDay;
+        if (endPeriodCycleDay) endPeriodCycleDay.value = button.dataset.cycleDay || "";
+        if (flowField) flowField.value = button.dataset.flow || "";
+        if (notesField) notesField.value = button.dataset.notes || "";
+        if (symptomsField) symptomsField.value = button.dataset.symptoms || "";
+        if (periodStartCheckbox) periodStartCheckbox.checked = button.dataset.periodStart === "true";
+        if (markPeriodFlag && periodStartCheckbox && periodStartCheckbox.checked) markPeriodFlag.value = "1";
+        syncSymptomPills(button.dataset.symptoms || "");
+    }
+}
+
+function openCycleModal(isoDate) {
+    const targetDate = isoDate || currentSelectedCycleDate;
+    if (targetDate) {
+        setSelectedCycleDate(targetDate);
+        const selectedButton = document.querySelector(`.calendar-cell[data-date="${targetDate}"]`);
+        selectCycleDate(targetDate, selectedButton);
+    }
+    const modal = document.getElementById("cycle-log-modal");
+    if (modal) modal.hidden = false;
+}
+
+function closeCycleModal() {
+    const modal = document.getElementById("cycle-log-modal");
+    if (modal) modal.hidden = true;
+}
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        closeCycleModal();
+    }
+});
+
+const symptomsField = document.getElementById("symptoms-field");
+if (symptomsField) {
+    symptomsField.addEventListener("input", function() {
+        syncSymptomPills(this.value);
+    });
+    syncSymptomPills(symptomsField.value);
+}
+
+const periodStartCheckbox = document.getElementById("period-start-checkbox");
+const cycleDayField = document.getElementById("cycle-day-field");
+const markPeriodFlag = document.getElementById("mark-period-start-flag");
+if (periodStartCheckbox) {
+    periodStartCheckbox.addEventListener("change", function() {
+        if (markPeriodFlag) {
+            markPeriodFlag.value = this.checked ? "1" : "";
+        }
+        if (this.checked && cycleDayField) {
+            cycleDayField.value = "1";
+        }
+    });
+    if (periodStartCheckbox.checked && markPeriodFlag) {
+        markPeriodFlag.value = "1";
+    }
+}
+
+setSelectedCycleDate(currentSelectedCycleDate);
+</script>
+{% endblock %}

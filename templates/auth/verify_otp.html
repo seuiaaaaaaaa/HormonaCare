@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block auth_content %}
+<section class="auth-center-shell">
+    <div class="auth-mock-card auth-form-card">
+        <div class="auth-card-topline">Verify email</div>
+        <h1>Confirm your OTP</h1>
+        <p class="auth-subtitle">OTP sent to your email.</p>
+        <form method="post" class="form-grid auth-form-tight" id="verify-email-form" autocomplete="off" novalidate>
+            <input type="text" name="verify_shadow_email" value="" autocomplete="username" tabindex="-1" aria-hidden="true" class="auth-shadow-input">
+            <label>Email
+                <div class="auth-input-wrap {% if form_errors.email %}is-invalid{% endif %}">
+                    <span class="auth-input-icon user"></span>
+                    <input type="email" name="email" value="{{ form_values.email }}" placeholder="you@example.com" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+                </div>
+                {% if form_errors.email %}<small class="field-error">{{ form_errors.email }}</small>{% endif %}
+            </label>
+            <label>OTP code
+                <div class="auth-input-wrap {% if form_errors.token %}is-invalid{% endif %}">
+                    <span class="auth-input-icon shield"></span>
+                    <input type="text" name="token" value="{{ form_values.token }}" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code" required>
+                </div>
+                {% if form_errors.token %}<small class="field-error">{{ form_errors.token }}</small>{% endif %}
+            </label>
+            <div class="auth-inline-note">Enter the latest 6-digit code from your inbox.</div>
+            <div class="auth-button-group">
+                <button type="submit" name="action" value="verify" class="auth-gradient-button">Verify Email</button>
+                <button
+                    type="submit"
+                    name="action"
+                    value="resend"
+                    class="auth-secondary-button auth-resend-button"
+                    data-resend-button
+                    data-default-label="Resend OTP"
+                    data-cooldown-seconds="{{ otp_retry_seconds }}"
+                    {% if otp_retry_seconds %}disabled{% endif %}
+                >
+                    {% if otp_retry_seconds %}Resend OTP in {{ otp_retry_seconds }}s{% else %}Resend OTP{% endif %}
+                </button>
+            </div>
+        </form>
+        <p class="auth-footer-link">Already verified? <a href="{{ url_for('login') }}">Back to login</a></p>
+    </div>
+</section>
+{% endblock %}

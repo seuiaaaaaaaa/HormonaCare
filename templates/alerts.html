@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1><span class="title-icon orange"><span class="nav-icon nav-bell"></span></span> PCOS Insights &amp; Alerts</h1>
+        <p>Review recent patterns that may influence hormones, cycle regularity, energy, and daily PCOS support.</p>
+    </div>
+</section>
+
+{% if sleep_mood_insight %}
+<section class="sleep-mood-insight-card sleep-mood-insight-card-{{ sleep_mood_insight.tone }}">
+    <div class="sleep-mood-insight-icon" aria-hidden="true"></div>
+    <div>
+        <p class="mental-kicker">PCOS Insight</p>
+        <h3>{{ sleep_mood_insight.title }}</h3>
+        <p>{{ sleep_mood_insight.message }}</p>
+        {% if sleep_hours_for_insight %}
+            <div class="sleep-mood-insight-meta">Based on your recent mood, stress, and {{ sleep_hours_for_insight }} hour(s) of sleep.</div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+<section class="alerts-layout">
+    <div class="alerts-column">
+        <div class="subsection-title">
+            <h2><span class="section-icon slate"></span> PCOS Insight Signals</h2>
+        </div>
+        <div class="pattern-stack">
+            {% for pattern in recent_patterns %}
+                <article class="pattern-card {{ pattern.tone }}">
+                    <div class="pattern-icon {{ pattern.tone }}"></div>
+                    <div>
+                        <h3>{{ pattern.title }}</h3>
+                        <p>{{ pattern.meta }}</p>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="alerts-column wide">
+        <div class="subsection-title">
+            <h2><span class="section-icon slate"></span> PCOS Support Alerts</h2>
+        </div>
+        <div class="alert-stack">
+            {% for alert in active_alerts %}
+                <article class="alert-card {{ alert.tone or 'danger' }}">
+                    <div class="alert-icon-col">
+                        <div class="alert-badge {{ alert.tone or 'danger' }}"></div>
+                    </div>
+                    <div class="alert-content">
+                        <h3>{{ alert.title }}</h3>
+                        <p>{{ alert.description }}</p>
+                        <div class="recommend-chip"><strong>PCOS Support Recommendation:</strong> {{ alert.recommendation }}</div>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

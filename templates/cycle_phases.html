@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1><span class="title-icon pink"><span class="nav-icon nav-calendar"></span></span> Cycle Phase Guide</h1>
+        <p>Learn what each menstrual cycle phase usually means in simple language, with the reminder that PCOS can make cycle timing less predictable.</p>
+    </div>
+    <a class="outline-button" href="{{ url_for('calendar') }}">Back to Calendar</a>
+</section>
+
+<section class="cycle-phases-shell">
+    <article class="panel-card cycle-phases-hero">
+        <div>
+            <span class="cycle-phases-kicker">Educational Overview</span>
+            <h2>Understand what your body may be doing at each stage of the cycle, even when PCOS makes timing less regular.</h2>
+            <p class="cycle-phases-hero-copy">
+                These summaries are written to be clear and user-friendly. They paraphrase general menstrual cycle concepts using Mayo Clinic-based educational guidance and are meant to support PCOS awareness, not diagnosis.
+            </p>
+        </div>
+        <div class="cycle-phase-pill-grid">
+            {% for phase in phase_cards %}
+                <div class="cycle-phase-pill cycle-phase-pill-{{ phase.slug }}">
+                    <span class="phase-pill-dot {{ phase.slug }}" aria-hidden="true"></span>
+                    <span>{{ phase.title }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <section class="cycle-phases-grid" aria-label="Cycle phase cards">
+        {% for phase in phase_cards %}
+            <article class="panel-card cycle-phase-card {{ phase.slug }}">
+                <div class="cycle-phase-card-head">
+                    <span class="cycle-phase-icon cycle-phase-icon-{{ phase.slug }}" aria-hidden="true"></span>
+                    <div>
+                        <span class="cycle-phase-eyebrow">{{ phase.eyebrow }}</span>
+                        <h3>{{ phase.title }}</h3>
+                    </div>
+                </div>
+                <p class="cycle-phase-summary">{{ phase.summary }}</p>
+                <ul class="cycle-phase-list">
+                    {% for fact in phase.facts %}
+                        <li>{{ fact }}</li>
+                    {% endfor %}
+                </ul>
+            </article>
+        {% endfor %}
+    </section>
+
+    <article class="panel-card cycle-phases-footer">
+        <p class="cycle-phases-disclaimer">
+            This information is for educational purposes only and is based on general medical references such as Mayo Clinic. It should not replace professional medical advice.
+        </p>
+        <p class="cycle-phases-source">
+            Reference:
+            <a href="{{ source_url }}" target="_blank" rel="noopener noreferrer">Mayo Clinic menstrual cycle overview</a>
+        </p>
+    </article>
+</section>
+{% endblock %}

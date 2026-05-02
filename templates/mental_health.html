@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set mood_meta = {
+    'Awful': {'icon': 'awful', 'tone': 'muted'},
+    'Bad': {'icon': 'bad', 'tone': 'muted'},
+    'Okay': {'icon': 'okay', 'tone': 'warm'},
+    'Good': {'icon': 'good', 'tone': 'good'},
+    'Great': {'icon': 'great', 'tone': 'good'}
+} %}
+<section class="page-head">
+    <div>
+        <h1><span class="title-icon slate"><span class="nav-icon nav-mood"></span></span> Mood &amp; Stress Support</h1>
+        <p>Record mood and stress changes that may interact with hormonal health and PCOS symptoms.</p>
+    </div>
+</section>
+
+<section class="mental-layout">
+    <article class="panel-card mood-check-card">
+        <div class="mental-card-head">
+            <div>
+                <p class="mental-kicker">PCOS Check-In</p>
+                <h3>How are you feeling today?</h3>
+            </div>
+        </div>
+        <form method="post" class="mood-form">
+            <input type="hidden" name="log_date" value="{{ today_date }}">
+            <div class="mood-choice-row">
+                {% for mood in mood_options %}
+                    {% set meta = mood_meta[mood] %}
+                    <label class="mood-choice {{ meta.tone }} {% if selected_mood == mood %}active{% endif %}">
+                        <input type="radio" name="mood" value="{{ mood }}" {% if selected_mood == mood %}checked{% endif %} required>
+                        <span class="mood-face mood-face-{{ meta.icon }}" aria-hidden="true">
+                            <span class="mood-face-eyes"></span>
+                            <span class="mood-face-mouth"></span>
+                        </span>
+                        <span class="mood-label">{{ mood }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+
+            <div class="stress-head">
+                <div>
+                    <h4>Stress Level</h4>
+                    <p class="stress-subcopy">Slide to reflect how intense today feels. Stress patterns may influence overall hormonal balance.</p>
+                </div>
+                <span class="stress-value" id="stress-value">{{ selected_stress }} / 5</span>
+            </div>
+
+            <div class="stress-slider-wrap">
+                <input type="range" min="1" max="5" value="{{ selected_stress }}" name="stress_level" id="stress-slider" class="stress-slider">
+                <div class="stress-scale">
+                    <span>Low Stress</span>
+                    <span>High Stress</span>
+                </div>
+            </div>
+
+            <button type="submit" class="dark-button mood-save-button">Save Daily Log</button>
+        </form>
+    </article>
+
+    <article class="panel-card mood-trends-card">
+        <div class="mental-card-head">
+            <div>
+                <p class="mental-kicker">PCOS Overview</p>
+                <h3><span class="mental-trend-icon" aria-hidden="true"></span> 7-Day Mood &amp; Stress Patterns</h3>
+            </div>
+            <span class="mini-tag">{{ trend_points|length }} days{% if not has_mental_history %} logged{% endif %}</span>
+        </div>
+        {% if trend_points %}
+        <div class="mood-chart-card">
+            <svg class="mood-chart" viewBox="0 0 430 280" aria-hidden="true">
+                <g class="chart-grid">
+                    <line x1="44" y1="28" x2="392" y2="28"></line>
+                    <line x1="44" y1="84" x2="392" y2="84"></line>
+                    <line x1="44" y1="140" x2="392" y2="140"></line>
+                    <line x1="44" y1="196" x2="392" y2="196"></line>
+                    <line x1="44" y1="252" x2="392" y2="252"></line>
+                </g>
+                <g class="chart-y-labels">
+                    {% for level in [5,4,3,2,1] %}
+                        <text x="24" y="{{ 34 + loop.index0 * 56 }}">{{ level }}</text>
+                    {% endfor %}
+                </g>
+                {% set ns = namespace(mood_path='M', stress_path='M') %}
+                {% for point in trend_points %}
+                    {% set x = 52 + loop.index0 * 56 %}
+                    {% set mood_y = 252 - ((point.mood - 1) * 56) %}
+                    {% set stress_y = 252 - ((point.stress - 1) * 56) %}
+                    {% set ns.mood_path = ns.mood_path ~ ' ' ~ x ~ ' ' ~ mood_y ~ (' L' if not loop.last else '') %}
+                    {% set ns.stress_path = ns.stress_path ~ ' ' ~ x ~ ' ' ~ stress_y ~ (' L' if not loop.last else '') %}
+                {% endfor %}
+                <path class="chart-line mood-line" d="{{ ns.mood_path|trim }}"></path>
+                <path class="chart-line stress-line" d="{{ ns.stress_path|trim }}"></path>
+                {% for point in trend_points %}
+                    {% set x = 52 + loop.index0 * 56 %}
+                    {% set mood_y = 252 - ((point.mood - 1) * 56) %}
+                    {% set stress_y = 252 - ((point.stress - 1) * 56) %}
+                    <circle class="chart-point mood-point" cx="{{ x }}" cy="{{ mood_y }}" r="5"></circle>
+                    <circle class="chart-point stress-point" cx="{{ x }}" cy="{{ stress_y }}" r="5"></circle>
+                    <text class="chart-x-label" x="{{ x }}" y="274">{{ point.label }}</text>
+                {% endfor %}
+            </svg>
+        </div>
+        <div class="chart-legend">
+            <span><i class="legend-swatch mood"></i> Mood</span>
+            <span><i class="legend-swatch stress"></i> Stress</span>
+        </div>
+        {% else %}
+        <div class="empty-state">No mood logs yet. Save your first entry to build a PCOS-aware trend.</div>
+        {% endif %}
+    </article>
+</section>
+
+<section class="mood-tip-panel">
+    <div class="mood-tip-icon" aria-hidden="true"><span class="tip-bulb tip-bulb-purple"></span></div>
+    <div>
+        <p class="mental-kicker">Today&apos;s PCOS Guidance</p>
+        <h3>PCOS Mood Support</h3>
+        <p>{{ latest_tip }}</p>
+        <ul class="mood-tip-list">
+            <li>Practicing mindfulness or light yoga may support stress management, which can help keep your PCOS routine steadier.</li>
+            <li>Try keeping a consistent sleep schedule since sleep can affect mood, energy, and overall hormonal health.</li>
+        </ul>
+    </div>
+</section>
+{% endblock %}

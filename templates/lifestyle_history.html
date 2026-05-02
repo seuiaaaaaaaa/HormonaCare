@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1><span class="title-icon green"><span class="nav-icon nav-wave"></span></span> {{ 'Exercise' if history_type == 'exercise' else 'Food' }} History</h1>
+        <p>Full saved history for {{ 'exercise' if history_type == 'exercise' else 'food' }} entries in your PCOS support routine.</p>
+    </div>
+    <a class="dark-button" href="{{ url_for('lifestyle') }}">Back to Lifestyle</a>
+</section>
+
+<section class="panel-card">
+    <div class="panel-head">
+        <div>
+            <h3><span class="section-icon {{ 'red' if history_type == 'exercise' else 'orange' }}"></span> {{ 'Exercise' if history_type == 'exercise' else 'Food' }} Entries</h3>
+            <p class="section-copy">Newest PCOS support entries first.</p>
+        </div>
+    </div>
+
+    <div class="feedback-history-list">
+        {% for entry in history_entries %}
+            <article class="feedback-preview-card feedback-history-card">
+                {% if history_type == 'exercise' %}
+                    <div class="feedback-preview-head">
+                        <strong>{{ entry.activity_type }}</strong>
+                        <span class="feedback-meta">{{ entry.duration_minutes }} min | {{ entry.intensity }}</span>
+                    </div>
+                    <div class="feedback-preview-tag">{{ entry.classification }}</div>
+                    <p class="feedback-preview-copy">{{ entry.feedback }}</p>
+                {% else %}
+                    <div class="feedback-preview-head">
+                        <strong>{{ entry.food_name }}</strong>
+                        <span class="feedback-meta">{{ entry.portion_size }} | {{ entry.food_category }}</span>
+                    </div>
+                    <p class="feedback-preview-copy">{{ entry.feedback }}</p>
+                {% endif %}
+                {% if entry.logged_at %}
+                    <div class="feedback-history-date">{{ entry.logged_at }}</div>
+                {% elif entry.log_date %}
+                    <div class="feedback-history-date">{{ entry.log_date.strftime('%b %d, %Y') }}</div>
+                {% endif %}
+            </article>
+        {% else %}
+            <div class="tip-item">No saved PCOS support entries yet.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

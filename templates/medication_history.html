@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1><span class="title-icon blue"><span class="nav-icon nav-pill"></span></span> Medication History</h1>
+        <p>All medications and supplements you have logged as taken in your PCOS routine.</p>
+    </div>
+    <a class="dark-button" href="{{ url_for('medications') }}">Back to Medications</a>
+</section>
+
+<section class="panel-card">
+    <div class="panel-head">
+        <div>
+            <h3><span class="section-icon slate"></span> Taken Medication Logs</h3>
+            <p class="section-copy">Newest taken entries first.</p>
+        </div>
+        {% if history_count %}
+            <span class="mini-tag">{{ history_count }} total</span>
+        {% endif %}
+    </div>
+
+    <div class="feedback-history-list">
+        {% for entry in history_entries %}
+            <article class="feedback-preview-card feedback-history-card medication-history-card">
+                <div class="feedback-preview-head">
+                    <strong>{{ entry.medication_name }}</strong>
+                </div>
+                <div class="feedback-meta medication-history-meta">
+                    <span>{{ entry.dosage }}</span>
+                    {% if entry.scheduled_time %}
+                        <span class="subtle-dot"></span>
+                        <span>Scheduled {{ entry.scheduled_time.strftime('%I:%M %p') }}</span>
+                    {% endif %}
+                </div>
+                <p class="feedback-preview-copy">{{ entry.notes or 'Logged as taken in your PCOS support routine.' }}</p>
+                <div class="feedback-history-date">Taken {{ entry.taken_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
+            </article>
+        {% else %}
+            <div class="empty-state">No taken medication logs yet.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

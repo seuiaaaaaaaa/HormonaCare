@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1><span class="title-icon pink"><span class="nav-icon nav-user"></span></span> Profile</h1>
+        <p>Personal details and your latest PCOS support summaries in one place.</p>
+    </div>
+    <div class="row-actions">
+        <button class="dark-button" type="button" onclick="openProfileInfoModal()">Edit Profile</button>
+        <a class="outline-button" href="{{ url_for('settings') }}">Settings</a>
+    </div>
+</section>
+
+<section class="profile-layout">
+    <article class="panel-card profile-hero">
+        <div class="profile-hero-main">
+            <div class="profile-avatar">
+                <span>{{ current_user.full_name[:1] }}</span>
+            </div>
+            <div class="profile-hero-copy">
+                <p class="profile-section-label">USER INFORMATION</p>
+                <h2>{{ current_user.full_name }}</h2>
+                <p class="profile-handle">{{ current_user.username }}</p>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel-card profile-section">
+        <div class="panel-head">
+            <div>
+                <h3>Personal Information</h3>
+                <p class="profile-section-copy">Full name, age, and PCOS diagnosis date.</p>
+            </div>
+            <button class="outline-button" type="button" onclick="openProfileInfoModal()">Edit</button>
+        </div>
+        <div class="profile-meta-list profile-meta-list-personal">
+            <div class="profile-detail-card">
+                <span class="status-line">Full Name</span>
+                <strong>{{ personal_info.full_name }}</strong>
+            </div>
+            <div class="profile-detail-card">
+                <span class="status-line">Age</span>
+                <strong>{{ personal_info.age_label }}</strong>
+            </div>
+            <div class="profile-detail-card">
+                <span class="status-line">Diagnosed Date</span>
+                <strong>{{ personal_info.diagnosis_date_label }}</strong>
+            </div>
+            <div class="profile-detail-card">
+                <span class="status-line">Email</span>
+                <strong>{{ personal_info.email }}</strong>
+            </div>
+        </div>
+    </article>
+
+    <section class="profile-card-grid">
+        <article class="panel-card profile-section profile-cycle-summary">
+            <div class="panel-head">
+                <div>
+                    <h3>Quick PCOS Cycle Summary</h3>
+                    <p class="profile-section-copy">For PCOS tracking reference only.</p>
+                </div>
+                <a href="{{ url_for('calendar') }}">View</a>
+            </div>
+            <div class="profile-detail-stack profile-detail-stack-compact">
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Last Period</span>
+                    <strong>{{ quick_stats[0].value }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Cycle Status</span>
+                    <strong>{{ quick_stats[1].value }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Current Streak</span>
+                    <strong>{{ quick_stats[3].value }}</strong>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel-card profile-section">
+            <div class="panel-head">
+                <div>
+                    <h3>PCOS Lifestyle Tracking</h3>
+                    <p class="profile-section-copy">{{ lifestyle_summary.latest_date }}</p>
+                </div>
+                <a href="{{ url_for('lifestyle') }}">Log</a>
+            </div>
+            <div class="profile-detail-stack profile-detail-stack-compact">
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Water</span>
+                    <strong>{{ lifestyle_summary.water }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Sleep</span>
+                    <strong>{{ lifestyle_summary.sleep }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Exercise</span>
+                    <strong>{{ lifestyle_summary.exercise }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Diet</span>
+                    <strong>{{ lifestyle_summary.diet }}</strong>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel-card profile-section">
+            <div class="panel-head">
+                <div>
+                    <h3>PCOS Mood Tracking</h3>
+                    <p class="profile-section-copy">{{ mood_summary.latest_date }}</p>
+                </div>
+                <a href="{{ url_for('mental_health') }}">Log</a>
+            </div>
+            <div class="profile-detail-stack profile-detail-stack-compact">
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Mood</span>
+                    <strong>{{ mood_summary.mood }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Stress</span>
+                    <strong>{{ mood_summary.stress }}</strong>
+                </div>
+                <div class="profile-detail-card profile-detail-card-wide">
+                    <span class="status-line">Check-ins</span>
+                    <strong>{{ mood_summary.checkins }}</strong>
+                </div>
+            </div>
+        </article>
+
+    </section>
+</section>
+
+<div class="modal-backdrop" id="profile-info-modal" hidden onclick="closeProfileInfoModal()">
+    <div class="modal-card profile-modal-card" onclick="event.stopPropagation()">
+        <button class="modal-close" type="button" onclick="closeProfileInfoModal(); return false;">x</button>
+        <h2>Edit Personal Information</h2>
+        <form method="post" action="{{ url_for('profile_personal_info') }}" class="form-grid">
+            <div class="form-grid two-up-form">
+                <label>Full Name
+                    <input type="text" name="full_name" value="{{ personal_info.full_name }}" maxlength="120" required>
+                </label>
+                <label>Age
+                    <input type="number" name="age" min="1" max="120" value="{{ personal_info.age or '' }}">
+                </label>
+            </div>
+            <label>Diagnosed Date (Optional)
+                <input type="date" name="diagnosis_date" value="{{ personal_info.diagnosis_date }}">
+            </label>
+            <div class="modal-actions">
+                <button type="submit" class="dark-button">Save Changes</button>
+                <button type="button" class="outline-wide" onclick="closeProfileInfoModal(); return false;">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openProfileInfoModal() {
+    const modal = document.getElementById("profile-info-modal");
+    if (modal) modal.hidden = false;
+}
+
+function closeProfileInfoModal() {
+    const modal = document.getElementById("profile-info-modal");
+    if (modal) modal.hidden = true;
+}
+
+document.addEventListener("keydown", function(event) {
+    if (event.key === "Escape") {
+        closeProfileInfoModal();
+    }
+});
+</script>
+{% endblock %}

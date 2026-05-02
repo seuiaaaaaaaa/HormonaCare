@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1><span class="title-icon green"><span class="nav-icon nav-wave"></span></span> PCOS Lifestyle &amp; Diet</h1>
+        <p>Log today&apos;s habits to support cycle regularity, energy, and insulin-aware routines.</p>
+    </div>
+</section>
+
+<section class="panel-card lifestyle-section lifestyle-summary-section">
+    <div class="panel-head">
+        <div>
+            <h3><span class="section-icon slate"></span> Today&apos;s PCOS Support Inputs</h3>
+            <p class="section-copy">Add today&apos;s water, sleep, exercise, and food details that may influence PCOS patterns.</p>
+        </div>
+    </div>
+
+    <div class="lifestyle-input-grid">
+        <article class="lifestyle-input-card">
+            <div class="lifestyle-card-head">
+                <h4><span class="section-icon blue"></span> Hydration Support</h4>
+                {% set filled = (latest_log.water_intake_liters * 4)|round(0, 'floor')|int if latest_log else 0 %}
+                <span class="mini-tag">{{ filled }} / 8 glasses</span>
+            </div>
+            <form method="post" action="{{ url_for('lifestyle_water') }}" class="glass-row">
+                {% for i in range(8) %}
+                    <button type="submit" name="glasses" value="{{ i + 1 }}" class="glass {% if i < filled %}filled{% endif %}" aria-label="Set water intake to {{ i + 1 }} glasses"></button>
+                {% endfor %}
+            </form>
+            <p class="tap-note">Tap to log</p>
+        </article>
+
+        <article class="lifestyle-input-card">
+            <div class="lifestyle-card-head">
+                <h4><span class="section-icon indigo"></span> Sleep</h4>
+                <span class="mini-tag">Hormonal support</span>
+            </div>
+            <form method="post" action="{{ url_for('lifestyle_sleep') }}" class="inline-metric-form lifestyle-inline-form">
+                <input class="metric-input" type="number" step="0.1" min="0" max="24" name="sleep_hours" value="{{ latest_log.sleep_hours if latest_log else '' }}" placeholder="e.g. 7.5" aria-label="Sleep hours" title="Sleep hours">
+                <span class="metric-suffix">hrs</span>
+                <button class="metric-save" type="submit">Save</button>
+            </form>
+        </article>
+
+        <article class="lifestyle-input-card">
+            <div class="lifestyle-card-head">
+                <h4><span class="section-icon red"></span> Movement</h4>
+                <span class="mini-tag">PCOS movement support</span>
+            </div>
+            <form method="post" action="{{ url_for('lifestyle_exercise') }}" class="lifestyle-stack-form">
+                <input class="exercise-input exercise-input-wide" type="text" name="activity_type" value="{{ latest_exercise_entry.raw_input.activity_type if latest_exercise_entry else '' }}" placeholder="Activity type" aria-label="Activity type" title="Activity type" required>
+                <div class="lifestyle-form-row">
+                    <input class="exercise-input" type="number" min="0" max="600" name="duration_minutes" value="{{ latest_exercise_entry.raw_input.duration_minutes if latest_exercise_entry else '' }}" placeholder="Minutes" aria-label="Duration in minutes" title="Duration in minutes" required>
+                    <select class="exercise-input exercise-select" name="intensity" aria-label="Exercise intensity" required>
+                        {% set selected_intensity = latest_exercise_entry.raw_input.intensity if latest_exercise_entry else '' %}
+                        <option value="" disabled {% if not selected_intensity %}selected{% endif %}>Intensity</option>
+                        <option value="light" {% if selected_intensity == 'light' %}selected{% endif %}>Light</option>
+                        <option value="moderate" {% if selected_intensity == 'moderate' %}selected{% endif %}>Moderate</option>
+                        <option value="intense" {% if selected_intensity == 'intense' %}selected{% endif %}>Intense</option>
+                    </select>
+                </div>
+                <button class="outline-button lifestyle-submit" type="submit">Save Exercise</button>
+            </form>
+        </article>
+
+        <article class="lifestyle-input-card">
+            <div class="lifestyle-card-head">
+                <h4><span class="section-icon orange"></span> Food Log</h4>
+                <span class="mini-tag">Insulin-aware meal entry</span>
+            </div>
+            <form method="post" action="{{ url_for('quick_food') }}" class="lifestyle-stack-form">
+                <input type="text" name="food_name" placeholder="Food name" value="{{ latest_food_entry.raw_input.food_name if latest_food_entry else '' }}" required>
+                <div class="lifestyle-form-row">
+                    <select name="portion_size" class="food-select" required>
+                        {% set selected_portion = latest_food_entry.raw_input.portion_size if latest_food_entry else '' %}
+                        <option value="" disabled {% if not selected_portion %}selected{% endif %}>Portion</option>
+                        <option value="small" {% if selected_portion == 'small' %}selected{% endif %}>Small</option>
+                        <option value="medium" {% if selected_portion == 'medium' %}selected{% endif %}>Medium</option>
+                        <option value="large" {% if selected_portion == 'large' %}selected{% endif %}>Large</option>
+                    </select>
+                    <select name="food_category" class="food-select" required>
+                        {% set selected_category = latest_food_entry.raw_input.food_category if latest_food_entry else '' %}
+                        <option value="" disabled {% if not selected_category %}selected{% endif %}>Category</option>
+                        <option value="balanced" {% if selected_category == 'balanced' %}selected{% endif %}>Balanced</option>
+                        <option value="protein-rich" {% if selected_category == 'protein-rich' %}selected{% endif %}>Protein-rich</option>
+                        <option value="high sugar" {% if selected_category == 'high sugar' %}selected{% endif %}>High sugar</option>
+                        <option value="fast food" {% if selected_category == 'fast food' %}selected{% endif %}>Fast food</option>
+                    </select>
+                </div>
+                <button class="dark-button lifestyle-submit" type="submit">Save Food</button>
+            </form>
+        </article>
+    </div>
+</section>
+
+<section class="panel-card lifestyle-section">
+    <div class="panel-head">
+        <div>
+            <h3><span class="section-icon pink"></span> Today&apos;s Summary</h3>
+            <p class="section-copy">A quick recap of the lifestyle details logged for today&apos;s PCOS support routine.</p>
+        </div>
+    </div>
+
+    <div class="lifestyle-summary-grid">
+        {% for card in summary_cards %}
+            {% set icon = 'drop' if card.title == 'Hydration' else 'moon' if card.title == 'Sleep' else 'pulse' if card.title == 'Activity Level' else 'meal' %}
+            {% set summary_theme = 'hydration' if card.title == 'Hydration' else 'sleep' if card.title == 'Sleep' else 'activity' if card.title == 'Activity Level' else 'meal' %}
+            {% set has_entry = card.result[:3] != 'No ' %}
+            {% if card.title == 'Hydration' %}
+                {% if has_entry %}
+                    {% set summary_description = "%.1f L of water logged today to support energy and routine consistency."|format(latest_log.water_intake_liters) %}
+                {% else %}
+                    {% set summary_description = "No hydration entry has been logged for today." %}
+                {% endif %}
+            {% elif card.title == 'Sleep' %}
+                {% if has_entry %}
+                    {% set summary_description = "%.1f hours of sleep logged today for your hormonal-support routine."|format(latest_log.sleep_hours) %}
+                {% else %}
+                    {% set summary_description = "No sleep entry has been logged for today." %}
+                {% endif %}
+            {% elif card.title == 'Activity Level' %}
+                {% if has_entry %}
+                    {% set summary_description = latest_exercise_entry.raw_input.activity_type ~ " - " ~ latest_exercise_entry.raw_input.duration_minutes ~ " minutes, " ~ latest_exercise_entry.raw_input.intensity|title ~ " intensity, logged for PCOS movement support." %}
+                {% else %}
+                    {% set summary_description = "No movement details have been logged for today." %}
+                {% endif %}
+            {% else %}
+                {% if has_entry %}
+                    {% set summary_description = latest_food_entry.raw_input.food_name ~ " - " ~ latest_food_entry.raw_input.portion_size|title ~ " portion, " ~ latest_food_entry.raw_input.food_category|replace("-", " ")|title ~ ", logged to watch energy and insulin-related patterns." %}
+                {% else %}
+                    {% set summary_description = "No meal entry has been logged for today." %}
+                {% endif %}
+            {% endif %}
+            <article class="lifestyle-summary-card lifestyle-summary-card-{{ summary_theme }}{% if not has_entry %} lifestyle-summary-card-neutral{% endif %}">
+                <div class="lifestyle-summary-top">
+                    <div class="lifestyle-summary-icon lifestyle-summary-icon-{{ icon }}" aria-hidden="true"></div>
+                    <div class="lifestyle-summary-copy">
+                        <h4>{{ card.title }}</h4>
+                    </div>
+                    <span class="summary-badge {% if has_entry %}summary-badge-{{ summary_theme }}{% else %}summary-badge-neutral{% endif %}">{{ card.result }}</span>
+                </div>
+
+                <p class="summary-description">{{ summary_description }}</p>
+            </article>
+        {% endfor %}
+    </div>
+
+    <div class="lifestyle-actions">
+        <a class="history-button" href="{{ url_for('lifestyle_history', type='exercise') }}">
+            <span class="history-button-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none">
+                    <path d="M4 7.5V12.5M6.5 6V14M13.5 6V14M16 7.5V12.5M4 10H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+            </span>
+            <span>Exercise History</span>
+        </a>
+        <a class="history-button" href="{{ url_for('lifestyle_history', type='food') }}">
+            <span class="history-button-icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none">
+                    <path d="M5.5 4V10M4 4V10M7 4V10M5.5 10V16M13 4V8C13 9.1 13.9 10 15 10V16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+            </span>
+            <span>Food History</span>
+        </a>
+    </div>
+</section>
+
+<section class="panel-card tips-panel">
+    <div class="panel-head">
+        <h3><span class="section-icon pink"></span> PCOS Support Guidance</h3>
+    </div>
+    <div class="tips-list">
+        {% for suggestion in suggestions %}
+            <div class="tip-item">{{ suggestion }}</div>
+        {% else %}
+            <div class="tip-item">Save a lifestyle log to receive PCOS-aware guidance.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

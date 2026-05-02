@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>{% if is_new_account or not metrics.has_user_activity %}Welcome, {{ current_user.full_name }}{% else %}Welcome back, {{ current_user.full_name }}{% endif %}</h1>
+        <p>Here is your daily PCOS support summary based on your logged inputs.</p>
+    </div>
+    {% if metrics.cycle_info.day_number %}
+    <a class="day-pill day-pill-link" href="{{ url_for('calendar') }}">
+        <span class="nav-icon nav-calendar"></span>
+        Day {{ metrics.cycle_info.day_number }} ({{ metrics.cycle_info.phase }})
+    </a>
+    {% endif %}
+</section>
+
+<section class="overview-wellness-grid">
+    <article class="panel-card wellness-prediction-card wellness-prediction-card-{{ metrics.weekly_wellness_trend.tone }}">
+        <div class="wellness-card-header">
+            <div class="wellness-card-title-wrap">
+                <div>
+                    <h3>{{ metrics.weekly_wellness_trend.title }}</h3>
+                </div>
+            </div>
+            <span class="wellness-status-badge wellness-status-badge-{{ metrics.weekly_wellness_trend.tone }}">
+                <span class="wellness-status-dot" aria-hidden="true"></span>
+                {{ metrics.weekly_wellness_trend.predicted_label }}
+            </span>
+        </div>
+
+        <div class="wellness-status-row">
+            <div class="wellness-status-copy">
+                <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
+                    {{ metrics.weekly_wellness_trend.predicted_label }}
+                </p>
+                <p class="wellness-status-explanation">{{ metrics.weekly_wellness_trend.explanation }}</p>
+                {% if metrics.weekly_wellness_trend.confidence_label %}
+                <p class="wellness-confidence-label">PCOS confidence: {{ metrics.weekly_wellness_trend.confidence_label }}</p>
+                {% endif %}
+            </div>
+            {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.chart_points %}
+            <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}" aria-hidden="true">
+                <div class="wellness-visual-meta">
+                    <span class="wellness-visual-label">7-Day PCOS Signals</span>
+                </div>
+                <div class="wellness-mini-trend wellness-mini-trend-{{ metrics.weekly_wellness_trend.tone }}">
+                    {% for point in metrics.weekly_wellness_trend.chart_points %}
+                    <span class="wellness-mini-point">
+                        <span class="wellness-mini-bar-track">
+                            <span class="wellness-mini-bar" style="height: {{ point.height }}%;"></span>
+                        </span>
+                        <span class="wellness-mini-label">{{ point.label }}</span>
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.pattern_highlights %}
+        <div class="wellness-section-label">PCOS Insight Signals</div>
+        <div class="wellness-factor-list">
+            {% for factor in metrics.weekly_wellness_trend.pattern_highlights %}
+                <span class="wellness-factor-chip">{{ factor }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.recommendation %}
+        <div class="wellness-section-label">PCOS Support Recommendation</div>
+        <div class="wellness-recommendation-box">
+            <div class="wellness-recommendation-copy">
+                <span class="wellness-recommendation-tag">PCOS Insight</span>
+                <p>{{ metrics.weekly_wellness_trend.recommendation }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </article>
+</section>
+
+<section class="overview-top-grid">
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon blue"><span class="nav-icon nav-pill"></span></span>
+            <span class="mini-tag">{{ metrics.taken_count }}/{{ metrics.total_count }} Taken</span>
+        </div>
+        <h3>PCOS Medications</h3>
+        <p>{{ metrics.reminders[0] if metrics.reminders else 'No reminders yet. Add your first medication, supplement, or appointment.' }}</p>
+        <div class="thin-progress"><span style="width: {{ ((metrics.taken_count / metrics.total_count) * 100) if metrics.total_count else 0 }}%"></span></div>
+    </article>
+
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon green"><span class="nav-icon nav-wave"></span></span>
+            <span class="mini-tag">On Track</span>
+        </div>
+        <h3>PCOS Lifestyle &amp; Diet</h3>
+        <p class="metric-row">
+            <span>Water {{ metrics.latest_lifestyle.water_intake_liters if metrics.latest_lifestyle else 'Not logged' }}</span>
+            <span>Sleep {{ metrics.latest_lifestyle.sleep_hours ~ 'h' if metrics.latest_lifestyle else 'Not logged' }}</span>
+            <span>Exercise {{ metrics.latest_lifestyle.exercise_minutes ~ 'm' if metrics.latest_lifestyle else 'Not logged' }}</span>
+        </p>
+    </article>
+
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon purple"><span class="nav-icon nav-user"></span></span>
+            <span class="mini-tag">Mood: {{ metrics.latest_mental.mood if metrics.latest_mental else 'Not logged' }}</span>
+        </div>
+        <h3>Mood &amp; Stress Support</h3>
+        <p>{{ metrics.latest_mental.wellness_tip if metrics.latest_mental and metrics.latest_mental.wellness_tip else 'Log your first mood entry to see PCOS-aware guidance based on your own data.' }}</p>
+    </article>
+</section>
+
+<section class="overview-bottom-grid">
+    <article class="panel-card cycle-panel">
+        <div class="panel-head">
+            <h3><span class="section-icon pink"></span> PCOS Cycle Insights</h3>
+            <a href="{{ url_for('calendar') }}">View details</a>
+        </div>
+        <a class="cycle-focus-link" href="{{ url_for('calendar') }}">
+            <div class="cycle-focus-card">
+                <div class="cycle-day-ring">{{ metrics.cycle_info.day_number or '?' }}</div>
+                <h4>
+                    {% if metrics.cycle_info.phase_estimation_enabled and 'Possible Fertile Window' in metrics.cycle_info.phase %}
+                        Possible fertile window
+                    {% elif metrics.cycle_info.phase_estimation_enabled and 'Ovulation' in metrics.cycle_info.phase %}
+                        Possible ovulation window
+                    {% elif 'Menstruation' in metrics.cycle_info.phase or 'Period' in metrics.cycle_info.phase %}
+                        Period log recorded
+                    {% elif metrics.cycle_info.needs_flow_log_prompt %}
+                        Flow update needed
+                    {% elif metrics.cycle_info.limited_data %}
+                        Learning your PCOS pattern
+                    {% else %}
+                        PCOS cycle insight updated
+                    {% endif %}
+                </h4>
+                <p>
+                    {{ metrics.cycle_info.insight_summary }}
+                </p>
+            </div>
+        </a>
+    </article>
+
+    <article class="panel-card">
+        <div class="panel-head">
+            <h3><span class="section-icon slate"></span> Appointments</h3>
+            <a href="{{ url_for('appointments') }}">View all</a>
+        </div>
+        <div class="appointment-stack">
+            {% for appointment in metrics.upcoming_appointments %}
+                <div class="appointment-item">
+                    <div class="appointment-icon"><span class="nav-icon nav-bell"></span></div>
+                    <div>
+                        <strong>{{ appointment.doctor_name }}</strong>
+                        <p>{{ appointment.appointment_date.strftime('%b %d') }} at {{ appointment.appointment_time.strftime('%I:%M %p') }}</p>
+                    </div>
+                </div>
+            {% else %}
+                <div class="appointment-item">
+                    <div class="appointment-icon"><span class="nav-icon nav-clock"></span></div>
+                    <div>
+                        <strong>No upcoming appointments</strong>
+                        <p>Add your first appointment to keep it here.</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

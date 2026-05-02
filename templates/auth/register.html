@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block auth_content %}
+<section class="auth-center-shell">
+    <div class="auth-mock-card auth-register-card auth-form-card">
+        <div class="auth-heart-badge"></div>
+        <h1>HormonaCare</h1>
+        <p class="auth-subtitle">Create your account with your name, email, and password.</p>
+        <form
+            method="post"
+            class="form-grid auth-form-tight"
+            id="register-form"
+            data-clear-autofill="{{ 'true' if not form_values.full_name and not form_values.email and not form_errors else 'false' }}"
+            autocomplete="off"
+            novalidate
+        >
+            <input type="text" name="register_shadow_name" value="" autocomplete="name" tabindex="-1" aria-hidden="true" class="auth-shadow-input">
+            <input type="text" name="register_shadow_email" value="" autocomplete="username" tabindex="-1" aria-hidden="true" class="auth-shadow-input">
+            <input type="password" name="register_shadow_password" value="" autocomplete="current-password" tabindex="-1" aria-hidden="true" class="auth-shadow-input">
+            <label>Full name
+                <div class="auth-input-wrap {% if form_errors.full_name %}is-invalid{% endif %}">
+                    <span class="auth-input-icon user"></span>
+                    <input type="text" id="register-full-name" name="full_name" value="{{ form_values.full_name }}" placeholder="Your full name" autocomplete="off" autocapitalize="words" spellcheck="false" required>
+                </div>
+                <small class="field-error {% if not form_errors.full_name %}hidden-error{% endif %}" data-full-name-error>{{ form_errors.full_name or 'Enter your full name using 2 to 120 characters.' }}</small>
+            </label>
+            <label>Email
+                <div class="auth-input-wrap {% if form_errors.email %}is-invalid{% endif %}">
+                    <span class="auth-input-icon user"></span>
+                    <input type="email" id="register-email" name="email" value="{{ form_values.email }}" placeholder="you@example.com" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+                </div>
+                <small class="field-error {% if not form_errors.email %}hidden-error{% endif %}" data-email-error>{{ form_errors.email or 'Enter a valid email address.' }}</small>
+            </label>
+            <label>Password
+                <div class="auth-input-wrap {% if form_errors.password %}is-invalid{% endif %}">
+                    <span class="auth-input-icon lock"></span>
+                    <input type="password" name="password" id="register-password" placeholder="Create a strong password" autocomplete="new-password" data-password-field required>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <small class="field-error {% if not form_errors.password %}hidden-error{% endif %}" data-password-error>{{ form_errors.password or 'Use 8+ characters with uppercase, lowercase, number, and special character.' }}</small>
+            </label>
+            <label>Confirm password
+                <div class="auth-input-wrap {% if form_errors.confirm_password %}is-invalid{% endif %}">
+                    <span class="auth-input-icon lock"></span>
+                    <input type="password" name="confirm_password" id="register-confirm-password" placeholder="Repeat your password" autocomplete="new-password" data-password-field required>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <small class="field-error {% if not form_errors.confirm_password %}hidden-error{% endif %}" data-confirm-error>{{ form_errors.confirm_password or 'Passwords must match.' }}</small>
+            </label>
+            <button type="submit" class="auth-gradient-button">Create Account</button>
+        </form>
+        <p class="auth-footer-link">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+    </div>
+</section>
+{% endblock %}
