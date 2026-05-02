@@ -3,8 +3,8 @@
 {% block content %}
 <section class="page-head with-action">
     <div>
-        <h1><span class="title-icon pink"><span class="nav-icon nav-calendar"></span></span><span class="cycle-flower-title" aria-hidden="true"></span> PCOS Cycle Insight Calendar</h1>
-        <p>Track your cycle and review PCOS-aware insights shaped by your recent logs.</p>
+        <h1><span class="title-icon pink"><span class="nav-icon nav-calendar"></span></span><span class="cycle-flower-title" aria-hidden="true"></span> Cycle Calendar</h1>
+        <p>Track period days, flow, and upcoming windows.</p>
     </div>
     <button class="dark-button period-log-button" type="button" onclick="openCycleModal(currentSelectedCycleDate)">
         <span class="button-drop-icon" aria-hidden="true"></span>
@@ -19,11 +19,11 @@
                 <div class="cycle-insights-header">
                     <div class="ovulation-ring"></div>
                     <div class="cycle-insights-heading">
-                        <span class="cycle-insights-kicker">PCOS forecast</span>
-                        <h3>PCOS Cycle Insights</h3>
+                        <span class="cycle-insights-kicker">Forecast</span>
+                        <h3>Cycle Insight</h3>
                         <p class="cycle-insights-summary">
                             {% if cycle_info.needs_flow_log_prompt %}
-                                Please log your flow to keep your cycle timing up to date.
+                                Add today's flow to refresh the estimate.
                             {% else %}
                                 {{ cycle_info.insight_summary }}
                             {% endif %}
@@ -33,57 +33,56 @@
                 <div class="cycle-insights-grid">
                     <div class="prediction-box cycle-insights-prediction">
                         <div class="prediction-box-top">
-                            <span class="prediction-label">PCOS Period Outlook</span>
-                            <span class="prediction-badge">
-                                {% if cycle_info.needs_flow_log_prompt %}
-                                    Update needed
-                                {% elif cycle_info.prediction_ready %}
-                                    Adaptive PCOS estimate
-                                {% else %}
-                                    Learning PCOS pattern
-                                {% endif %}
-                            </span>
+                            <span class="prediction-label">Period Outlook</span>
+                            <span class="prediction-badge">{{ cycle_info.forecast_status_label }}</span>
                         </div>
-                        <strong>{{ cycle_info.prediction_text }}</strong>
+                        <strong>{{ cycle_info.next_period_label }}</strong>
                         <p class="prediction-status">
                             {% if cycle_info.needs_flow_log_prompt %}
-                                Please log your flow to keep your cycle timing up to date.
+                                Add flow today to keep timing current.
                             {% else %}
                                 {{ cycle_info.prediction_basis }}
                             {% endif %}
                         </p>
                     </div>
                     <div class="cycle-insights-meta">
-                        <div class="insight-chip">
-                            <span class="status-line">PCOS confidence</span>
-                            <strong>{{ cycle_info.confidence_message }}</strong>
+                        <div class="insight-chip cycle-metric-chip">
+                            <span class="cycle-metric-icon cycle-metric-next" aria-hidden="true"></span>
+                            <span class="status-line">Estimated Next Period</span>
+                            <strong>{{ cycle_info.next_period_label }}</strong>
                         </div>
-                        <div class="insight-chip">
-                            <span class="status-line">PCOS pattern</span>
-                            <strong>{{ cycle_info.pattern_summary }}</strong>
+                        <div class="insight-chip cycle-metric-chip">
+                            <span class="cycle-metric-icon cycle-metric-cycle" aria-hidden="true"></span>
+                            <span class="status-line">Avg Cycle Length</span>
+                            <strong>{{ cycle_info.average_cycle_label }}</strong>
+                            {% if cycle_info.cycle_range_label and cycle_info.cycle_range_label != cycle_info.average_cycle_label %}
+                                <span class="insight-support">{{ cycle_info.cycle_range_label }}</span>
+                            {% endif %}
                         </div>
-                        {% if cycle_info.average_cycle_length and cycle_info.prediction_ready %}
-                            <div class="insight-chip">
-                                <span class="status-line">Average cycle</span>
-                                <strong>{{ cycle_info.average_cycle_length }} days</strong>
-                                {% if cycle_info.min_cycle_length and cycle_info.max_cycle_length %}
-                                    <span class="insight-support">Recent range {{ cycle_info.min_cycle_length }}-{{ cycle_info.max_cycle_length }} days</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
-                        {% if cycle_info.period_length_label != 'Not enough logged flow data' %}
-                            <div class="insight-chip">
-                                <span class="status-line">Menstruation length</span>
-                                <strong>{{ cycle_info.period_length_label }}</strong>
-                            </div>
-                        {% endif %}
+                        <div class="insight-chip cycle-metric-chip">
+                            <span class="cycle-metric-icon cycle-metric-flow" aria-hidden="true"></span>
+                            <span class="status-line">Avg Menstruation</span>
+                            <strong>{{ cycle_info.period_length_label }}</strong>
+                            {% if cycle_info.period_length_range_label %}
+                                <span class="insight-support">{{ cycle_info.period_length_range_label }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="insight-chip cycle-metric-chip">
+                            <span class="cycle-metric-icon cycle-metric-pattern" aria-hidden="true"></span>
+                            <span class="status-line">Pattern</span>
+                            <strong>{{ cycle_info.pattern_label }}</strong>
+                        </div>
+                        <div class="insight-chip cycle-metric-chip">
+                            <span class="cycle-metric-icon cycle-metric-confidence" aria-hidden="true"></span>
+                            <span class="status-line">Confidence</span>
+                            <strong>{{ cycle_info.confidence_level }}</strong>
+                        </div>
                     </div>
                 </div>
-                {% if cycle_info.anovulation_warning %}
-                    <p class="pcos-note">{{ cycle_info.anovulation_warning }}</p>
-                {% else %}
-                    <p class="pcos-note">{{ cycle_info.uncertainty_note }}</p>
-                {% endif %}
+                <details class="cycle-details-disclosure">
+                    <summary>Learn more</summary>
+                    <p>{{ cycle_info.anovulation_warning or cycle_info.uncertainty_note }}</p>
+                </details>
             </article>
         </div>
 
@@ -139,16 +138,16 @@
                 <div>
                     <strong>
                         {% if cycle_info.needs_flow_log_prompt %}
-                            Please log your flow to keep your cycle timing up to date.
+                            Flow update needed
                         {% elif cycle_info.anovulation_warning %}
-                            {{ cycle_info.anovulation_warning }}
+                            Long gap detected
                         {% elif cycle_prompts %}
                             {{ cycle_prompts[0] }}
                         {% else %}
                             {{ cycle_info.tracking_message }}
                         {% endif %}
                     </strong>
-                    {{ cycle_prompts[1] if cycle_prompts|length > 1 else cycle_info.uncertainty_note }}
+                    <span>{{ cycle_prompts[1] if cycle_prompts|length > 1 else 'Tap a date to update flow, symptoms, or notes.' }}</span>
                 </div>
             </article>
         </div>
@@ -157,23 +156,21 @@
     <div class="calendar-side">
         <a class="panel-card legend-card legend-card-link" href="{{ url_for('cycle_phases') }}" aria-label="Open the cycle phase guide">
             <div class="legend-card-head">
-                <h3>LEGEND</h3>
+                <h3>Legend</h3>
                 <span class="legend-card-action">
-                    Learn phases
+                    Guide
                     <span class="legend-card-arrow" aria-hidden="true"></span>
                 </span>
             </div>
-            <div class="legend-row"><span class="legend-dot period-start"></span> Period Start</div>
-            <div class="legend-row"><span class="legend-dot period"></span> Continuing Period Day</div>
+            <div class="legend-row"><span class="legend-dot period-start"></span> Start</div>
+            <div class="legend-row"><span class="legend-dot period"></span> Period</div>
             {% if cycle_info.phase_estimation_enabled %}
-                <div class="legend-row"><span class="legend-dot fertile"></span> Possible Follicular / Fertile Window</div>
-                <div class="legend-row"><span class="legend-dot ovulation"></span> Possible Ovulation</div>
-                <div class="legend-row"><span class="legend-dot luteal"></span> Luteal Phase</div>
-                <p class="legend-note">These highlights adjust as more PCOS cycle and symptom logs are recorded.</p>
+                <div class="legend-row"><span class="legend-dot fertile"></span> Fertile</div>
+                <div class="legend-row"><span class="legend-dot ovulation"></span> Ovulation</div>
+                <div class="legend-row"><span class="legend-dot luteal"></span> Luteal</div>
             {% elif cycle_info.has_cycle_history %}
-                <p class="legend-note">We're still learning your PCOS pattern. More phase detail appears after a few logged cycles.</p>
+                <p class="legend-note">More phase detail appears after a few cycles.</p>
             {% endif %}
-            <p class="legend-cta">Tap to open a simple guide for each phase and why timing can vary from person to person.</p>
         </a>
 
         <article class="panel-card cycle-day-detail">
@@ -238,7 +235,7 @@
     <div class="modal-card" onclick="event.stopPropagation()">
         <button class="modal-close" type="button" onclick="closeCycleModal(); return false;">&times;</button>
         <h2>Log Day Details - <span id="modal-date-label">{{ selected_date.strftime('%b %d, %Y') }}</span></h2>
-        <p>Track your symptoms and flow for this day. PCOS tracking stays flexible, so no fixed duration is assumed.</p>
+        <p>Add flow, symptoms, and notes for this day.</p>
         <form method="post" class="form-grid">
             <input type="hidden" name="log_date" id="cycle-log-date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
             <input type="hidden" name="mark_period_start" id="mark-period-start-flag" value="">

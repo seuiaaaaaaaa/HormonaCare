@@ -2319,26 +2319,26 @@ def register_routes(app):
         )
 
         if not observed_lengths:
-            pattern_summary = "Start logging your cycle to build PCOS-aware cycle insights."
-            confidence_message = "Start logging your cycle to build PCOS-aware cycle insights."
+            pattern_summary = "Add a period start"
+            confidence_message = "Not ready"
         elif limited_data:
-            pattern_summary = "We're still learning how your cycle behaves. PCOS cycles can take longer to map clearly, so keep logging."
-            confidence_message = "Confidence is still building. Ovulation timing can be less predictable in PCOS, so more logs help."
+            pattern_summary = "Early pattern"
+            confidence_message = "Building"
         elif trend_slope >= 1.2:
-            pattern_summary = "Your recent cycle lengths are trending slightly longer, which can happen with PCOS-related irregularity."
-            confidence_message = "We have enough history to estimate a range, and we'll keep refining it as new cycle data comes in."
+            pattern_summary = "Trending longer"
+            confidence_message = "Flexible"
         elif trend_slope <= -1.2:
-            pattern_summary = "Your recent cycle lengths are trending slightly shorter than your usual pattern."
-            confidence_message = "We have enough history to estimate a range, and we'll keep refining it as new cycle data comes in."
+            pattern_summary = "Trending shorter"
+            confidence_message = "Flexible"
         elif irregular:
-            pattern_summary = "Your cycle pattern shows noticeable irregularity, which is commonly observed in PCOS."
-            confidence_message = "Confidence is improving, but your recent cycle timing has been irregular and may shift further."
+            pattern_summary = "Irregular pattern"
+            confidence_message = "Flexible"
         elif cycle_variability <= 2.5:
-            pattern_summary = "Your recent logs suggest the cycle pattern is becoming a bit more consistent."
-            confidence_message = "Confidence is improving as your recent cycle pattern becomes more consistent."
+            pattern_summary = "Consistent pattern"
+            confidence_message = "Steady"
         else:
-            pattern_summary = "Your recent cycle pattern looks steadier, though PCOS-related shifts can still happen."
-            confidence_message = "We have enough history to keep this estimate responsive to your latest logs."
+            pattern_summary = "Steady pattern"
+            confidence_message = "Steady"
 
         observed_signal_days = []
         for signal_date, signal in ovulation_signals.items():
@@ -2377,7 +2377,8 @@ def register_routes(app):
                 fertile_confidence = "steady"
 
         latest_period_start = period_starts[-1] if period_starts else None
-        days_since_last_period = (date.today() - latest_period_start).days if latest_period_start else None
+        today_value = app_today()
+        days_since_last_period = (today_value - latest_period_start).days if latest_period_start else None
         average_period_length = round(average_value(period_lengths), 1) if period_lengths else None
         period_length_low = min(period_lengths) if period_lengths else None
         period_length_high = max(period_lengths) if period_lengths else None
@@ -2474,8 +2475,8 @@ def register_routes(app):
 
         if not model.get("phase_estimation_enabled"):
             if not model.get("has_cycle_history"):
-                return "Start logging your PCOS cycle"
-            return "We're still learning your PCOS cycle"
+                return "Add period data"
+            return "Building pattern"
 
         day_signal = model["ovulation_signals"].get(target_date, {"likely": False, "confidence": "none"})
         if day_signal["likely"]:
@@ -2489,7 +2490,7 @@ def register_routes(app):
         if ovulation_date and ovulation_date < target_date:
             return "Luteal Phase"
 
-        return "Cycle in Progress" if model.get("prediction_ready") else "We're still learning your PCOS cycle"
+        return "Cycle in Progress" if model.get("prediction_ready") else "Building pattern"
 
     def cycle_visual_phase(target_date, day_number, cycle_start, model, log=None):
         if logged_period_day(log, day_number):
@@ -2516,9 +2517,9 @@ def register_routes(app):
         cycle_length = model.get("cycle_length")
         if not model.get("prediction_ready") or not cycle_length or not cycle_start or len(model["period_starts"]) < 2:
             fallback_message = (
-                "Start logging your cycle to build PCOS-aware insights."
+                "Add at least two period starts."
                 if not model.get("has_cycle_history")
-                else "We're still learning your cycle. PCOS-related irregularity can make predictions less certain until more logs are added."
+                else "More cycle history needed."
             )
             return {
                 "next_period": None,
@@ -2536,9 +2537,9 @@ def register_routes(app):
         predicted_date = cycle_start + timedelta(days=cycle_length)
         range_text = compact_date_range(earliest_date, latest_date)
         prediction_text = (
-            f"Based on your recent PCOS cycle logs, your next period may start around {predicted_date.strftime('%b %d, %Y')}."
+            f"Next period may start around {predicted_date.strftime('%b %d, %Y')}."
             if earliest_date == latest_date
-            else f"Based on your recent PCOS cycle logs, your next period may start around {range_text}."
+            else f"Next period may start around {range_text}."
         )
         return {
             "next_period": predicted_date,
@@ -2564,7 +2565,7 @@ def register_routes(app):
     def get_cycle_info(user, reference_date=None):
         logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.asc()).all()
         model = cycle_model(logs)
-        reference_date = reference_date or date.today()
+        reference_date = reference_date or app_today()
         log_for_date = next((log for log in logs if log.log_date == reference_date), None)
         recent_period = recent_period_tracking(logs, model["period_starts"], reference_date)
         day_number, cycle_start = inferred_cycle_day(reference_date, model)
@@ -2578,42 +2579,42 @@ def register_routes(app):
         prediction = cycle_prediction_summary(reference_date, cycle_start, model)
         fertile_window = model.get("fertile_window")
         fertile_window_text = (
-            f"Often around days {fertile_window[0]}-{fertile_window[1]} in your recent pattern, though ovulation can be less predictable in PCOS."
+            f"Days {fertile_window[0]}-{fertile_window[1]}"
             if fertile_window
-            else "We'll estimate this after a little more cycle history."
+            else "Needs more history"
         )
         day_signal = model["ovulation_signals"].get(reference_date, {"likely": False, "confidence": "none"})
         ovulation_status = (
-            "Your recent symptom logs suggest ovulation may be close, though timing can be less certain in PCOS."
+            "Ovulation signals detected."
             if day_signal["likely"] and day_signal.get("signal_count", 0) >= 2
-            else "A few recent symptoms may point to ovulation around this time, but PCOS can make the timing less predictable."
+            else "Possible ovulation signal."
             if day_signal["likely"]
-            else f"Your logs most often point to ovulation around day {model['typical_ovulation_day']}, but that timing can shift in PCOS."
+            else f"Usually near day {model['typical_ovulation_day']}."
             if model.get("typical_ovulation_day")
-            else "We'll look for ovulation patterns as you log more symptoms."
+            else "No ovulation pattern yet."
         )
         if prediction["next_period"]:
             prediction_basis = (
-                "We're still learning your cycle. PCOS-related irregularity can make predictions less certain until more logs are added."
+                "Based on early cycle history."
                 if model["limited_data"]
-                else "This estimate adapts to your recent cycle timing and symptom logs while allowing for PCOS-related variation."
+                else "Uses recent cycle timing and symptom signals."
                 if model["observed_signal_days"]
-                else "This estimate adapts to your recent cycle timing as you add new cycle logs."
+                else "Uses recent cycle timing."
             )
         else:
             prediction_basis = model["pattern_summary"]
         irregularity_text = model["pattern_summary"]
         anovulation_warning = (
-            "A long gap appears in your recent cycle logs. Irregular or absent ovulation can be seen in PCOS, so consider monitoring symptoms closely and checking with your clinician if this feels unusual for you."
+            "Long gap detected. Consider a clinician check-in if this feels unusual."
             if model["possible_anovulatory"]
             else ""
         )
         if recent_period["needs_flow_log_prompt"]:
-            tracking_message = "Please log your flow to keep your PCOS cycle timing up to date."
+            tracking_message = "Flow update needed."
         elif not model["has_cycle_history"]:
-            tracking_message = "Start logging your cycle to build PCOS-aware insights."
+            tracking_message = "Add a period start to begin forecasting."
         elif model["limited_data"]:
-            tracking_message = "We're still learning your cycle. PCOS-related irregularity can take longer to map clearly."
+            tracking_message = "Add another cycle to sharpen the estimate."
         else:
             tracking_message = model["pattern_summary"]
         cycle_day_label = "Log more cycle data"
@@ -2625,21 +2626,52 @@ def register_routes(app):
             )
         elif model["prediction_ready"] and day_number:
             cycle_day_label = f"Estimated Day {day_number}"
-        period_length_label = "Not enough logged flow data"
+        def metric_days(value):
+            if value is None:
+                return "--"
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            unit = "day" if value == 1 else "days"
+            return f"{value} {unit}"
+
+        period_length_label = "Need flow data"
+        period_length_range_label = ""
         if model["average_period_length"]:
-            period_length_label = f"{model['average_period_length']} day average"
+            period_length_label = metric_days(model["average_period_length"])
             if model["period_length_low"] and model["period_length_high"]:
-                period_length_label += f" ({model['period_length_low']}-{model['period_length_high']} observed)"
+                period_length_range_label = f"{model['period_length_low']}-{model['period_length_high']} days"
+        current_period_label = ""
         if recent_period["current_period_length"]:
-            period_length_label = f"{recent_period['current_period_length']} logged day(s) in current period"
+            current_period_label = f"{recent_period['current_period_length']} days current"
         insight_summary = (
-            "Please log your flow to keep your PCOS cycle timing up to date."
+            "Flow update needed."
             if recent_period["needs_flow_log_prompt"]
             else ovulation_status
             if day_signal["likely"]
             else prediction["prediction_text"]
             if prediction["next_period"]
             else tracking_message
+        )
+        average_cycle_label = metric_days(model["cycle_length"]) if model["cycle_length"] else "--"
+        cycle_range_label = (
+            f"{model['cycle_low']}-{model['cycle_high']} days"
+            if model["cycle_low"] and model["cycle_high"] and model["cycle_low"] != model["cycle_high"]
+            else average_cycle_label
+        )
+        next_period_label = prediction["prediction_range_text"] if prediction["next_period"] else "Need more data"
+        forecast_status_label = (
+            "Update needed"
+            if recent_period["needs_flow_log_prompt"]
+            else "Estimated"
+            if prediction["next_period"]
+            else "Needs data"
+        )
+        uncertainty_note = (
+            "Add more cycle entries to improve timing."
+            if model["limited_data"]
+            else "Estimate updates with each new entry."
+            if not model["irregular"]
+            else "Timing may shift because recent cycles vary."
         )
         return {
             "phase": phase,
@@ -2662,6 +2694,8 @@ def register_routes(app):
             "min_period_length": model["period_length_low"],
             "max_period_length": model["period_length_high"],
             "period_length_label": period_length_label,
+            "period_length_range_label": period_length_range_label,
+            "current_period_label": current_period_label,
             "cycle_start": cycle_start,
             "last_period_start": model["latest_period_start"],
             "days_since_last_period": model["days_since_last_period"],
@@ -2672,13 +2706,7 @@ def register_routes(app):
             "anovulation_warning": anovulation_warning,
             "tracking_message": tracking_message,
             "needs_flow_log_prompt": recent_period["needs_flow_log_prompt"],
-            "uncertainty_note": (
-                "Confidence is still building. In PCOS, ovulation and cycle timing can be less predictable, so this estimate may shift as more logs are recorded."
-                if model["limited_data"]
-                else "We'll keep adjusting this PCOS cycle estimate as new entries are added."
-                if not model["irregular"]
-                else "This estimate may shift because your recent cycle timing has been irregular."
-            ),
+            "uncertainty_note": uncertainty_note,
             "smart_mode_enabled": model["smart_mode_enabled"],
             "prediction_ready": model["prediction_ready"],
             "phase_estimation_enabled": model["phase_estimation_enabled"],
@@ -2689,6 +2717,12 @@ def register_routes(app):
             "limited_data": model["limited_data"],
             "insight_summary": insight_summary,
             "irregular": model["irregular"],
+            "average_cycle_label": average_cycle_label,
+            "cycle_range_label": cycle_range_label,
+            "next_period_label": next_period_label,
+            "forecast_status_label": forecast_status_label,
+            "confidence_level": model["confidence_message"],
+            "pattern_label": model["pattern_summary"],
         }
 
     def build_mental_tip(mood, stress_level):
@@ -3120,6 +3154,8 @@ def register_routes(app):
             "min_period_length": cycle_info.get("min_period_length"),
             "max_period_length": cycle_info.get("max_period_length"),
             "period_length_label": cycle_info.get("period_length_label"),
+            "period_length_range_label": cycle_info.get("period_length_range_label"),
+            "current_period_label": cycle_info.get("current_period_label"),
             "last_period_start": iso_date(cycle_info.get("last_period_start")),
             "days_since_last_period": cycle_info.get("days_since_last_period"),
             "fertile_window_text": cycle_info.get("fertile_window_text"),
@@ -3140,6 +3176,12 @@ def register_routes(app):
             "limited_data": safe_bool(cycle_info.get("limited_data")),
             "insight_summary": cycle_info.get("insight_summary"),
             "irregular": safe_bool(cycle_info.get("irregular")),
+            "average_cycle_label": cycle_info.get("average_cycle_label"),
+            "cycle_range_label": cycle_info.get("cycle_range_label"),
+            "next_period_label": cycle_info.get("next_period_label"),
+            "forecast_status_label": cycle_info.get("forecast_status_label"),
+            "confidence_level": cycle_info.get("confidence_level"),
+            "pattern_label": cycle_info.get("pattern_label"),
         }
 
     def serialize_profile_summary(summary):
@@ -5324,7 +5366,7 @@ def register_routes(app):
                 )
             )
         logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.desc()).all()
-        today = date.today()
+        today = app_today()
         selected_param = request.args.get("selected")
         selected_date = datetime.strptime(selected_param, "%Y-%m-%d").date() if selected_param else today
         view_month_param = request.args.get("view_month")
