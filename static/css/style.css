@@ -64,16 +64,86 @@ body.theme-dark {
     box-sizing: border-box;
 }
 
+html {
+    min-height: 100%;
+    background: var(--bg);
+    overflow-x: hidden;
+}
+
 [hidden] {
     display: none !important;
 }
 
 body {
     margin: 0;
+    min-height: 100vh;
     font-family: "Plus Jakarta Sans", sans-serif;
     background: var(--bg);
     color: var(--ink);
     overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+    max-width: 100%;
+}
+
+.app-shell,
+.main-content,
+.content-shell,
+.page-head,
+.overview-wellness-grid,
+.overview-top-grid,
+.overview-bottom-grid,
+.lifestyle-input-grid,
+.lifestyle-summary-grid,
+.appointments-layout,
+.appointments-col,
+.calendar-layout,
+.calendar-main,
+.calendar-side,
+.mental-layout,
+.panel-card,
+.feature-card,
+.schedule-card,
+.appt-card,
+.history-card,
+.clean-med-card,
+.lifestyle-input-card,
+.lifestyle-summary-card,
+.mood-check-card,
+.mood-trends-card,
+.settings-section,
+.profile-section,
+.modal-card {
+    min-width: 0;
+}
+
+.content-shell > * {
+    max-width: 100%;
+}
+
+:where(.panel-card, .feature-card, .schedule-card, .appt-card, .history-card, .clean-med-card, .lifestyle-input-card, .lifestyle-summary-card, .appointment-item, .feedback-preview-card, .profile-detail-card, .settings-mini-block, .modal-card, .flash, .empty-state) {
+    max-width: 100%;
+}
+
+:where(.panel-card, .feature-card, .schedule-card, .appt-card, .history-card, .clean-med-card, .lifestyle-input-card, .lifestyle-summary-card, .appointment-item, .feedback-preview-card, .profile-detail-card, .settings-mini-block, .modal-card, .flash, .empty-state) :where(p, h1, h2, h3, h4, strong, span, li, small, div) {
+    overflow-wrap: break-word;
+}
+
+:where(.appt-note-box, .history-note, .history-primary-meta, .history-follow-up, .cycle-detail-item p, .clean-med-card p, .feedback-preview-card, .profile-detail-card strong, .flash, .tip-item, .summary-description, .appointment-item p, .appointment-item strong) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 body,
@@ -113,6 +183,14 @@ body,
 body.theme-dark .mobile-menu-header,
 body.theme-dark .mobile-menu-panel,
 body.theme-dark .bottom-nav,
+body.theme-dark .feature-card,
+body.theme-dark .panel-card,
+body.theme-dark .schedule-card,
+body.theme-dark .appt-card,
+body.theme-dark .history-card,
+body.theme-dark .lifestyle-input-card,
+body.theme-dark .feedback-preview-card,
+body.theme-dark .empty-state,
 body.theme-dark .appointment-item,
 body.theme-dark .stat-card,
 body.theme-dark .mini-list-row,
@@ -123,6 +201,17 @@ body.theme-dark .insight-chip,
 body.theme-dark .recommend-chip {
     background: #162238;
     color: var(--ink);
+}
+
+body.theme-dark .feature-card,
+body.theme-dark .panel-card,
+body.theme-dark .schedule-card,
+body.theme-dark .appt-card,
+body.theme-dark .history-card,
+body.theme-dark .lifestyle-input-card,
+body.theme-dark .feedback-preview-card,
+body.theme-dark .empty-state {
+    border-color: var(--line);
 }
 
 body.theme-dark .nav-list a:hover,
@@ -1214,6 +1303,19 @@ svg {
     justify-content: space-between;
     gap: 16px;
     margin-bottom: 22px;
+}
+
+.page-head > div,
+.panel-head > div,
+.feature-card-top > div,
+.schedule-left > div,
+.appt-top > div,
+.appointment-item > div,
+.lifestyle-card-head > div,
+.lifestyle-summary-copy,
+.summary-action-row > div,
+.mobile-brand {
+    min-width: 0;
 }
 
 .page-head h1 {

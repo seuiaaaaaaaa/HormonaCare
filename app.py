@@ -80,6 +80,8 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260502-stylefix")
+
 
 def app_now():
     if APP_TIMEZONE is None:
@@ -807,6 +809,7 @@ def register_routes(app):
             "field_encryption_enabled": encryption_available(),
             "notification_preferences": notification_preferences,
             "notification_medication_schedules": notification_medication_schedules,
+            "static_asset_version": STATIC_ASSET_VERSION,
         }
 
     def parse_float(value, default=0):

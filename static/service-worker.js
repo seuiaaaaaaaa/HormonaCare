@@ -1,7 +1,8 @@
-const CACHE_NAME = "hormonacare-static-v12";
+const CACHE_NAME = "hormonacare-static-v13";
+const STATIC_VERSION = "20260502-stylefix";
 const STATIC_ASSETS = [
-    "/static/css/style.css",
-    "/static/js/app.js",
+    `/static/css/style.css?v=${STATIC_VERSION}`,
+    `/static/js/app.js?v=${STATIC_VERSION}`,
     "/static/manifest.json",
     "/static/icons/icon-192.png",
     "/static/icons/icon-512.png",
@@ -37,6 +38,21 @@ self.addEventListener("fetch", (event) => {
     const isStaticAsset = isSameOrigin && requestUrl.pathname.startsWith("/static/");
 
     if (!isStaticAsset) {
+        return;
+    }
+
+    const isFreshAsset = requestUrl.pathname.endsWith(".css") || requestUrl.pathname.endsWith(".js");
+    if (isFreshAsset) {
+        event.respondWith(
+            fetch(event.request).then((networkResponse) => {
+                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
+                    return networkResponse;
+                }
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+                return networkResponse;
+            }).catch(() => caches.match(event.request).then((cachedResponse) => cachedResponse || caches.match(requestUrl.pathname)))
+        );
         return;
     }
 
