@@ -3,7 +3,7 @@ services:
     name: hormonacare
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -c gunicorn.conf.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
@@ -11,6 +11,8 @@ services:
         value: 3.11.11
       - key: FLASK_ENV
         value: production
+      - key: PORT
+        value: "10000"
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
