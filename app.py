@@ -71,6 +71,9 @@ load_local_env()
 
 push_scheduler_lock = threading.Lock()
 push_scheduler_started = False
+runtime_init_lock = threading.Lock()
+runtime_init_started = False
+runtime_init_complete = False
 
 
 def base64url_encode(raw_bytes):
@@ -401,15 +404,33 @@ def create_app():
 
     db.init_app(app)
 
-    with app.app_context():
-        db.create_all()
-        ensure_runtime_schema()
-        ensure_vapid_config(app)
+    if os.getenv("FLASK_ENV") == "production":
+        threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
+    else:
+        initialize_runtime(app)
 
     register_routes(app)
     if os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production":
         start_push_notification_scheduler(app)
     return app
+
+
+def initialize_runtime(app):
+    global runtime_init_started, runtime_init_complete
+    with runtime_init_lock:
+        if runtime_init_started:
+            return
+        runtime_init_started = True
+
+    try:
+        with app.app_context():
+            db.create_all()
+            ensure_runtime_schema()
+            ensure_vapid_config(app)
+        runtime_init_complete = True
+        app.logger.info("Runtime database and notification setup complete.")
+    except Exception:
+        app.logger.exception("Runtime database and notification setup failed.")
 
 
 def ensure_runtime_schema():
