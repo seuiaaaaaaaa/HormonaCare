@@ -7571,6 +7571,12 @@ body.theme-dark .settings-password-method span:last-child {
         grid-template-columns: 1fr;
     }
 
+    .overview-top-grid > *,
+    .overview-bottom-grid > * {
+        flex: 0 1 auto;
+        width: 100%;
+    }
+
     .cycle-phases-hero,
     .cycle-phases-grid {
         grid-template-columns: 1fr;
@@ -7892,6 +7898,30 @@ body.theme-dark .settings-password-method span:last-child {
 
     .main-content {
         padding: 24px 24px 34px;
+    }
+
+    .content-shell-dashboard {
+        max-width: none;
+    }
+
+    .overview-top-grid,
+    .overview-bottom-grid {
+        flex-direction: row;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .overview-top-grid > .feature-card {
+        flex: 1 1 min(280px, calc(50% - 8px));
+        width: auto;
+        min-width: min(100%, 260px);
+        min-height: 150px;
+    }
+
+    .overview-bottom-grid > .panel-card {
+        flex: 1 1 min(360px, calc(50% - 8px));
+        width: auto;
+        min-width: min(100%, 320px);
     }
 }
 
