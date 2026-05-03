@@ -1,5 +1,5 @@
-const CACHE_NAME = "hormonacare-static-v20";
-const STATIC_VERSION = "20260503-responsive";
+const CACHE_NAME = "hormonacare-static-v21";
+const STATIC_VERSION = "20260503-layoutfix";
 const STATIC_ASSETS = [
     `/static/css/style.css?v=${STATIC_VERSION}`,
     `/static/js/app.js?v=${STATIC_VERSION}`,
