@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260503-mobiledoctorsscroll")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260503-authintro")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")

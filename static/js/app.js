@@ -51,6 +51,153 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const authIntroOverlay = document.querySelector("[data-auth-intro-overlay]");
+    if (authIntroOverlay) {
+        const authIntroStorageKey = "hormonacare-auth-intro-shown-v1";
+        const welcomeView = authIntroOverlay.querySelector("[data-auth-intro-welcome]");
+        const tutorialView = authIntroOverlay.querySelector("[data-auth-intro-tutorial]");
+        const startButton = authIntroOverlay.querySelector("[data-auth-intro-start]");
+        const closeButtons = authIntroOverlay.querySelectorAll("[data-auth-intro-close]");
+        const backButton = authIntroOverlay.querySelector("[data-auth-intro-back]");
+        const nextButton = authIntroOverlay.querySelector("[data-auth-intro-next]");
+        const finishButton = authIntroOverlay.querySelector("[data-auth-intro-finish]");
+        const stepTitle = authIntroOverlay.querySelector("[data-auth-intro-step-title]");
+        const stepDescription = authIntroOverlay.querySelector("[data-auth-intro-step-description]");
+        const stepCount = authIntroOverlay.querySelector("[data-auth-intro-count]");
+        const progressNode = authIntroOverlay.querySelector("[data-auth-intro-progress]");
+        const tutorialSteps = [
+            {
+                title: "Cycle Tracking",
+                description: "Track period dates and cycle patterns to help the system build PCOS-aware cycle insights.",
+            },
+            {
+                title: "Symptom Logging",
+                description: "Record symptoms and notes so HormonaCare can connect daily changes with your cycle history.",
+            },
+            {
+                title: "Medication Reminders",
+                description: "Save medication schedules and reminders to support a consistent care routine.",
+            },
+            {
+                title: "Lifestyle Monitoring",
+                description: "Log sleep, hydration, activity, meals, mood, and stress for personalized wellness context.",
+            },
+            {
+                title: "Alerts and Insights",
+                description: "View rule-based alerts and wellness insights that highlight patterns needing attention.",
+            },
+            {
+                title: "Profile and Personal Health Information",
+                description: "Keep profile details and health preferences organized so the app can personalize your experience.",
+            },
+        ];
+        let activeIntroStep = 0;
+
+        const introAlreadyShown = () => {
+            try {
+                return window.sessionStorage.getItem(authIntroStorageKey) === "1";
+            } catch (error) {
+                return false;
+            }
+        };
+
+        const rememberIntroShown = () => {
+            try {
+                window.sessionStorage.setItem(authIntroStorageKey, "1");
+            } catch (error) {
+                // If storage is unavailable, the login page still remains usable.
+            }
+        };
+
+        const closeAuthIntro = () => {
+            authIntroOverlay.hidden = true;
+            document.body.classList.remove("auth-intro-open");
+            const emailInput = document.querySelector("[data-login-form] input[name='email']");
+            if (emailInput) {
+                emailInput.focus({ preventScroll: true });
+            }
+        };
+
+        const updateIntroStep = () => {
+            const step = tutorialSteps[activeIntroStep];
+            if (!step) {
+                return;
+            }
+            if (stepTitle) {
+                stepTitle.textContent = step.title;
+            }
+            if (stepDescription) {
+                stepDescription.textContent = step.description;
+            }
+            if (stepCount) {
+                stepCount.textContent = `Step ${activeIntroStep + 1} of ${tutorialSteps.length}`;
+            }
+            if (backButton) {
+                backButton.hidden = activeIntroStep === 0;
+            }
+            if (nextButton) {
+                nextButton.hidden = activeIntroStep === tutorialSteps.length - 1;
+            }
+            if (finishButton) {
+                finishButton.hidden = activeIntroStep !== tutorialSteps.length - 1;
+            }
+            if (progressNode) {
+                progressNode.querySelectorAll("span").forEach((item, index) => {
+                    item.classList.toggle("is-active", index <= activeIntroStep);
+                });
+            }
+        };
+
+        const showTutorial = () => {
+            activeIntroStep = 0;
+            if (welcomeView) {
+                welcomeView.hidden = true;
+            }
+            if (tutorialView) {
+                tutorialView.hidden = false;
+            }
+            updateIntroStep();
+        };
+
+        if (progressNode && !progressNode.children.length) {
+            tutorialSteps.forEach(() => {
+                progressNode.appendChild(document.createElement("span"));
+            });
+        }
+
+        closeButtons.forEach((button) => {
+            button.addEventListener("click", closeAuthIntro);
+        });
+
+        if (startButton) {
+            startButton.addEventListener("click", showTutorial);
+        }
+
+        if (backButton) {
+            backButton.addEventListener("click", () => {
+                activeIntroStep = Math.max(0, activeIntroStep - 1);
+                updateIntroStep();
+            });
+        }
+
+        if (nextButton) {
+            nextButton.addEventListener("click", () => {
+                activeIntroStep = Math.min(tutorialSteps.length - 1, activeIntroStep + 1);
+                updateIntroStep();
+            });
+        }
+
+        if (finishButton) {
+            finishButton.addEventListener("click", closeAuthIntro);
+        }
+
+        if (!introAlreadyShown()) {
+            authIntroOverlay.hidden = false;
+            document.body.classList.add("auth-intro-open");
+            rememberIntroShown();
+        }
+    }
+
     const readNotificationConfig = () => {
         const configNode = document.getElementById("notification-config");
         if (!configNode) {

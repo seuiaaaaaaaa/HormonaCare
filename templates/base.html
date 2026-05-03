@@ -236,6 +236,38 @@
             {% endif %}
         {% endwith %}
         {% block auth_content %}{% endblock %}
+        {% if request.endpoint == 'login' %}
+        <div class="auth-intro-overlay" data-auth-intro-overlay hidden role="dialog" aria-modal="true" aria-labelledby="auth-intro-title">
+            <div class="auth-intro-card">
+                <button class="auth-intro-close" type="button" aria-label="Close introduction" data-auth-intro-close>&times;</button>
+                <div class="auth-intro-view" data-auth-intro-welcome>
+                    <div class="auth-intro-badge">
+                        <span class="nav-icon nav-calendar"></span>
+                    </div>
+                    <span class="status-line">PCOS Health Support</span>
+                    <h2 id="auth-intro-title">Welcome to HormonaCare</h2>
+                    <p>A PCOS-focused health support system that helps users track cycle patterns, symptoms, medication, lifestyle, and wellness insights.</p>
+                    <div class="auth-intro-actions">
+                        <button class="auth-intro-next" type="button" data-auth-intro-start>
+                            <span>Next</span>
+                            <span aria-hidden="true">&gt;</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="auth-intro-view auth-intro-tutorial" data-auth-intro-tutorial hidden>
+                    <div class="auth-intro-progress" data-auth-intro-progress></div>
+                    <span class="status-line" data-auth-intro-count>Step 1 of 6</span>
+                    <h2 data-auth-intro-step-title>Cycle Tracking</h2>
+                    <p data-auth-intro-step-description>Track period dates and cycle patterns to help the system build PCOS-aware cycle insights.</p>
+                    <div class="auth-intro-actions split">
+                        <button class="auth-intro-back" type="button" data-auth-intro-back>Back</button>
+                        <button class="auth-intro-next" type="button" data-auth-intro-next>Next</button>
+                        <button class="auth-intro-finish" type="button" data-auth-intro-finish hidden>Finish</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
     <script src="{{ url_for('static', filename='js/app.js', v=static_asset_version) }}"></script>
