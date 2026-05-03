@@ -8083,11 +8083,35 @@ body.theme-dark .settings-password-method span:last-child {
         width: 100%;
         min-width: 0;
         align-self: stretch;
+        padding: 12px 10px 11px;
+        border-radius: 16px;
+    }
+
+    .wellness-visual-meta {
+        margin-bottom: 8px;
+    }
+
+    .wellness-visual-label {
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        line-height: 1.25;
     }
 
     .wellness-mini-trend {
-        height: 50px;
+        height: auto;
         gap: 5px;
+        margin-top: 0;
+        align-items: flex-end;
+    }
+
+    .wellness-mini-bar-track {
+        height: 44px;
+        min-height: 44px;
+    }
+
+    .wellness-mini-label {
+        font-size: 0.6rem;
+        letter-spacing: 0;
     }
 
     .wellness-recommendation-box {
@@ -8867,6 +8891,16 @@ body.theme-dark .settings-password-method span:last-child {
         border-radius: 16px;
     }
 
+    .wellness-status-visual {
+        padding: 10px 8px 9px;
+        border-radius: 14px;
+    }
+
+    .wellness-visual-label {
+        font-size: 0.58rem;
+        letter-spacing: 0.1em;
+    }
+
     .wellness-prediction-card::after {
         left: 8px;
         top: 10px;
@@ -8879,8 +8913,17 @@ body.theme-dark .settings-password-method span:last-child {
     }
 
     .wellness-mini-trend {
-        height: 46px;
+        height: auto;
         gap: 4px;
+    }
+
+    .wellness-mini-bar-track {
+        height: 36px;
+        min-height: 36px;
+    }
+
+    .wellness-mini-label {
+        font-size: 0.55rem;
     }
 
     .mood-chart {
