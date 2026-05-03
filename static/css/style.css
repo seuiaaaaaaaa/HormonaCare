@@ -7480,7 +7480,9 @@ body.theme-dark .settings-password-method span:last-child {
 
     .mobile-menu-panel {
         margin-left: auto;
-        width: min(210px, calc(100vw - 28px));
+        width: min(280px, calc(100vw - 28px));
+        max-height: calc(100vh - 64px);
+        overflow-y: auto;
         background: var(--surface);
         border-radius: 0 0 14px 14px;
         box-shadow: 0 18px 32px rgba(22, 33, 61, 0.16);
@@ -7496,6 +7498,15 @@ body.theme-dark .settings-password-method span:last-child {
         font-weight: 500;
     }
 
+    .mobile-menu-panel a.active {
+        background: var(--pink-soft);
+        color: var(--pink);
+        border: 1px solid var(--pink-border);
+        padding-left: 10px;
+        padding-right: 10px;
+        border-radius: 14px;
+    }
+
     .mobile-logout-link {
         color: #ef1e3d !important;
         font-weight: 700 !important;
@@ -7503,7 +7514,7 @@ body.theme-dark .settings-password-method span:last-child {
 
     .bottom-nav {
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         position: fixed;
         left: 0;
         right: 0;
@@ -7521,10 +7532,10 @@ body.theme-dark .settings-password-method span:last-child {
         justify-content: center;
         gap: 5px;
         margin-top: 6px;
-        padding: 8px 3px 7px;
-        font-size: 0.66rem;
+        padding: 8px 2px 7px;
+        font-size: 0.61rem;
         min-height: 62px;
-        border-radius: 18px;
+        border-radius: 16px;
         color: var(--text-soft-strong);
     }
 
