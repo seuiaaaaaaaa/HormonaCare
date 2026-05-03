@@ -5541,6 +5541,24 @@ select {
     letter-spacing: 0.04em;
 }
 
+.forecast-delayed .prediction-badge {
+    background: rgba(255, 181, 76, 0.16);
+    color: #a96400;
+}
+
+.forecast-unavailable .prediction-badge {
+    background: rgba(123, 149, 192, 0.14);
+    color: #5e6f8f;
+}
+
+.cycle-insights-prediction.forecast-delayed {
+    border-color: rgba(255, 181, 76, 0.38);
+}
+
+.cycle-insights-prediction.forecast-unavailable {
+    border-color: rgba(123, 149, 192, 0.32);
+}
+
 .prediction-box strong {
     display: block;
     margin-top: 0;
@@ -5777,6 +5795,24 @@ body.theme-dark .cycle-insights-prediction {
 body.theme-dark .prediction-badge {
     background: rgba(92, 151, 255, 0.16);
     color: #afcbff;
+}
+
+body.theme-dark .forecast-delayed .prediction-badge {
+    background: rgba(255, 183, 77, 0.16);
+    color: #ffd38a;
+}
+
+body.theme-dark .forecast-unavailable .prediction-badge {
+    background: rgba(151, 168, 198, 0.14);
+    color: #c5d1e8;
+}
+
+body.theme-dark .cycle-insights-prediction.forecast-delayed {
+    border-color: rgba(255, 183, 77, 0.34);
+}
+
+body.theme-dark .cycle-insights-prediction.forecast-unavailable {
+    border-color: rgba(151, 168, 198, 0.24);
 }
 
 body.theme-dark .insight-chip {

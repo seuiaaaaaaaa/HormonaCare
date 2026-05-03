@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260502-cycleforecasttop")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260502-cycleforecaststate")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -2349,25 +2349,25 @@ def register_routes(app):
 
         if not observed_lengths:
             pattern_summary = "Add a period start"
-            confidence_message = "Not ready"
+            confidence_message = "Limited Data"
         elif limited_data:
             pattern_summary = "Early pattern"
-            confidence_message = "Building"
+            confidence_message = "Developing"
         elif trend_slope >= 1.2:
             pattern_summary = "Trending longer"
-            confidence_message = "Flexible"
+            confidence_message = "Adaptive Estimate"
         elif trend_slope <= -1.2:
             pattern_summary = "Trending shorter"
-            confidence_message = "Flexible"
+            confidence_message = "Adaptive Estimate"
         elif irregular:
             pattern_summary = "Irregular pattern"
-            confidence_message = "Flexible"
+            confidence_message = "Adaptive Estimate"
         elif cycle_variability <= 2.5:
             pattern_summary = "Consistent pattern"
-            confidence_message = "Steady"
+            confidence_message = "Moderate"
         else:
             pattern_summary = "Steady pattern"
-            confidence_message = "Steady"
+            confidence_message = "Moderate"
 
         observed_signal_days = []
         for signal_date, signal in ovulation_signals.items():
@@ -2399,11 +2399,11 @@ def register_routes(app):
         if typical_ovulation_day and cycle_length:
             fertile_window = (max(6, typical_ovulation_day - 5), min(cycle_length, typical_ovulation_day + 1))
             if limited_data:
-                fertile_confidence = "building"
+                fertile_confidence = "developing"
             elif irregular:
-                fertile_confidence = "flexible"
+                fertile_confidence = "adaptive"
             else:
-                fertile_confidence = "steady"
+                fertile_confidence = "moderate"
 
         latest_period_start = period_starts[-1] if period_starts else None
         today_value = app_today()
@@ -2545,30 +2545,58 @@ def register_routes(app):
     def cycle_prediction_summary(reference_date, cycle_start, model):
         cycle_length = model.get("cycle_length")
         if not model.get("prediction_ready") or not cycle_length or not cycle_start or len(model["period_starts"]) < 2:
-            fallback_message = (
-                "Add at least two period starts."
-                if not model.get("has_cycle_history")
-                else "More cycle history needed."
-            )
+            fallback_message = "More cycle logs are needed for stronger estimates."
             return {
                 "next_period": None,
                 "next_period_earliest": None,
                 "next_period_latest": None,
                 "days_until_next_period": None,
                 "prediction_text": fallback_message,
-                "prediction_range_text": fallback_message,
-                "expected_date_text": fallback_message,
-                "confidence": model.get("confidence_message"),
+                "prediction_range_text": "Prediction Unavailable",
+                "expected_date_text": "Prediction Unavailable",
+                "confidence": "Limited Data",
+                "forecast_state": "unavailable",
+                "forecast_status_label": "Prediction Unavailable",
+                "forecast_headline": "Prediction Unavailable",
+                "next_period_label": "Prediction Unavailable",
+                "next_period_metric_label": "Prediction",
+                "prediction_basis": fallback_message,
+                "expired_prediction_range_text": "",
             }
 
         earliest_date = cycle_start + timedelta(days=model["cycle_low"])
         latest_date = cycle_start + timedelta(days=model["cycle_high"])
         predicted_date = cycle_start + timedelta(days=cycle_length)
         range_text = compact_date_range(earliest_date, latest_date)
+        if latest_date < reference_date:
+            return {
+                "next_period": None,
+                "next_period_earliest": None,
+                "next_period_latest": None,
+                "days_until_next_period": None,
+                "prediction_text": "Your previous estimate has passed without a confirmed cycle log.",
+                "prediction_range_text": "Cycle Delayed",
+                "expected_date_text": "Recalculating Forecast",
+                "confidence": "Adaptive Estimate",
+                "forecast_state": "delayed",
+                "forecast_status_label": "Cycle Delayed",
+                "forecast_headline": "Cycle Delayed",
+                "next_period_label": "Cycle Delayed",
+                "next_period_metric_label": "Forecast Status",
+                "prediction_basis": "Your previous estimate has passed without a confirmed cycle log.",
+                "expired_prediction_range_text": range_text,
+            }
         prediction_text = (
-            f"Next period may start around {predicted_date.strftime('%b %d, %Y')}."
+            f"Estimated next period may start around {predicted_date.strftime('%b %d, %Y')}."
             if earliest_date == latest_date
-            else f"Next period may start around {range_text}."
+            else f"Estimated next period may start around {range_text}."
+        )
+        prediction_basis = (
+            "Early adaptive estimate. PCOS timing can shift."
+            if model["limited_data"]
+            else "Adaptive estimate using recent cycle timing and symptom signals."
+            if model["observed_signal_days"]
+            else "Adaptive estimate using recent cycle timing. PCOS cycles may vary."
         )
         return {
             "next_period": predicted_date,
@@ -2579,6 +2607,13 @@ def register_routes(app):
             "prediction_range_text": range_text,
             "expected_date_text": predicted_date.strftime("%b %d, %Y"),
             "confidence": model["confidence_message"],
+            "forecast_state": "active",
+            "forecast_status_label": "Estimated",
+            "forecast_headline": f"Estimated: {range_text}",
+            "next_period_label": range_text,
+            "next_period_metric_label": "Estimated Next Period",
+            "prediction_basis": prediction_basis,
+            "expired_prediction_range_text": "",
         }
 
     def resolve_cycle_day_value(log_date, model, requested_cycle_day=None, mark_period_start=False):
@@ -2622,16 +2657,7 @@ def register_routes(app):
             if model.get("typical_ovulation_day")
             else "No ovulation pattern yet."
         )
-        if prediction["next_period"]:
-            prediction_basis = (
-                "Based on early cycle history."
-                if model["limited_data"]
-                else "Uses recent cycle timing and symptom signals."
-                if model["observed_signal_days"]
-                else "Uses recent cycle timing."
-            )
-        else:
-            prediction_basis = model["pattern_summary"]
+        prediction_basis = prediction["prediction_basis"]
         irregularity_text = model["pattern_summary"]
         anovulation_warning = (
             "Long gap detected. Consider a clinician check-in if this feels unusual."
@@ -2678,7 +2704,7 @@ def register_routes(app):
             else ovulation_status
             if day_signal["likely"]
             else prediction["prediction_text"]
-            if prediction["next_period"]
+            if prediction["forecast_state"] in {"active", "delayed", "unavailable"}
             else tracking_message
         )
         average_cycle_label = metric_days(model["cycle_length"]) if model["cycle_length"] else "--"
@@ -2687,21 +2713,20 @@ def register_routes(app):
             if model["cycle_low"] and model["cycle_high"] and model["cycle_low"] != model["cycle_high"]
             else average_cycle_label
         )
-        next_period_label = prediction["prediction_range_text"] if prediction["next_period"] else "Need more data"
-        forecast_status_label = (
-            "Update needed"
-            if recent_period["needs_flow_log_prompt"]
-            else "Estimated"
-            if prediction["next_period"]
-            else "Needs data"
-        )
-        uncertainty_note = (
-            "Add more cycle entries to improve timing."
-            if model["limited_data"]
-            else "Estimate updates with each new entry."
-            if not model["irregular"]
-            else "Timing may shift because recent cycles vary."
-        )
+        next_period_label = prediction["next_period_label"]
+        forecast_status_label = prediction["forecast_status_label"]
+        if prediction["forecast_state"] == "delayed":
+            uncertainty_note = "PCOS cycles can be irregular; log a new period start when it begins to recalculate."
+        elif prediction["forecast_state"] == "unavailable":
+            uncertainty_note = "More cycle logs are needed for stronger estimates."
+        else:
+            uncertainty_note = (
+                "Add more cycle entries to improve timing."
+                if model["limited_data"]
+                else "Estimate updates with each new entry."
+                if not model["irregular"]
+                else "Timing may shift because recent cycles vary."
+            )
         return {
             "phase": phase,
             "phase_visual": visual_phase,
@@ -2715,6 +2740,10 @@ def register_routes(app):
             "prediction_range_text": prediction["prediction_range_text"],
             "expected_date_text": prediction["expected_date_text"],
             "prediction_confidence": prediction["confidence"],
+            "forecast_state": prediction["forecast_state"],
+            "forecast_headline": prediction["forecast_headline"],
+            "next_period_metric_label": prediction["next_period_metric_label"],
+            "expired_prediction_range_text": prediction["expired_prediction_range_text"],
             "cycle_length": model["cycle_length"],
             "average_cycle_length": model["cycle_length"],
             "min_cycle_length": model["cycle_low"] if model["observed_lengths"] else None,
@@ -2740,8 +2769,8 @@ def register_routes(app):
             "prediction_ready": model["prediction_ready"],
             "phase_estimation_enabled": model["phase_estimation_enabled"],
             "has_cycle_history": model["has_cycle_history"],
-            "confidence": model["confidence_message"],
-            "confidence_message": model["confidence_message"],
+            "confidence": prediction["confidence"],
+            "confidence_message": prediction["confidence"],
             "pattern_summary": model["pattern_summary"],
             "limited_data": model["limited_data"],
             "insight_summary": insight_summary,
@@ -2750,7 +2779,7 @@ def register_routes(app):
             "cycle_range_label": cycle_range_label,
             "next_period_label": next_period_label,
             "forecast_status_label": forecast_status_label,
-            "confidence_level": model["confidence_message"],
+            "confidence_level": prediction["confidence"],
             "pattern_label": model["pattern_summary"],
         }
 
@@ -3176,6 +3205,10 @@ def register_routes(app):
             "prediction_range_text": cycle_info.get("prediction_range_text"),
             "expected_date_text": cycle_info.get("expected_date_text"),
             "prediction_confidence": cycle_info.get("prediction_confidence"),
+            "forecast_state": cycle_info.get("forecast_state"),
+            "forecast_headline": cycle_info.get("forecast_headline"),
+            "next_period_metric_label": cycle_info.get("next_period_metric_label"),
+            "expired_prediction_range_text": cycle_info.get("expired_prediction_range_text"),
             "average_cycle_length": cycle_info.get("average_cycle_length"),
             "min_cycle_length": cycle_info.get("min_cycle_length"),
             "max_cycle_length": cycle_info.get("max_cycle_length"),
@@ -5484,6 +5517,8 @@ def register_routes(app):
         latest_cycle_log = logs[0] if logs else None
         if cycle_info["needs_flow_log_prompt"]:
             cycle_prompts.append("Please log your flow to improve accuracy.")
+        if cycle_info.get("forecast_state") == "delayed":
+            cycle_prompts.append("Log a new period start if your cycle has begun.")
         if cycle_info["next_period_earliest"] and 0 <= (cycle_info["next_period_earliest"] - today).days <= 1 and not selected_log:
             cycle_prompts.append("Did your period start today?")
         if not selected_log:

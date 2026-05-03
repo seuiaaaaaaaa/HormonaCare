@@ -15,7 +15,7 @@
 <section class="calendar-layout">
     <div class="calendar-main">
         <div class="calendar-top">
-            <article class="panel-card side-focus cycle-insights-card">
+            <article class="panel-card side-focus cycle-insights-card forecast-{{ cycle_info.forecast_state }}">
                 <div class="cycle-insights-header">
                     <div class="ovulation-ring"></div>
                     <div class="cycle-insights-heading">
@@ -31,12 +31,12 @@
                     </div>
                 </div>
                 <div class="cycle-insights-grid">
-                    <div class="prediction-box cycle-insights-prediction">
+                    <div class="prediction-box cycle-insights-prediction forecast-{{ cycle_info.forecast_state }}">
                         <div class="prediction-box-top">
                             <span class="prediction-label">Period Outlook</span>
                             <span class="prediction-badge">{{ cycle_info.forecast_status_label }}</span>
                         </div>
-                        <strong>{{ cycle_info.next_period_label }}</strong>
+                        <strong>{{ cycle_info.forecast_headline }}</strong>
                         <p class="prediction-status">
                             {% if cycle_info.needs_flow_log_prompt %}
                                 Add flow today to keep timing current.
@@ -48,7 +48,7 @@
                     <div class="cycle-insights-meta">
                         <div class="insight-chip cycle-metric-chip">
                             <span class="cycle-metric-icon cycle-metric-next" aria-hidden="true"></span>
-                            <span class="status-line">Estimated Next Period</span>
+                            <span class="status-line">{{ cycle_info.next_period_metric_label }}</span>
                             <strong>{{ cycle_info.next_period_label }}</strong>
                         </div>
                         <div class="insight-chip cycle-metric-chip">
