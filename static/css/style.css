@@ -7841,6 +7841,60 @@ body.theme-dark .settings-password-method span:last-child {
     }
 }
 
+@media (min-width: 721px) and (max-width: 1080px) {
+    .app-shell {
+        grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .sidebar {
+        display: flex;
+    }
+
+    .mobile-topbar,
+    .mobile-menu-overlay,
+    .bottom-nav {
+        display: none;
+    }
+
+    .brand {
+        gap: 12px;
+        padding: 20px 16px;
+    }
+
+    .brand-mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+    }
+
+    .brand h1 {
+        font-size: 0.96rem;
+    }
+
+    .nav-scroll {
+        padding: 16px 14px;
+    }
+
+    .nav-list {
+        gap: 8px;
+    }
+
+    .nav-list a,
+    .logout-link {
+        gap: 10px;
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .logout-link {
+        margin: 10px 14px 18px;
+    }
+
+    .main-content {
+        padding: 24px 24px 34px;
+    }
+}
+
 @media (max-width: 720px) {
     .two-up-form,
     .symptom-grid,
