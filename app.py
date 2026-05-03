@@ -32,7 +32,7 @@ except ImportError:
     WebPushException = Exception
     webpush = None
 
-from ml_service import build_health_assessment, build_weekly_wellness_trend
+from ml_service import build_health_assessment, build_weekly_wellness_fallback, build_weekly_wellness_trend
 from models import (
     Appointment,
     CycleLog,
@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260503-mobilewellness")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260503-dashboardfallback")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -1833,32 +1833,34 @@ def register_routes(app):
                 "food_entries": [],
             }
             has_lifestyle_data = False
+            raw_sleep_hours = 0
+            raw_water_intake = 0
+            raw_exercise_minutes = 0
             if lifestyle_log:
+                raw_sleep_hours = parse_float(getattr(lifestyle_log, "sleep_hours", 0), default=0)
+                raw_water_intake = parse_float(getattr(lifestyle_log, "water_intake_liters", 0), default=0)
+                raw_exercise_minutes = parse_int(getattr(lifestyle_log, "exercise_minutes", 0), default=0)
                 has_lifestyle_data = any(
                     [
-                        (lifestyle_log.sleep_hours or 0) > 0,
-                        (lifestyle_log.water_intake_liters or 0) > 0,
-                        (lifestyle_log.exercise_minutes or 0) > 0,
+                        raw_sleep_hours > 0,
+                        raw_water_intake > 0,
+                        raw_exercise_minutes > 0,
                         bool(parsed_notes["exercise_entries"]),
                         bool(parsed_notes["food_entries"]),
                         (lifestyle_log.diet_quality or "").strip().lower() not in {"", "not logged"},
                     ]
-                )
+            )
             exercise_summary = summarize_daily_exercise(
                 parsed_notes["exercise_entries"],
-                fallback_minutes=lifestyle_log.exercise_minutes if has_lifestyle_data else 0,
+                fallback_minutes=raw_exercise_minutes if has_lifestyle_data else 0,
             )
             food_summary = summarize_daily_food(
                 parsed_notes["food_entries"],
                 fallback_category=lifestyle_log.diet_quality if has_lifestyle_data else "",
             )
-            sleep_hours = lifestyle_log.sleep_hours if has_lifestyle_data and lifestyle_log.sleep_hours > 0 else None
-            exercise_minutes = lifestyle_log.exercise_minutes if has_lifestyle_data and lifestyle_log.exercise_minutes > 0 else None
-            water_intake = (
-                lifestyle_log.water_intake_liters
-                if has_lifestyle_data and lifestyle_log.water_intake_liters > 0
-                else None
-            )
+            sleep_hours = raw_sleep_hours if has_lifestyle_data and raw_sleep_hours > 0 else None
+            exercise_minutes = raw_exercise_minutes if has_lifestyle_data and raw_exercise_minutes > 0 else None
+            water_intake = raw_water_intake if has_lifestyle_data and raw_water_intake > 0 else None
             rows.append(
                 {
                     "date": row_date,
@@ -2976,7 +2978,11 @@ def register_routes(app):
         latest_lifestyle = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).first()
         latest_mental = MentalLog.query.filter_by(user_id=user.id).order_by(MentalLog.log_date.desc()).first()
         cycle_info = get_cycle_info(user)
-        weekly_wellness_rows = build_weekly_wellness_rows(user)
+        try:
+            weekly_wellness_rows = build_weekly_wellness_rows(user)
+        except Exception:
+            app.logger.exception("Unable to build weekly wellness rows for dashboard")
+            weekly_wellness_rows = []
         latest_lifestyle_details = parse_lifestyle_notes(latest_lifestyle.notes) if latest_lifestyle else {
             "exercise_entries": [],
             "food_entries": [],
@@ -2999,7 +3005,20 @@ def register_routes(app):
             stress_level=latest_mental.stress_level if latest_mental else 5,
             activity_minutes=latest_lifestyle.exercise_minutes if latest_lifestyle else 30,
         )
-        weekly_wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
+        try:
+            weekly_wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
+        except Exception:
+            app.logger.exception("Unable to calculate weekly wellness trend for dashboard")
+            logged_days = 0
+            for row in weekly_wellness_rows:
+                if row.get("has_user_data") is False:
+                    continue
+                if any(
+                    row.get(key) is not None
+                    for key in ("sleep_hours", "sleep_duration", "water_intake", "physical_activity", "exercise_minutes", "stress_level")
+                ):
+                    logged_days += 1
+            weekly_wellness_trend = build_weekly_wellness_fallback(logged_days)
         weekly_wellness_trend["support_note"] = (
             "PCOS Insight: personalized from your logged cycle, mood, sleep, nutrition, and activity data. For educational support only."
             if pcos_state["has_info"]

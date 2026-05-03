@@ -35,13 +35,18 @@
                 </p>
                 <p class="wellness-status-explanation">{{ metrics.weekly_wellness_trend.explanation }}</p>
                 {% if metrics.weekly_wellness_trend.confidence_label %}
-                <p class="wellness-confidence-label">PCOS confidence: {{ metrics.weekly_wellness_trend.confidence_label }}</p>
+                <p class="wellness-confidence-label">
+                    PCOS confidence: {{ metrics.weekly_wellness_trend.confidence_label }}
+                    {% if metrics.weekly_wellness_trend.checkin_summary %}
+                    · {{ metrics.weekly_wellness_trend.checkin_summary }}
+                    {% endif %}
+                </p>
                 {% endif %}
             </div>
             {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.chart_points %}
             <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}" aria-hidden="true">
                 <div class="wellness-visual-meta">
-                    <span class="wellness-visual-label">7-Day PCOS Signals</span>
+                    <span class="wellness-visual-label">7-Day Window</span>
                 </div>
                 <div class="wellness-mini-trend wellness-mini-trend-{{ metrics.weekly_wellness_trend.tone }}">
                     {% for point in metrics.weekly_wellness_trend.chart_points %}
