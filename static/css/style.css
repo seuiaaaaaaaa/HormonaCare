@@ -975,6 +975,9 @@ svg {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    max-height: 100vh;
+    min-height: 0;
+    overflow: hidden;
     position: sticky;
     top: 0;
 }
@@ -1009,8 +1012,9 @@ svg {
 }
 
 .nav-scroll {
-    flex: 1;
-    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
     padding: 18px 16px;
 }
 
@@ -1051,7 +1055,8 @@ svg {
 }
 
 .logout-link {
-    margin: 14px 16px 20px;
+    flex: 0 0 auto;
+    margin: auto 16px 20px;
     border: 1px solid transparent;
 }
 
@@ -1265,6 +1270,65 @@ svg {
     width: min(100%, 1180px);
     margin: 0 auto;
     min-width: 0;
+}
+
+@media (min-width: 1081px) {
+    body.app-body {
+        height: 100vh;
+        min-height: 100vh;
+        overflow: hidden;
+    }
+
+    body.app-body .app-shell {
+        height: 100vh;
+        min-height: 100vh;
+        overflow: hidden;
+    }
+
+    body.app-body .main-content {
+        height: 100vh;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+}
+
+@media (min-width: 1081px) and (max-height: 720px) {
+    .brand {
+        gap: 10px;
+        padding: 10px 14px;
+    }
+
+    .brand-mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+    }
+
+    .nav-scroll {
+        padding: 8px 12px;
+    }
+
+    .nav-list {
+        gap: 4px;
+    }
+
+    .nav-list a,
+    .logout-link {
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 12px;
+    }
+
+    .nav-divider {
+        margin: 6px 0;
+    }
+
+    .logout-link {
+        margin: auto 12px 8px;
+    }
 }
 
 .flash-stack {
