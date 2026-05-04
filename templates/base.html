@@ -35,7 +35,7 @@
     </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=static_asset_version) }}">
 </head>
-<body class="{% if dark_mode_enabled %}theme-dark{% endif %}{% if current_user %} app-body{% else %} auth-body{% endif %}" data-theme="{{ 'dark' if dark_mode_enabled else 'light' }}">
+<body class="{% if dark_mode_enabled %}theme-dark{% endif %}" data-theme="{{ 'dark' if dark_mode_enabled else 'light' }}">
     <script>
         (function () {
             var activeTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";

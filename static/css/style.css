@@ -1273,19 +1273,19 @@ svg {
 }
 
 @media (min-width: 1081px) {
-    body.app-body {
+    body:has(> .app-shell) {
         height: 100vh;
         min-height: 100vh;
         overflow: hidden;
     }
 
-    body.app-body .app-shell {
+    body:has(> .app-shell) .app-shell {
         height: 100vh;
         min-height: 100vh;
         overflow: hidden;
     }
 
-    body.app-body .main-content {
+    body:has(> .app-shell) .main-content {
         height: 100vh;
         min-height: 0;
         overflow-x: hidden;

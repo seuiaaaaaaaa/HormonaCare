@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260504-sidebarscroll")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260504-dashboard500fix")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -2876,6 +2876,8 @@ def register_routes(app):
 
         due_medications = []
         for medication in medications:
+            if not medication.time_of_day:
+                continue
             scheduled_at = datetime.combine(today, medication.time_of_day)
             if medication.status == "pending" and now >= scheduled_at:
                 overdue_hours = (now - scheduled_at).total_seconds() / 3600
@@ -3024,10 +3026,19 @@ def register_routes(app):
             if pcos_state["has_info"]
             else "PCOS Insight: this trend is based on your recent lifestyle logs."
         )
-        reminders = [f"{med.name} at {med.time_of_day.strftime('%H:%M')}" for med in medications_today]
-        reminders.extend(
-            f"Appointment with {appt.doctor_name} on {appt.appointment_date:%b %d}" for appt in upcoming_appointments
-        )
+        reminders = []
+        for med in medications_today:
+            medication_name = med.name or "Medication"
+            if med.time_of_day:
+                reminders.append(f"{medication_name} at {med.time_of_day.strftime('%H:%M')}")
+            else:
+                reminders.append(f"{medication_name} time not set")
+        for appt in upcoming_appointments:
+            doctor_name = appt.doctor_name or "Doctor"
+            if appt.appointment_date:
+                reminders.append(f"Appointment with {doctor_name} on {appt.appointment_date:%b %d}")
+            else:
+                reminders.append(f"Appointment with {doctor_name}")
         taken_count = len([med for med in medications_today if med.status == "taken"])
         total_count = len(medications_today)
         has_user_activity = bool(
