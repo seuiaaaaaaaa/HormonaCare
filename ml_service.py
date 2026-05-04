@@ -12,7 +12,7 @@ from ml_model import (
     predict_wellness,
 )
 
-MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 4
+MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 7
 
 
 def _clamp(value, minimum, maximum):
@@ -273,7 +273,7 @@ def build_weekly_wellness_trend(daily_rows):
         return {
             "title": "PCOS Wellness Trend",
             "predicted_label": "Not enough data yet",
-            "explanation": "Log at least 4 days of lifestyle entries to build a PCOS wellness trend from your recent patterns.",
+            "explanation": "Log at least 7 days of lifestyle entries to build a PCOS wellness trend from your recent patterns.",
             "recommendation": None,
             "pattern_highlights": [],
             "tone": "info",
