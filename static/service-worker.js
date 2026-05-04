@@ -1,5 +1,5 @@
-const CACHE_NAME = "hormonacare-static-v29";
-const STATIC_VERSION = "20260504-dashboard500fix";
+const CACHE_NAME = "hormonacare-static-v30";
+const STATIC_VERSION = "20260504-mentalcompact";
 const STATIC_ASSETS = [
     `/static/css/style.css?v=${STATIC_VERSION}`,
     `/static/js/app.js?v=${STATIC_VERSION}`,
