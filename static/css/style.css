@@ -7531,7 +7531,7 @@ body.theme-dark .settings-password-method span:last-child {
     }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1080px) {
     .overview-top-grid,
     .overview-bottom-grid,
     .lifestyle-grid,
@@ -7847,7 +7847,7 @@ body.theme-dark .settings-password-method span:last-child {
     }
 }
 
-@media (min-width: 721px) and (max-width: 1280px) {
+@media (min-width: 721px) and (max-width: 1080px) {
     .app-shell {
         grid-template-columns: 1fr;
     }
