@@ -313,6 +313,8 @@ body.theme-dark .wellness-confidence-label,
 body.theme-dark .wellness-data-completeness,
 body.theme-dark .wellness-data-helper,
 body.theme-dark .wellness-disclaimer,
+body.theme-dark .wellness-summary-lines,
+body.theme-dark .wellness-compact-note,
 body.theme-dark .wellness-recommendation-copy p {
     color: #cbd9f1;
 }
@@ -2138,9 +2140,9 @@ svg {
 
 .wellness-status-result {
     margin: 0;
-    font-size: clamp(1.75rem, 3vw, 2.45rem);
+    font-size: 2.25rem;
     line-height: 1;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     font-weight: 850;
 }
 
@@ -2154,6 +2156,33 @@ svg {
 
 .wellness-status-result-info {
     color: #2e61c6;
+}
+
+.wellness-trend-label {
+    margin: 0 0 8px;
+    color: var(--wellness-accent-strong);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.wellness-summary-lines {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    color: #5c7491;
+    font-size: 0.9rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.wellness-compact-note {
+    margin: 12px 0 0;
+    color: #7d90ad;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .wellness-status-explanation {
@@ -2457,7 +2486,7 @@ svg {
 }
 
 .wellness-status-result {
-    font-size: clamp(1.72rem, 3vw, 2.35rem);
+    font-size: 2.2rem;
     line-height: 1;
 }
 
@@ -2513,6 +2542,49 @@ svg {
 .wellness-visual-label {
     font-size: 0.66rem;
     letter-spacing: 0.14em;
+}
+
+.wellness-checkin-trend {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+    min-width: 0;
+}
+
+.wellness-checkin-day {
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+}
+
+.wellness-checkin-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--wellness-accent);
+    border: 2px solid rgba(255, 255, 255, 0.92);
+    box-shadow: 0 4px 10px var(--wellness-chip-glow);
+}
+
+.wellness-checkin-day-missing .wellness-checkin-dot {
+    background: transparent;
+    border-color: rgba(125, 144, 173, 0.55);
+    box-shadow: none;
+    opacity: 0.72;
+}
+
+.wellness-checkin-label {
+    color: #7d90ad;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.wellness-checkin-day-missing .wellness-checkin-label {
+    color: #9aa8ba;
 }
 
 .wellness-mini-trend {
@@ -8302,7 +8374,16 @@ body.theme-dark .settings-password-method span:last-child {
     }
 
     .wellness-status-result {
-        font-size: clamp(1.55rem, 7vw, 2rem);
+        font-size: 1.75rem;
+    }
+
+    .wellness-checkin-trend {
+        gap: 6px;
+    }
+
+    .wellness-checkin-dot {
+        width: 12px;
+        height: 12px;
     }
 
     .wellness-status-explanation {
@@ -9097,7 +9178,15 @@ body.theme-dark .settings-password-method span:last-child {
     }
 
     .wellness-status-result {
-        font-size: clamp(1.4rem, 7vw, 1.8rem);
+        font-size: 1.55rem;
+    }
+
+    .wellness-checkin-trend {
+        gap: 4px;
+    }
+
+    .wellness-checkin-label {
+        font-size: 0.56rem;
     }
 
     .wellness-mini-trend {

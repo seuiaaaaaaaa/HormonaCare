@@ -166,6 +166,16 @@ def build_weekly_confidence_label(logged_days):
     return None
 
 
+def build_weekly_confidence_level(logged_days):
+    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
+        return "High"
+    if logged_days == 6:
+        return "Moderate"
+    if logged_days >= MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return "Low"
+    return "Needs more data"
+
+
 def build_weekly_display_label(predicted_label, logged_days):
     if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
         return INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE
@@ -176,8 +186,32 @@ def build_weekly_display_label(predicted_label, logged_days):
 
 def build_weekly_badge_label(predicted_label, logged_days):
     if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
-        return "Incomplete data"
+        return "Needs data"
+    return "ML insight"
+
+
+def build_weekly_result_label(predicted_label, logged_days):
+    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return "Not enough data"
     return predicted_label
+
+
+def build_weekly_trend_label(logged_days):
+    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return "Trend pending"
+    if logged_days <= 5:
+        return "Preliminary Trend"
+    return "Wellness Trend"
+
+
+def build_weekly_checkin_line(logged_days):
+    return f"Based on {logged_days} of {COMPLETE_WEEK_LOGGED_DAYS} recent check-ins"
+
+
+def build_weekly_footer_note(logged_days):
+    if logged_days < COMPLETE_WEEK_LOGGED_DAYS:
+        return "Log more days to improve accuracy."
+    return "Decision Tree insight from recent lifestyle data."
 
 
 def format_weekly_checkin_summary(logged_days):
@@ -211,7 +245,7 @@ def build_weekly_completion_helper(logged_days):
 def build_weekly_chart_window_label(logged_days):
     if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
         return "7-day window"
-    return "Recent activity"
+    return "Recent check-ins"
 
 
 def build_weekly_chart_points(daily_rows):
@@ -305,6 +339,11 @@ def build_weekly_wellness_fallback(logged_days=0):
         "predicted_label": "Unavailable",
         "display_label": "Unavailable",
         "badge_label": "Model unavailable",
+        "result_label": "Unavailable",
+        "trend_label": "Trend unavailable",
+        "checkin_line": build_weekly_checkin_line(logged_days),
+        "confidence_level": "Unavailable",
+        "footer_note": build_weekly_footer_note(logged_days),
         "explanation": f"{build_weekly_explanation(logged_days)}, but the wellness trend could not be calculated right now.",
         "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
         "pattern_highlights": [],
@@ -338,7 +377,12 @@ def build_weekly_wellness_trend(daily_rows):
             "title": "PCOS Wellness Trend",
             "predicted_label": None,
             "display_label": INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE,
-            "badge_label": "Incomplete data",
+            "badge_label": "Needs data",
+            "result_label": build_weekly_result_label(None, logged_days),
+            "trend_label": build_weekly_trend_label(logged_days),
+            "checkin_line": build_weekly_checkin_line(logged_days),
+            "confidence_level": build_weekly_confidence_level(logged_days),
+            "footer_note": build_weekly_footer_note(logged_days),
             "explanation": build_weekly_explanation(logged_days),
             "recommendation": None,
             "pattern_highlights": [],
@@ -369,6 +413,11 @@ def build_weekly_wellness_trend(daily_rows):
             "predicted_label": "Unavailable",
             "display_label": "Unavailable",
             "badge_label": "Model unavailable",
+            "result_label": "Unavailable",
+            "trend_label": "Trend unavailable",
+            "checkin_line": build_weekly_checkin_line(logged_days),
+            "confidence_level": "Unavailable",
+            "footer_note": build_weekly_footer_note(logged_days),
             "explanation": f"{build_weekly_explanation(logged_days)}, but the PCOS trend model is temporarily unavailable.",
             "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
             "pattern_highlights": [],
@@ -404,6 +453,11 @@ def build_weekly_wellness_trend(daily_rows):
         "predicted_label": predicted_label,
         "display_label": build_weekly_display_label(predicted_label, logged_days),
         "badge_label": build_weekly_badge_label(predicted_label, logged_days),
+        "result_label": build_weekly_result_label(predicted_label, logged_days),
+        "trend_label": build_weekly_trend_label(logged_days),
+        "checkin_line": build_weekly_checkin_line(logged_days),
+        "confidence_level": build_weekly_confidence_level(logged_days),
+        "footer_note": build_weekly_footer_note(logged_days),
         "explanation": build_weekly_explanation(logged_days),
         "recommendation": build_weekly_trend_guidance(predicted_label),
         "pattern_highlights": factors,

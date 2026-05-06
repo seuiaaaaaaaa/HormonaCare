@@ -30,9 +30,20 @@
 
         <div class="wellness-status-row">
             <div class="wellness-status-copy">
-                <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
-                    {{ metrics.weekly_wellness_trend.display_label|default(metrics.weekly_wellness_trend.predicted_label) }}
+                <p class="wellness-trend-label">
+                    {{ metrics.weekly_wellness_trend.trend_label|default('Wellness Trend') }}
                 </p>
+                <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
+                    {{ metrics.weekly_wellness_trend.result_label|default(metrics.weekly_wellness_trend.display_label|default(metrics.weekly_wellness_trend.predicted_label)) }}
+                </p>
+                <div class="wellness-summary-lines">
+                    <span>{{ metrics.weekly_wellness_trend.checkin_line|default(metrics.weekly_wellness_trend.explanation) }}</span>
+                    <span>Confidence: {{ metrics.weekly_wellness_trend.confidence_level|default(metrics.weekly_wellness_trend.confidence_label|default('Needs more data')) }}</span>
+                </div>
+                <p class="wellness-compact-note" title="{{ metrics.weekly_wellness_trend.disclaimer|default('') }}">
+                    {{ metrics.weekly_wellness_trend.footer_note|default('This insight does not replace medical advice.') }}
+                </p>
+                {% if false %}
                 <p class="wellness-status-explanation">{{ metrics.weekly_wellness_trend.explanation }}</p>
                 {% if metrics.weekly_wellness_trend.confidence_label %}
                 <p class="wellness-confidence-label">
@@ -51,19 +62,18 @@
                 {% if metrics.weekly_wellness_trend.disclaimer %}
                 <p class="wellness-disclaimer">{{ metrics.weekly_wellness_trend.disclaimer }}</p>
                 {% endif %}
+                {% endif %}
             </div>
             {% if metrics.weekly_wellness_trend.chart_points %}
-            <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}" aria-hidden="true">
+            <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}">
                 <div class="wellness-visual-meta">
                     <span class="wellness-visual-label">{{ metrics.weekly_wellness_trend.chart_window_label }}</span>
                 </div>
-                <div class="wellness-mini-trend wellness-mini-trend-{{ metrics.weekly_wellness_trend.tone }}">
+                <div class="wellness-checkin-trend">
                     {% for point in metrics.weekly_wellness_trend.chart_points %}
-                    <span class="wellness-mini-point{% if not point.has_data %} wellness-mini-point-missing{% endif %}" title="{{ point.tooltip }}">
-                        <span class="wellness-mini-bar-track{% if not point.has_data %} wellness-mini-bar-track-missing{% endif %}">
-                            <span class="wellness-mini-bar{% if not point.has_data %} wellness-mini-bar-missing{% endif %}" style="height: {{ point.height }}%;"></span>
-                        </span>
-                        <span class="wellness-mini-label">{{ point.label }}</span>
+                    <span class="wellness-checkin-day{% if not point.has_data %} wellness-checkin-day-missing{% endif %}" title="{{ point.tooltip }}">
+                        <span class="wellness-checkin-dot" aria-hidden="true"></span>
+                        <span class="wellness-checkin-label">{{ point.label }}</span>
                     </span>
                     {% endfor %}
                 </div>
@@ -71,7 +81,7 @@
             {% endif %}
         </div>
 
-        {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.pattern_highlights %}
+        {% if false and metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.pattern_highlights %}
         <div class="wellness-section-label">PCOS Insight Signals</div>
         <div class="wellness-factor-list">
             {% for factor in metrics.weekly_wellness_trend.pattern_highlights %}
@@ -80,7 +90,7 @@
         </div>
         {% endif %}
 
-        {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.recommendation %}
+        {% if false and metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.recommendation %}
         <div class="wellness-section-label">PCOS Support Recommendation</div>
         <div class="wellness-recommendation-box">
             <div class="wellness-recommendation-copy">
