@@ -4693,7 +4693,7 @@ select {
 
 .appointments-layout {
     display: grid;
-    grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1.45fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px;
     align-items: flex-start;
     min-width: 0;
