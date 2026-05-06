@@ -1938,13 +1938,14 @@ def register_routes(app):
 
     def appointment_status_meta(appointment, meta):
         raw_status = (meta.get("status") or "scheduled").strip().lower()
+        appointment_date = appointment.appointment_date
         if raw_status == "completed":
             return {"key": "completed", "label": "Done", "tone": "muted"}
         if raw_status == "cancelled":
             return {"key": "cancelled", "label": "Cancelled", "tone": "muted"}
-        if raw_status == "missed" or appointment.appointment_date < date.today():
+        if raw_status == "missed" or (appointment_date and appointment_date < date.today()):
             return {"key": "missed", "label": "Missed", "tone": "warning"}
-        if appointment.appointment_date == date.today():
+        if appointment_date == date.today():
             return {"key": "today", "label": "Today", "tone": "info"}
         return {"key": "scheduled", "label": "Upcoming", "tone": "success"}
 
@@ -1952,8 +1953,8 @@ def register_routes(app):
         return {
             "id": appointment.id,
             "doctor_name": appointment.doctor_name,
-            "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d"),
-            "appointment_time": appointment.appointment_time.strftime("%H:%M"),
+            "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d") if appointment.appointment_date else "",
+            "appointment_time": appointment.appointment_time.strftime("%H:%M") if appointment.appointment_time else "",
             "specialty": meta.get("specialty", "General Checkup"),
             "location": meta.get("location", "Clinic location"),
             "notes": meta.get("notes_text", ""),
@@ -2025,15 +2026,17 @@ def register_routes(app):
 
         upcoming = [
             item for item in decorated
-            if item["appointment"].appointment_date >= date.today()
+            if item["appointment"].appointment_date
+            and item["appointment"].appointment_date >= date.today()
             and item["status"]["key"] not in {"completed", "cancelled", "missed"}
         ]
         past = [
             item for item in decorated
-            if item["appointment"].appointment_date < date.today()
+            if not item["appointment"].appointment_date
+            or item["appointment"].appointment_date < date.today()
             or item["status"]["key"] in {"completed", "cancelled", "missed"}
         ]
-        past.sort(key=lambda item: item["appointment"].appointment_date, reverse=True)
+        past.sort(key=lambda item: item["appointment"].appointment_date or date.min, reverse=True)
 
         appointment_form_values = empty_appointment_form_values()
         if form_values:
