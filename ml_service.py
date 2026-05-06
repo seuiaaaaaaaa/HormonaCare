@@ -363,7 +363,7 @@ def build_weekly_wellness_trend(daily_rows):
         prediction_input = build_weekly_prediction_input(model_rows)
         predicted_label = predict_wellness(prediction_input)
         model_bundle = get_weekly_wellness_trend_bundle()
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except Exception:
         return {
             "title": "PCOS Wellness Trend",
             "predicted_label": "Unavailable",
@@ -389,7 +389,10 @@ def build_weekly_wellness_trend(daily_rows):
             "has_sufficient_data": True,
         }
 
-    factors = identify_weekly_trend_factors(model_rows, predicted_label=predicted_label)
+    try:
+        factors = identify_weekly_trend_factors(model_rows, predicted_label=predicted_label)
+    except Exception:
+        factors = []
     tone_map = {
         "Improving": "success",
         "Stable": "info",

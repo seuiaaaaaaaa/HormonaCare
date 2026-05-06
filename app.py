@@ -3111,7 +3111,12 @@ def register_routes(app):
             if symptoms and latest_symptom_date is None:
                 latest_symptom_date = log.log_date
             symptom_counts.update(symptoms)
-        wellness_trend = build_weekly_wellness_trend(build_weekly_wellness_rows(user))
+        try:
+            weekly_wellness_rows = build_weekly_wellness_rows(user)
+            wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
+        except Exception:
+            app.logger.exception("Unable to calculate weekly wellness trend for profile")
+            wellness_trend = build_weekly_wellness_fallback(0)
         return {
             "profile": profile,
             "pcos_state": pcos_state,
@@ -3189,7 +3194,7 @@ def register_routes(app):
                 },
                 {
                     "label": "PCOS wellness trend",
-                    "value": wellness_trend["predicted_label"],
+                    "value": wellness_trend.get("display_label") or wellness_trend.get("predicted_label") or "Not enough data",
                     "helper": wellness_trend["explanation"],
                 },
             ],
