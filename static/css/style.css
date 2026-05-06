@@ -328,6 +328,65 @@ body.theme-dark .wellness-mini-label {
     color: #b7c8e4;
 }
 
+body.theme-dark .wellness-status-visual {
+    background:
+        linear-gradient(180deg, rgba(23, 36, 60, 0.96), rgba(16, 27, 47, 0.92)),
+        rgba(18, 31, 53, 0.92);
+    border-color: rgba(143, 164, 199, 0.22);
+    box-shadow:
+        0 12px 24px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+body.theme-dark .wellness-status-badge {
+    box-shadow:
+        0 8px 16px rgba(0, 0, 0, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+body.theme-dark .wellness-status-badge-success {
+    background: rgba(52, 179, 107, 0.14);
+    border-color: rgba(52, 179, 107, 0.28);
+    color: #96e7b8;
+}
+
+body.theme-dark .wellness-status-badge-warning {
+    background: rgba(224, 102, 102, 0.14);
+    border-color: rgba(224, 102, 102, 0.3);
+    color: #ffb0b0;
+}
+
+body.theme-dark .wellness-status-badge-info {
+    background: rgba(74, 125, 219, 0.16);
+    border-color: rgba(126, 169, 235, 0.3);
+    color: #a9c6ff;
+}
+
+body.theme-dark .wellness-trend-label {
+    color: #9dbdff;
+}
+
+body.theme-dark .wellness-checkin-dot {
+    background: #79a7ff;
+    border-color: rgba(159, 190, 255, 0.28);
+    box-shadow: 0 0 0 3px rgba(74, 125, 219, 0.14);
+}
+
+body.theme-dark .wellness-checkin-day-missing .wellness-checkin-dot {
+    background: transparent;
+    border-color: rgba(169, 188, 220, 0.42);
+    box-shadow: none;
+    opacity: 0.8;
+}
+
+body.theme-dark .wellness-checkin-label {
+    color: #b7c8e4;
+}
+
+body.theme-dark .wellness-checkin-day-missing .wellness-checkin-label {
+    color: #7f91ad;
+}
+
 body.theme-dark .mood-check-card,
 body.theme-dark .mood-trends-card {
     border-color: rgba(127, 145, 175, 0.24);
