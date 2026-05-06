@@ -310,6 +310,9 @@ body.theme-dark .wellness-recommendation-box {
 
 body.theme-dark .wellness-status-explanation,
 body.theme-dark .wellness-confidence-label,
+body.theme-dark .wellness-data-completeness,
+body.theme-dark .wellness-data-helper,
+body.theme-dark .wellness-disclaimer,
 body.theme-dark .wellness-recommendation-copy p {
     color: #cbd9f1;
 }
@@ -782,6 +785,8 @@ body.theme-dark .doctor-tag {
 
 body.theme-dark .appt-date-block span,
 body.theme-dark .appt-inline-meta,
+body.theme-dark .appt-detail-row,
+body.theme-dark .appt-note-label,
 body.theme-dark .history-specialty {
     color: var(--text-tertiary);
 }
@@ -806,6 +811,10 @@ body.theme-dark .history-note {
 }
 
 body.theme-dark .history-follow-up strong {
+    color: var(--ink);
+}
+
+body.theme-dark .appt-detail-row strong {
     color: var(--ink);
 }
 
@@ -2468,6 +2477,28 @@ svg {
     letter-spacing: 0.01em;
 }
 
+.wellness-data-completeness,
+.wellness-data-helper {
+    margin: 4px 0 0;
+    color: #5c7491;
+    font-size: 0.78rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+
+.wellness-data-helper {
+    color: #7d90ad;
+    font-weight: 600;
+}
+
+.wellness-disclaimer {
+    margin: 8px 0 0;
+    max-width: 620px;
+    color: #627993;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
 .wellness-status-visual {
     width: min(216px, 28%);
     min-width: 188px;
@@ -2517,6 +2548,23 @@ svg {
     border-radius: 999px;
     background: linear-gradient(180deg, rgba(126, 169, 235, 0.72), var(--wellness-accent));
     box-shadow: 0 5px 10px rgba(74, 125, 219, 0.1);
+}
+
+.wellness-mini-bar-track-missing {
+    border: 1px dashed rgba(125, 144, 173, 0.46);
+    background: rgba(239, 244, 252, 0.54);
+}
+
+.wellness-mini-bar-missing {
+    min-height: 0;
+    border: 1px dashed rgba(125, 144, 173, 0.52);
+    background: transparent;
+    box-shadow: none;
+    opacity: 0.72;
+}
+
+.wellness-mini-point-missing .wellness-mini-label {
+    color: #9aa8ba;
 }
 
 .wellness-mini-label {
@@ -4719,6 +4767,11 @@ select {
     overflow: hidden;
 }
 
+.appointment-record-card {
+    display: grid;
+    gap: 14px;
+}
+
 .appt-top {
     display: flex;
     justify-content: space-between;
@@ -4735,6 +4788,10 @@ select {
 .appt-top h3,
 .history-card h3 {
     margin: 0 0 8px;
+}
+
+.appointment-record-card .appt-top h3 {
+    margin-bottom: 0;
 }
 
 .doctor-tag {
@@ -4758,6 +4815,40 @@ select {
 
 .appt-date-block span {
     color: #5f78a1;
+}
+
+.appt-description-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.appt-detail-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    color: #5f78a1;
+    font-weight: 600;
+    min-width: 0;
+}
+
+.appt-detail-row span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.appt-detail-row strong {
+    color: #425b82;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
 }
 
 .appt-inline-meta {
@@ -4806,9 +4897,9 @@ select {
 }
 
 .status-pill.warning {
-    background: #fff6e8;
-    border-color: #ffdca1;
-    color: #b56b00;
+    background: #fff1e8;
+    border-color: #ffc6a7;
+    color: #c44d1c;
 }
 
 .status-pill.muted {
@@ -4836,6 +4927,25 @@ select {
     border-color: var(--line);
     background: #fbfdff;
     word-break: break-all;
+}
+
+.appt-note-block {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.appt-note-block .appt-note-box {
+    margin-bottom: 0;
+}
+
+.appt-note-label {
+    color: #7c8fad;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .history-specialty {
@@ -4902,16 +5012,22 @@ select {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    align-items: stretch;
+}
+
+.appt-actions > * {
+    flex: 1 1 140px;
 }
 
 .appt-actions form {
-    flex: 1;
+    display: flex;
 }
 
 .appt-actions .outline-wide,
 .appt-actions .dark-button,
 .appt-actions .inline-action {
     width: 100%;
+    min-height: 44px;
 }
 
 .appt-actions .inline-action {
@@ -8094,6 +8210,11 @@ body.theme-dark .settings-password-method span:last-child {
         align-items: flex-start;
     }
 
+    .appt-description-row,
+    .appt-detail-row {
+        align-items: flex-start;
+    }
+
     .overview-top-grid,
     .overview-bottom-grid,
     .overview-wellness-grid,
@@ -8608,6 +8729,11 @@ body.theme-dark .settings-password-method span:last-child {
 
     .appt-top {
         gap: 10px;
+    }
+
+    .appt-description-row,
+    .appt-detail-row {
+        gap: 8px;
     }
 
     .appt-actions,
@@ -9256,6 +9382,10 @@ body.theme-dark .settings-password-method span:last-child {
     .appt-actions,
     .food-row {
         gap: 10px;
+    }
+
+    .appt-detail-row span {
+        width: 100%;
     }
 
     .profile-detail-card,

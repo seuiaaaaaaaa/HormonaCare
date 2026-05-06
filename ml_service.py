@@ -12,7 +12,12 @@ from ml_model import (
     predict_wellness,
 )
 
-MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 7
+COMPLETE_WEEK_LOGGED_DAYS = 7
+MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 4
+INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE = "Not enough data to generate a reliable wellness trend."
+WEEKLY_WELLNESS_DISCLAIMER = (
+    "This insight is based on recent lifestyle data and does not replace medical advice."
+)
 
 
 def _clamp(value, minimum, maximum):
@@ -151,48 +156,102 @@ def _build_weekly_recommendation(predicted_label):
 
 
 def build_weekly_confidence_label(logged_days):
-    """Estimate user-facing confidence from the number of recent logged days."""
-    if logged_days >= 6:
-        return "High"
-    if logged_days >= 4:
-        return "Medium"
-    return "Low"
+    """Describe display confidence without changing the ML prediction output."""
+    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
+        return "High confidence."
+    if logged_days == 6:
+        return "Moderate confidence (6/7 days logged)."
+    if logged_days >= MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return "Low confidence (limited data)."
+    return None
+
+
+def build_weekly_display_label(predicted_label, logged_days):
+    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE
+    if logged_days <= 5:
+        return f"Preliminary trend: {predicted_label}"
+    return predicted_label
+
+
+def build_weekly_badge_label(predicted_label, logged_days):
+    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+        return "Incomplete data"
+    return predicted_label
 
 
 def format_weekly_checkin_summary(logged_days):
-    """Describe how many user logs support the 7-day wellness window."""
-    checkin_label = "check-in" if logged_days == 1 else "check-ins"
-    return f"{logged_days}/7 {checkin_label}"
+    """Describe how many recent days include logs."""
+    return f"{logged_days}/{COMPLETE_WEEK_LOGGED_DAYS} days logged"
+
+
+def format_weekly_activity_summary(logged_days):
+    """Describe recent logged activity in sentence form."""
+    day_label = "day" if logged_days == 1 else "days"
+    return f"{logged_days} of {COMPLETE_WEEK_LOGGED_DAYS} {day_label} logged"
+
+
+def build_weekly_explanation(logged_days):
+    """Keep full-window wording only when all seven days are present."""
+    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
+        return "Predicted from your recent 7-day window."
+    return f"Based on partial data ({format_weekly_activity_summary(logged_days)})."
+
+
+def build_weekly_data_completeness_label(logged_days):
+    return f"Data completeness: {logged_days}/{COMPLETE_WEEK_LOGGED_DAYS} days."
+
+
+def build_weekly_completion_helper(logged_days):
+    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
+        return None
+    return "Log more days to improve accuracy."
+
+
+def build_weekly_chart_window_label(logged_days):
+    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
+        return "7-day window"
+    return "Recent activity"
 
 
 def build_weekly_chart_points(daily_rows):
     """Create a compact 7-day visual signal for the dashboard card."""
     rows = list(daily_rows or [])[-7:]
     fallback_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    fallback_values = [56, 60, 54, 58, 62, 59, 57]
 
-    if not rows:
-        return [
-            {"label": label, "height": fallback_values[index]}
-            for index, label in enumerate(fallback_labels)
-        ]
+    if len(rows) < COMPLETE_WEEK_LOGGED_DAYS:
+        rows = ([None] * (COMPLETE_WEEK_LOGGED_DAYS - len(rows))) + rows
 
     raw_values = []
     labels = []
     for index, row in enumerate(rows):
+        row = row or {}
         row_date = row.get("date")
         label = row_date.strftime("%a") if hasattr(row_date, "strftime") else fallback_labels[index]
-        raw_values.append(_calculate_daily_wellness_score(row) if row.get("has_user_data", True) else None)
+        has_data = row.get("has_user_data") is not False and any(
+            row.get(key) is not None
+            for key in ("sleep_hours", "sleep_duration", "water_intake", "physical_activity", "exercise_minutes", "stress_level")
+        )
+        raw_values.append(_calculate_daily_wellness_score(row) if has_data else None)
         labels.append(label)
 
     chart_points = []
     for index, value in enumerate(raw_values):
         if value is None:
-            height = 18
+            height = 0
+            has_data = False
         else:
             normalized = _clamp((value + 0.25) / 1.0, 0.0, 1.0)
             height = round(30 + (normalized * 40))
-        chart_points.append({"label": labels[index], "height": height})
+            has_data = True
+        chart_points.append(
+            {
+                "label": labels[index],
+                "height": height,
+                "has_data": has_data,
+                "tooltip": f"{labels[index]}: logged" if has_data else "No data recorded.",
+            }
+        )
 
     return chart_points
 
@@ -241,11 +300,12 @@ def build_health_assessment(sleep_hours, water_intake, stress_level, activity_mi
 
 
 def build_weekly_wellness_fallback(logged_days=0):
-    checkin_summary = format_weekly_checkin_summary(logged_days)
     return {
         "title": "PCOS Wellness Trend",
         "predicted_label": "Unavailable",
-        "explanation": f"Your recent 7-day window has {checkin_summary}, but the wellness trend could not be calculated right now.",
+        "display_label": "Unavailable",
+        "badge_label": "Model unavailable",
+        "explanation": f"{build_weekly_explanation(logged_days)}, but the wellness trend could not be calculated right now.",
         "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
         "pattern_highlights": [],
         "tone": "warning",
@@ -256,7 +316,12 @@ def build_weekly_wellness_fallback(logged_days=0):
         "chart_points": [],
         "current_week_score": None,
         "logged_days": logged_days,
-        "checkin_summary": checkin_summary,
+        "checkin_summary": None,
+        "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+        "weekly_completion_helper": build_weekly_completion_helper(logged_days),
+        "chart_window_label": build_weekly_chart_window_label(logged_days),
+        "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
+        "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
         "has_sufficient_data": False,
     }
 
@@ -267,13 +332,14 @@ def build_weekly_wellness_trend(daily_rows):
     current_week_summary = _summarize_week(current_week_rows)
     model_rows = [row for row in current_week_rows if row.get("has_user_data", True)]
     logged_days = current_week_summary["logged_days"]
-    checkin_summary = format_weekly_checkin_summary(logged_days)
 
     if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
         return {
             "title": "PCOS Wellness Trend",
-            "predicted_label": "Not enough data yet",
-            "explanation": "Log at least 7 days of lifestyle entries to build a PCOS wellness trend from your recent patterns.",
+            "predicted_label": None,
+            "display_label": INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE,
+            "badge_label": "Incomplete data",
+            "explanation": build_weekly_explanation(logged_days),
             "recommendation": None,
             "pattern_highlights": [],
             "tone": "info",
@@ -281,10 +347,15 @@ def build_weekly_wellness_trend(daily_rows):
             "model_dataset": None,
             "model_test_accuracy": None,
             "confidence_label": None,
-            "chart_points": [],
+            "chart_points": build_weekly_chart_points(current_week_rows),
             "current_week_score": None,
             "logged_days": logged_days,
-            "checkin_summary": checkin_summary,
+            "checkin_summary": None,
+            "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+            "weekly_completion_helper": build_weekly_completion_helper(logged_days),
+            "chart_window_label": build_weekly_chart_window_label(logged_days),
+            "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
+            "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
             "has_sufficient_data": False,
         }
 
@@ -296,7 +367,9 @@ def build_weekly_wellness_trend(daily_rows):
         return {
             "title": "PCOS Wellness Trend",
             "predicted_label": "Unavailable",
-            "explanation": f"Your recent 7-day window was reviewed using {checkin_summary}, but the PCOS trend model is temporarily unavailable.",
+            "display_label": "Unavailable",
+            "badge_label": "Model unavailable",
+            "explanation": f"{build_weekly_explanation(logged_days)}, but the PCOS trend model is temporarily unavailable.",
             "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
             "pattern_highlights": [],
             "tone": "warning",
@@ -307,7 +380,12 @@ def build_weekly_wellness_trend(daily_rows):
             "chart_points": build_weekly_chart_points(current_week_rows),
             "current_week_score": None,
             "logged_days": logged_days,
-            "checkin_summary": checkin_summary,
+            "checkin_summary": None,
+            "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+            "weekly_completion_helper": build_weekly_completion_helper(logged_days),
+            "chart_window_label": build_weekly_chart_window_label(logged_days),
+            "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
+            "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
             "has_sufficient_data": True,
         }
 
@@ -321,7 +399,9 @@ def build_weekly_wellness_trend(daily_rows):
     return {
         "title": "PCOS Wellness Trend",
         "predicted_label": predicted_label,
-        "explanation": f"Predicted from your recent 7-day window using {checkin_summary} to highlight patterns that may influence PCOS management.",
+        "display_label": build_weekly_display_label(predicted_label, logged_days),
+        "badge_label": build_weekly_badge_label(predicted_label, logged_days),
+        "explanation": build_weekly_explanation(logged_days),
         "recommendation": build_weekly_trend_guidance(predicted_label),
         "pattern_highlights": factors,
         "tone": tone_map.get(predicted_label, "info"),
@@ -332,6 +412,11 @@ def build_weekly_wellness_trend(daily_rows):
         "chart_points": build_weekly_chart_points(current_week_rows),
         "current_week_score": current_week_summary["wellness_score"],
         "logged_days": logged_days,
-        "checkin_summary": checkin_summary,
+        "checkin_summary": None,
+        "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+        "weekly_completion_helper": build_weekly_completion_helper(logged_days),
+        "chart_window_label": build_weekly_chart_window_label(logged_days),
+        "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
+        "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
         "has_sufficient_data": True,
     }

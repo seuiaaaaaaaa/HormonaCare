@@ -1939,14 +1939,14 @@ def register_routes(app):
     def appointment_status_meta(appointment, meta):
         raw_status = (meta.get("status") or "scheduled").strip().lower()
         if raw_status == "completed":
-            return {"key": "completed", "label": "Completed", "tone": "success"}
+            return {"key": "completed", "label": "Done", "tone": "muted"}
         if raw_status == "cancelled":
             return {"key": "cancelled", "label": "Cancelled", "tone": "muted"}
         if raw_status == "missed" or appointment.appointment_date < date.today():
             return {"key": "missed", "label": "Missed", "tone": "warning"}
         if appointment.appointment_date == date.today():
             return {"key": "today", "label": "Today", "tone": "info"}
-        return {"key": "scheduled", "label": "Scheduled", "tone": "info"}
+        return {"key": "scheduled", "label": "Upcoming", "tone": "success"}
 
     def build_appointment_editor_payload(appointment, meta):
         return {

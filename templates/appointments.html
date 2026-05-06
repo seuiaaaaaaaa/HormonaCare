@@ -8,6 +8,62 @@
 {% set appointment_form_values = appointment_form_values|default({}) %}
 {% set appointment_modal_open = appointment_modal_open|default(false) %}
 {% set appointment_modal_mode = appointment_modal_mode|default('new') %}
+{% macro appointment_card(item, card_kind, view_mode) %}
+    {% set appointment = item.appointment %}
+    {% set meta = item.meta %}
+    {% set status = item.status if item.status is defined else {'tone': 'muted' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'success', 'label': 'Done' if meta.status == 'completed' else meta.status|title if meta.status else 'Upcoming'} %}
+    {% set notes_display = appointment.prescription or meta.notes_text or 'No prescription or notes recorded.' %}
+    <article class="appt-card appointment-record-card appointment-record-card-{{ card_kind }}">
+        <div class="appt-top">
+            <div>
+                <h3>{{ appointment.doctor_name }}</h3>
+            </div>
+            <div class="appt-date-block">
+                <strong>{{ appointment.appointment_date.strftime('%b %d, %Y') }}</strong>
+            </div>
+        </div>
+        <div class="appt-description-row">
+            <span class="doctor-tag">{{ meta.specialty }}</span>
+            <span class="status-pill {{ status.tone }}">{{ status.label }}</span>
+        </div>
+        <div class="appt-detail-row">
+            <span><strong>Time</strong> {{ appointment.appointment_time.strftime('%I:%M %p') }}</span>
+            <span><strong>Location</strong> {{ meta.location }}</span>
+            {% if appointment.follow_up_date %}
+                <span><strong>Follow-up</strong> {{ appointment.follow_up_date.strftime('%b %d, %Y') }}</span>
+            {% endif %}
+        </div>
+        <div class="appt-note-block">
+            <span class="appt-note-label">Prescription / Notes</span>
+            <div class="appt-note-box">{{ notes_display }}</div>
+        </div>
+        {% if card_kind == 'upcoming' %}
+            <div class="appt-actions">
+                <form method="post" action="{{ url_for('appointment_done', appointment_id=appointment.id, view=view_mode) }}">
+                    <button class="outline-wide" type="submit">Mark as Done</button>
+                </form>
+                <button
+                    class="dark-button"
+                    type="button"
+                    data-appointment="{{ item.editor|tojson|forceescape }}"
+                    onclick="openAppointmentModal(this)"
+                >
+                    Edit
+                </button>
+                <form
+                    method="post"
+                    action="{{ url_for('appointment_delete', appointment_id=appointment.id, view=view_mode) }}"
+                    data-confirm-dialog
+                    data-confirm-title="Delete appointment?"
+                    data-confirm-message="This will remove the appointment with {{ appointment.doctor_name }} from your record."
+                    data-confirm-action="Delete Appointment"
+                >
+                    <button class="inline-action danger-light" type="submit">Delete</button>
+                </form>
+            </div>
+        {% endif %}
+    </article>
+{% endmacro %}
 <section class="page-head with-action">
     <div>
         <h1><span class="title-icon green"><span class="nav-icon nav-clock"></span></span> Doctor Appointments</h1>
@@ -36,52 +92,7 @@
             </div>
             <div class="appt-card-stack">
                 {% for item in upcoming %}
-                    {% set appointment = item.appointment %}
-                    {% set meta = item.meta %}
-                    {% set status = item.status if item.status is defined else {'tone': 'success' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'info', 'label': meta.status|title if meta.status else 'Scheduled'} %}
-                    <article class="appt-card">
-                        <div class="appt-top">
-                            <div>
-                                <h3>{{ appointment.doctor_name }}</h3>
-                                <span class="doctor-tag">{{ meta.specialty }}</span>
-                            </div>
-                            <div class="appt-date-block">
-                                <strong>{{ appointment.appointment_date.strftime('%b %d, %Y') }}</strong>
-                                <span>{{ appointment.appointment_time.strftime('%I:%M %p') }}</span>
-                            </div>
-                        </div>
-                        <div class="appt-inline-meta">
-                            <span class="status-pill {{ status.tone }}">{{ status.label }}</span>
-                            <span>{{ meta.location }}</span>
-                            {% if appointment.follow_up_date %}
-                                <span>Follow-up {{ appointment.follow_up_date.strftime('%b %d, %Y') }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="appt-note-box">{{ meta.notes_text or 'No notes added yet.' }}</div>
-                        <div class="appt-actions">
-                            <form method="post" action="{{ url_for('appointment_done', appointment_id=appointment.id, view=appointment_view_mode) }}">
-                                <button class="outline-wide" type="submit">Mark as Done</button>
-                            </form>
-                            <button
-                                class="dark-button"
-                                type="button"
-                                data-appointment="{{ item.editor|tojson|forceescape }}"
-                                onclick="openAppointmentModal(this)"
-                            >
-                                Edit
-                            </button>
-                            <form
-                                method="post"
-                                action="{{ url_for('appointment_delete', appointment_id=appointment.id, view=appointment_view_mode) }}"
-                                data-confirm-dialog
-                                data-confirm-title="Delete appointment?"
-                                data-confirm-message="This will remove the appointment with {{ appointment.doctor_name }} from your record."
-                                data-confirm-action="Delete Appointment"
-                            >
-                                <button class="inline-action danger-light" type="submit">Delete</button>
-                            </form>
-                        </div>
-                    </article>
+                    {{ appointment_card(item, 'upcoming', appointment_view_mode) }}
                 {% else %}
                     <div class="empty-state">No upcoming appointments.</div>
                 {% endfor %}
@@ -100,39 +111,7 @@
             </div>
             <div class="appt-card-stack">
                 {% for item in past %}
-                    {% set appointment = item.appointment %}
-                    {% set meta = item.meta %}
-                    {% set status = item.status if item.status is defined else {'tone': 'success' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'info', 'label': meta.status|title if meta.status else 'Scheduled'} %}
-                    <article class="history-card">
-                        <div class="appt-top">
-                            <div>
-                                <h3>{{ appointment.doctor_name }}</h3>
-                                <p class="history-specialty">{{ meta.specialty }}</p>
-                            </div>
-                            <div class="appt-date-block">
-                                <strong>{{ appointment.appointment_date.strftime('%b %d, %Y') }}</strong>
-                                <span class="status-pill {{ status.tone }}">{{ status.label }}</span>
-                            </div>
-                        </div>
-                        <div class="history-meta">
-                            <div class="history-primary-meta">
-                                <span>{{ appointment.appointment_time.strftime('%I:%M %p') }}</span>
-                                <span class="history-meta-divider" aria-hidden="true">&bull;</span>
-                                <span>{{ meta.location }}</span>
-                            </div>
-                            {% if appointment.follow_up_date %}
-                                <div class="history-follow-up">
-                                    <span class="history-label">Next Follow-up</span>
-                                    <strong>{{ appointment.follow_up_date.strftime('%b %d, %Y') }}</strong>
-                                </div>
-                            {% endif %}
-                        </div>
-                        <div class="history-note-block">
-                            <span class="history-label">Prescription / Notes</span>
-                            <div class="history-note">{{ appointment.prescription or meta.notes_text or 'No prescription or notes recorded.' }}</div>
-                        </div>
-                        <div class="history-summary">Read-only appointment record</div>
-                    </article>
+                    {{ appointment_card(item, 'history', appointment_view_mode) }}
                 {% else %}
                     <div class="empty-state">No appointment history yet.</div>
                 {% endfor %}
@@ -153,52 +132,7 @@
             </div>
             <div class="appt-card-stack">
                 {% for item in upcoming_preview %}
-                    {% set appointment = item.appointment %}
-                    {% set meta = item.meta %}
-                    {% set status = item.status if item.status is defined else {'tone': 'success' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'info', 'label': meta.status|title if meta.status else 'Scheduled'} %}
-                    <article class="appt-card">
-                        <div class="appt-top">
-                            <div>
-                                <h3>{{ appointment.doctor_name }}</h3>
-                                <span class="doctor-tag">{{ meta.specialty }}</span>
-                            </div>
-                            <div class="appt-date-block">
-                                <strong>{{ appointment.appointment_date.strftime('%b %d, %Y') }}</strong>
-                                <span>{{ appointment.appointment_time.strftime('%I:%M %p') }}</span>
-                            </div>
-                        </div>
-                        <div class="appt-inline-meta">
-                            <span class="status-pill {{ status.tone }}">{{ status.label }}</span>
-                            <span>{{ meta.location }}</span>
-                            {% if appointment.follow_up_date %}
-                                <span>Follow-up {{ appointment.follow_up_date.strftime('%b %d, %Y') }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="appt-note-box">{{ meta.notes_text or 'No notes added yet.' }}</div>
-                        <div class="appt-actions">
-                            <form method="post" action="{{ url_for('appointment_done', appointment_id=appointment.id) }}">
-                                <button class="outline-wide" type="submit">Mark as Done</button>
-                            </form>
-                            <button
-                                class="dark-button"
-                                type="button"
-                                data-appointment="{{ item.editor|tojson|forceescape }}"
-                                onclick="openAppointmentModal(this)"
-                            >
-                                Edit
-                            </button>
-                            <form
-                                method="post"
-                                action="{{ url_for('appointment_delete', appointment_id=appointment.id) }}"
-                                data-confirm-dialog
-                                data-confirm-title="Delete appointment?"
-                                data-confirm-message="This will remove the appointment with {{ appointment.doctor_name }} from your record."
-                                data-confirm-action="Delete Appointment"
-                            >
-                                <button class="inline-action danger-light" type="submit">Delete</button>
-                            </form>
-                        </div>
-                    </article>
+                    {{ appointment_card(item, 'upcoming', appointment_view_mode) }}
                 {% else %}
                     <div class="empty-state">No upcoming appointments.</div>
                 {% endfor %}
@@ -217,39 +151,7 @@
             </div>
             <div class="appt-card-stack">
                 {% for item in past_preview %}
-                    {% set appointment = item.appointment %}
-                    {% set meta = item.meta %}
-                    {% set status = item.status if item.status is defined else {'tone': 'success' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'info', 'label': meta.status|title if meta.status else 'Scheduled'} %}
-                    <article class="history-card">
-                        <div class="appt-top">
-                            <div>
-                                <h3>{{ appointment.doctor_name }}</h3>
-                                <p class="history-specialty">{{ meta.specialty }}</p>
-                            </div>
-                            <div class="appt-date-block">
-                                <strong>{{ appointment.appointment_date.strftime('%b %d, %Y') }}</strong>
-                                <span class="status-pill {{ status.tone }}">{{ status.label }}</span>
-                            </div>
-                        </div>
-                        <div class="history-meta">
-                            <div class="history-primary-meta">
-                                <span>{{ appointment.appointment_time.strftime('%I:%M %p') }}</span>
-                                <span class="history-meta-divider" aria-hidden="true">&bull;</span>
-                                <span>{{ meta.location }}</span>
-                            </div>
-                            {% if appointment.follow_up_date %}
-                                <div class="history-follow-up">
-                                    <span class="history-label">Next Follow-up</span>
-                                    <strong>{{ appointment.follow_up_date.strftime('%b %d, %Y') }}</strong>
-                                </div>
-                            {% endif %}
-                        </div>
-                        <div class="history-note-block">
-                            <span class="history-label">Prescription / Notes</span>
-                            <div class="history-note">{{ appointment.prescription or meta.notes_text or 'No prescription or notes recorded.' }}</div>
-                        </div>
-                        <div class="history-summary">Read-only appointment record</div>
-                    </article>
+                    {{ appointment_card(item, 'history', appointment_view_mode) }}
                 {% else %}
                     <div class="empty-state">No appointment history yet.</div>
                 {% endfor %}

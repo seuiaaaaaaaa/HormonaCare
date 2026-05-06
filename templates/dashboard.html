@@ -24,35 +24,44 @@
             </div>
             <span class="wellness-status-badge wellness-status-badge-{{ metrics.weekly_wellness_trend.tone }}">
                 <span class="wellness-status-dot" aria-hidden="true"></span>
-                {{ metrics.weekly_wellness_trend.predicted_label }}
+                {{ metrics.weekly_wellness_trend.badge_label|default(metrics.weekly_wellness_trend.predicted_label) }}
             </span>
         </div>
 
         <div class="wellness-status-row">
             <div class="wellness-status-copy">
                 <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
-                    {{ metrics.weekly_wellness_trend.predicted_label }}
+                    {{ metrics.weekly_wellness_trend.display_label|default(metrics.weekly_wellness_trend.predicted_label) }}
                 </p>
                 <p class="wellness-status-explanation">{{ metrics.weekly_wellness_trend.explanation }}</p>
                 {% if metrics.weekly_wellness_trend.confidence_label %}
                 <p class="wellness-confidence-label">
-                    PCOS confidence: {{ metrics.weekly_wellness_trend.confidence_label }}
-                    {% if metrics.weekly_wellness_trend.checkin_summary %}
+                    {{ metrics.weekly_wellness_trend.confidence_label }}
+                    {% if false and metrics.weekly_wellness_trend.checkin_summary %}
                     · {{ metrics.weekly_wellness_trend.checkin_summary }}
                     {% endif %}
                 </p>
                 {% endif %}
+                {% if metrics.weekly_wellness_trend.data_completeness_label %}
+                <p class="wellness-data-completeness">{{ metrics.weekly_wellness_trend.data_completeness_label }}</p>
+                {% endif %}
+                {% if metrics.weekly_wellness_trend.weekly_completion_helper %}
+                <p class="wellness-data-helper">{{ metrics.weekly_wellness_trend.weekly_completion_helper }}</p>
+                {% endif %}
+                {% if metrics.weekly_wellness_trend.disclaimer %}
+                <p class="wellness-disclaimer">{{ metrics.weekly_wellness_trend.disclaimer }}</p>
+                {% endif %}
             </div>
-            {% if metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.chart_points %}
+            {% if metrics.weekly_wellness_trend.chart_points %}
             <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}" aria-hidden="true">
                 <div class="wellness-visual-meta">
-                    <span class="wellness-visual-label">7-Day Window</span>
+                    <span class="wellness-visual-label">{{ metrics.weekly_wellness_trend.chart_window_label }}</span>
                 </div>
                 <div class="wellness-mini-trend wellness-mini-trend-{{ metrics.weekly_wellness_trend.tone }}">
                     {% for point in metrics.weekly_wellness_trend.chart_points %}
-                    <span class="wellness-mini-point">
-                        <span class="wellness-mini-bar-track">
-                            <span class="wellness-mini-bar" style="height: {{ point.height }}%;"></span>
+                    <span class="wellness-mini-point{% if not point.has_data %} wellness-mini-point-missing{% endif %}" title="{{ point.tooltip }}">
+                        <span class="wellness-mini-bar-track{% if not point.has_data %} wellness-mini-bar-track-missing{% endif %}">
+                            <span class="wellness-mini-bar{% if not point.has_data %} wellness-mini-bar-missing{% endif %}" style="height: {{ point.height }}%;"></span>
                         </span>
                         <span class="wellness-mini-label">{{ point.label }}</span>
                     </span>
