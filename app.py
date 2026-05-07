@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260507-notifications-fix")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260507-notifications-fix2")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -595,26 +595,23 @@ def ensure_runtime_schema():
             with db.engine.begin() as connection:
                 for ddl in missing:
                     connection.execute(text(ddl))
-    if "web_push_subscriptions" in tables:
-        columns = {column["name"] for column in inspector.get_columns("web_push_subscriptions")}
-        required_columns = {
-            "user_agent": "ALTER TABLE web_push_subscriptions ADD COLUMN user_agent VARCHAR(255)",
-            "is_active": "ALTER TABLE web_push_subscriptions ADD COLUMN is_active BOOLEAN",
-            "created_at": "ALTER TABLE web_push_subscriptions ADD COLUMN created_at TIMESTAMP",
-            "updated_at": "ALTER TABLE web_push_subscriptions ADD COLUMN updated_at TIMESTAMP",
-            "last_seen_at": "ALTER TABLE web_push_subscriptions ADD COLUMN last_seen_at TIMESTAMP",
-        }
-        with db.engine.begin() as connection:
-            for name, ddl in required_columns.items():
-                if name not in columns:
-                    connection.execute(text(ddl))
-            connection.execute(text("UPDATE web_push_subscriptions SET is_active = COALESCE(is_active, TRUE)"))
-            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_web_push_subscriptions_endpoint ON web_push_subscriptions(endpoint)"))
-            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user_active ON web_push_subscriptions(user_id, is_active)"))
-    if "push_notification_logs" in tables:
-        with db.engine.begin() as connection:
-            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_push_notification_logs_notification_key ON push_notification_logs(notification_key)"))
-            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_push_notification_logs_user_id ON push_notification_logs(user_id)"))
+    try:
+        if "web_push_subscriptions" in tables:
+            columns = {column["name"] for column in inspector.get_columns("web_push_subscriptions")}
+            required_columns = {
+                "user_agent": "ALTER TABLE web_push_subscriptions ADD COLUMN user_agent VARCHAR(255)",
+                "is_active": "ALTER TABLE web_push_subscriptions ADD COLUMN is_active BOOLEAN",
+                "created_at": "ALTER TABLE web_push_subscriptions ADD COLUMN created_at TIMESTAMP",
+                "updated_at": "ALTER TABLE web_push_subscriptions ADD COLUMN updated_at TIMESTAMP",
+                "last_seen_at": "ALTER TABLE web_push_subscriptions ADD COLUMN last_seen_at TIMESTAMP",
+            }
+            with db.engine.begin() as connection:
+                for name, ddl in required_columns.items():
+                    if name not in columns:
+                        connection.execute(text(ddl))
+                connection.execute(text("UPDATE web_push_subscriptions SET is_active = COALESCE(is_active, TRUE)"))
+    except Exception:
+        db.session.rollback()
 
 
 def register_routes(app):
