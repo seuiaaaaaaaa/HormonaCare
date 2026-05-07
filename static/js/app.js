@@ -216,6 +216,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const noopCenter = {
             notify: () => null,
             requestPermission: async () => "default",
+            subscribeForPush: async () => false,
+            testPush: async () => false,
+            test: () => false,
+            getStatus: () => ({
+                supported: "Notification" in window,
+                secureContext: window.isSecureContext,
+                permission: "Notification" in window ? Notification.permission : "unsupported",
+                preferences: {
+                    general: false,
+                },
+                prompted: false,
+            }),
         };
 
         if (!notificationConfig || !notificationConfig.enabled || !("Notification" in window) || !window.isSecureContext) {
@@ -227,6 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const pages = notificationConfig.pages || {};
         const medicationSchedules = Array.isArray(notificationConfig.medicationSchedules) ? notificationConfig.medicationSchedules : [];
         const preferences = notificationConfig.preferences || {};
+        const notificationPreferenceToggle = document.querySelector("input[name='general_notifications']");
         const iconUrl = notificationConfig.iconUrl || "";
         const badgeUrl = notificationConfig.badgeUrl || iconUrl;
         const permissionStorageKey = notificationConfig.permissionStorageKey || "hormonacare-notification-permission-v1";
@@ -317,7 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
             safeWriteJson(permissionStorageKey, permissionState);
         }
 
-        const notificationsEnabled = () => preferences.general !== false;
+        const notificationsEnabled = () => (notificationPreferenceToggle ? notificationPreferenceToggle.checked : preferences.general !== false);
         const medicationNotificationsEnabled = () => notificationsEnabled();
         const appointmentNotificationsEnabled = () => notificationsEnabled();
         const alertNotificationsEnabled = () => notificationsEnabled();
@@ -620,13 +633,27 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
-        const showServiceWorkerNotification = async (content, notificationOptions, dedupeKey) => {
+        const getReadyServiceWorkerRegistration = async () => {
             if (!("serviceWorker" in navigator)) {
                 return null;
             }
 
             try {
-                const registration = await navigator.serviceWorker.getRegistration();
+                const registration = await Promise.race([
+                    navigator.serviceWorker.ready,
+                    new Promise((resolve) => {
+                        window.setTimeout(() => resolve(null), 4000);
+                    }),
+                ]);
+                return registration || null;
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const showServiceWorkerNotification = async (content, notificationOptions, dedupeKey) => {
+            const registration = await getReadyServiceWorkerRegistration();
+            try {
                 if (!registration || typeof registration.showNotification !== "function") {
                     return null;
                 }
@@ -874,7 +901,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     return false;
                 }
 
-                const registration = await navigator.serviceWorker.ready;
+                const registration = await getReadyServiceWorkerRegistration();
+                if (!registration || !registration.pushManager) {
+                    return false;
+                }
                 let subscription = await registration.pushManager.getSubscription();
                 if (!subscription) {
                     subscription = await registration.pushManager.subscribe({
@@ -1183,7 +1213,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 secureContext: window.isSecureContext,
                 permission: Notification.permission,
                 preferences: {
-                    general: preferences.general !== false,
+                    general: notificationsEnabled(),
                 },
                 prompted: !!permissionState.prompted,
             }),
@@ -1228,6 +1258,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (!status.secureContext) {
                 setNotificationStatus("Use localhost or HTTPS to enable notifications.", "error");
+                return;
+            }
+            if (status.preferences && status.preferences.general === false) {
+                setNotificationStatus("Turn on General Notifications first.", "error");
                 return;
             }
 
@@ -2396,7 +2430,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/static/service-worker.js").catch(() => {
+        navigator.serviceWorker.register("/static/service-worker.js", { scope: "/" }).catch(() => {
             // Keep registration failure silent for local demo environments.
         });
     });

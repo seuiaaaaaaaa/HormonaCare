@@ -3110,6 +3110,14 @@ svg {
     color: var(--pink);
 }
 
+.notification-helper:empty {
+    display: none;
+}
+
+.notification-actions {
+    margin-top: 2px;
+}
+
 .settings-copy {
     margin: 6px 0 0;
     color: var(--muted);
