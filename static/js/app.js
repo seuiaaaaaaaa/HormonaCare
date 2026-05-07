@@ -226,6 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 preferences: {
                     general: false,
                 },
+                pushReason: "Notifications are not available in this browser context.",
                 prompted: false,
             }),
         };
@@ -240,6 +241,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const medicationSchedules = Array.isArray(notificationConfig.medicationSchedules) ? notificationConfig.medicationSchedules : [];
         const preferences = notificationConfig.preferences || {};
         const notificationPreferenceToggle = document.querySelector("input[name='general_notifications']");
+        const serviceWorkerUrl = notificationConfig.serviceWorkerUrl || "/static/service-worker.js";
+        const serviceWorkerScope = notificationConfig.serviceWorkerScope || "/";
         const iconUrl = notificationConfig.iconUrl || "";
         const badgeUrl = notificationConfig.badgeUrl || iconUrl;
         const permissionStorageKey = notificationConfig.permissionStorageKey || "hormonacare-notification-permission-v1";
@@ -267,6 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let permissionRequestInFlight = false;
         let pushConfigPromise = null;
         let pushSubscriptionPromise = null;
+        let pushStatusReason = "";
         let medicationReminderRefreshTimer = null;
         let activeMedicationSchedules = [];
         const medicationReminderTimers = new Map();
@@ -633,19 +637,54 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
+        const rememberPushStatusReason = (message) => {
+            pushStatusReason = message || "Server push is not ready yet.";
+            return false;
+        };
+
+        const waitForServiceWorkerActivation = (registration) => {
+            if (!registration || registration.active) {
+                return Promise.resolve(registration || null);
+            }
+
+            const worker = registration.installing || registration.waiting;
+            if (!worker) {
+                return Promise.resolve(registration);
+            }
+
+            return new Promise((resolve) => {
+                const timeoutId = window.setTimeout(() => resolve(registration), 8000);
+                worker.addEventListener("statechange", () => {
+                    if (worker.state === "activated") {
+                        window.clearTimeout(timeoutId);
+                        resolve(registration);
+                    }
+                });
+            });
+        };
+
         const getReadyServiceWorkerRegistration = async () => {
             if (!("serviceWorker" in navigator)) {
                 return null;
             }
 
             try {
-                const registration = await Promise.race([
+                let registration = await navigator.serviceWorker.getRegistration(serviceWorkerScope);
+                if (!registration) {
+                    registration = await navigator.serviceWorker.register(serviceWorkerUrl, { scope: serviceWorkerScope });
+                } else if (typeof registration.update === "function") {
+                    registration.update().catch(() => null);
+                }
+
+                await waitForServiceWorkerActivation(registration);
+
+                const readyRegistration = await Promise.race([
                     navigator.serviceWorker.ready,
                     new Promise((resolve) => {
-                        window.setTimeout(() => resolve(null), 4000);
+                        window.setTimeout(() => resolve(null), 8000);
                     }),
                 ]);
-                return registration || null;
+                return readyRegistration || registration || null;
             } catch (error) {
                 return null;
             }
@@ -849,7 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload || payload.ok !== true) {
-                throw new Error("Notification polling failed.");
+                throw new Error((payload && payload.message) || "Notification request failed.");
             }
             return payload.data;
         };
@@ -863,6 +902,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 outputArray[index] = rawData.charCodeAt(index);
             }
             return outputArray;
+        };
+
+        const arrayBuffersMatch = (left, right) => {
+            if (!left || !right) {
+                return true;
+            }
+            const leftArray = new Uint8Array(left);
+            const rightArray = new Uint8Array(right);
+            return leftArray.length === rightArray.length && leftArray.every((value, index) => value === rightArray[index]);
         };
 
         const fetchPushConfig = () => {
@@ -892,29 +940,52 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             pushSubscriptionPromise = (async () => {
-                if (!("serviceWorker" in navigator) || !("PushManager" in window) || Notification.permission !== "granted") {
-                    return false;
+                pushStatusReason = "";
+                if (!("serviceWorker" in navigator)) {
+                    return rememberPushStatusReason("Service workers are unavailable in this browser.");
+                }
+                if (!("PushManager" in window)) {
+                    return rememberPushStatusReason("PushManager is unavailable in this browser.");
+                }
+                if (Notification.permission !== "granted") {
+                    return rememberPushStatusReason("Notification permission is not granted.");
                 }
 
                 const pushConfig = await fetchPushConfig();
-                if (!pushConfig || !pushConfig.web_push_enabled || !pushConfig.vapid_public_key) {
-                    return false;
+                if (!pushConfig) {
+                    return rememberPushStatusReason("Could not load server push config.");
+                }
+                if (!pushConfig.web_push_enabled) {
+                    return rememberPushStatusReason("Server push is disabled on the backend.");
+                }
+                if (!pushConfig.vapid_public_key) {
+                    return rememberPushStatusReason("Server push key is missing.");
                 }
 
                 const registration = await getReadyServiceWorkerRegistration();
                 if (!registration || !registration.pushManager) {
-                    return false;
+                    return rememberPushStatusReason("Service worker is not ready. Refresh the page, then try again.");
                 }
+                const applicationServerKey = urlBase64ToUint8Array(pushConfig.vapid_public_key);
                 let subscription = await registration.pushManager.getSubscription();
+                if (
+                    subscription &&
+                    subscription.options &&
+                    !arrayBuffersMatch(subscription.options.applicationServerKey, applicationServerKey)
+                ) {
+                    await subscription.unsubscribe();
+                    subscription = null;
+                }
                 if (!subscription) {
                     subscription = await registration.pushManager.subscribe({
                         userVisibleOnly: true,
-                        applicationServerKey: urlBase64ToUint8Array(pushConfig.vapid_public_key),
+                        applicationServerKey,
                     });
                 }
                 return savePushSubscription(subscription);
-            })().catch(() => {
+            })().catch((error) => {
                 pushSubscriptionPromise = null;
+                rememberPushStatusReason(error && error.message ? error.message : "Could not create the push subscription.");
                 return false;
             });
 
@@ -924,16 +995,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const sendServerPushTest = async () => {
             const subscribed = await ensurePushSubscription();
             if (!subscribed || !endpoints.testPush) {
+                if (!endpoints.testPush) {
+                    rememberPushStatusReason("Server push test endpoint is missing.");
+                }
                 return false;
             }
-            await fetchApiPayload(endpoints.testPush, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({}),
-            });
-            return true;
+            try {
+                await fetchApiPayload(endpoints.testPush, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({}),
+                });
+                return true;
+            } catch (error) {
+                rememberPushStatusReason(error && error.message ? error.message : "Server push test failed.");
+                return false;
+            }
         };
 
         const pickAlertCandidate = (payload) => {
@@ -1215,6 +1294,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 preferences: {
                     general: notificationsEnabled(),
                 },
+                pushReason: pushStatusReason,
                 prompted: !!permissionState.prompted,
             }),
         };
@@ -1288,9 +1368,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (pushSent) {
                     setNotificationStatus("Server push notification sent.", "success");
                 } else if (localShown) {
-                    setNotificationStatus("Browser notification shown. Server push is not ready yet.", "success");
+                    const nextStatus = window.HormonaCareNotifications.getStatus();
+                    const pushReason = nextStatus && nextStatus.pushReason ? ` ${nextStatus.pushReason}` : "";
+                    setNotificationStatus(`Browser notification shown. Server push is not ready yet.${pushReason}`, "success");
                 } else {
-                    setNotificationStatus("Server push is not ready yet.", "error");
+                    const nextStatus = window.HormonaCareNotifications.getStatus();
+                    const pushReason = nextStatus && nextStatus.pushReason ? ` ${nextStatus.pushReason}` : "";
+                    setNotificationStatus(`Server push is not ready yet.${pushReason}`, "error");
                 }
             } catch (error) {
                 setNotificationStatus("Server push is not ready yet.", "error");
