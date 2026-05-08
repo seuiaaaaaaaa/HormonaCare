@@ -139,6 +139,314 @@
     }
 }
 
+/* Responsive medication page polish */
+.med-title-row,
+.med-action-row,
+.med-progress-breakdown {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.med-title-row h3 {
+    margin: 0;
+}
+
+.med-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 26px;
+    padding: 5px 10px;
+    border: 1px solid rgba(144, 165, 202, 0.24);
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+.med-status-message {
+    color: var(--muted);
+}
+
+.med-status-success {
+    background: rgba(63, 185, 80, 0.14);
+    border-color: rgba(63, 185, 80, 0.34);
+    color: #74d68b;
+}
+
+.med-status-info {
+    background: rgba(70, 135, 255, 0.14);
+    border-color: rgba(70, 135, 255, 0.34);
+    color: #9ab9ff;
+}
+
+.med-status-warning {
+    background: rgba(255, 206, 91, 0.14);
+    border-color: rgba(255, 206, 91, 0.38);
+    color: #ffd978;
+}
+
+.med-status-danger {
+    background: rgba(255, 92, 130, 0.14);
+    border-color: rgba(255, 92, 130, 0.34);
+    color: #ff9bb4;
+}
+
+.med-status-muted,
+.med-status-neutral {
+    background: rgba(159, 176, 207, 0.12);
+    border-color: rgba(159, 176, 207, 0.24);
+    color: var(--muted);
+}
+
+.med-action-row form {
+    margin: 0;
+}
+
+.med-action-primary {
+    background: #eaf2ff;
+    color: #1d5cff;
+    border-color: #bcd4ff;
+}
+
+.med-schedule-list {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+}
+
+.clean-med-card.schedule-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 20px;
+    min-width: 0;
+}
+
+.clean-med-card .schedule-left {
+    align-items: flex-start;
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.clean-med-card .schedule-left > div {
+    min-width: 0;
+}
+
+.clean-med-card .med-title-row {
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.clean-med-card .med-title-row h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    line-height: 1.15;
+}
+
+.clean-med-card p {
+    margin-top: 6px;
+    font-size: 0.92rem;
+    line-height: 1.4;
+}
+
+.clean-med-card .med-status-message {
+    margin-top: 8px;
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+
+.clean-med-card .schedule-right {
+    flex: 0 0 auto;
+    min-width: min(100%, 260px);
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.clean-med-card .time-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(144, 165, 202, 0.1);
+    white-space: nowrap;
+    font-size: 0.95rem;
+}
+
+.clean-med-card .med-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    max-width: 360px;
+}
+
+.clean-med-card .med-action-row form {
+    margin: 0;
+}
+
+.clean-med-card .med-action-row .inline-action {
+    min-height: 36px;
+    padding: 8px 11px;
+    border-radius: 11px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.clean-med-card .med-delete-button {
+    flex: 0 0 auto;
+}
+
+.meds-progress-panel {
+    align-items: center;
+    gap: 18px;
+}
+
+.meds-progress-panel .progress-copy {
+    min-width: 0;
+}
+
+@media (min-width: 1180px) {
+    .clean-med-card .schedule-right {
+        min-width: 360px;
+    }
+
+    .clean-med-card .med-action-row {
+        max-width: 420px;
+    }
+}
+
+@media (max-width: 1080px) {
+    .clean-med-card.schedule-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .clean-med-card .schedule-left {
+        width: 100%;
+    }
+
+    .clean-med-card .schedule-right {
+        width: 100%;
+        min-width: 0;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .clean-med-card .med-action-row {
+        max-width: none;
+        justify-content: flex-end;
+    }
+
+    .clean-med-card .time-label {
+        flex: 0 0 auto;
+    }
+}
+
+@media (max-width: 720px) {
+    .meds-progress-panel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .meds-progress-panel .progress-circle {
+        align-self: flex-start;
+        width: 76px;
+        height: 76px;
+        flex-basis: 76px;
+        font-size: 0.95rem;
+    }
+
+    .clean-med-card.schedule-card {
+        padding: 14px;
+        border-radius: 18px;
+        gap: 13px;
+    }
+
+    .clean-med-card .schedule-left {
+        gap: 12px;
+    }
+
+    .clean-med-card .check-badge {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+    }
+
+    .clean-med-card .med-title-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .clean-med-card .med-status-badge {
+        min-height: 24px;
+        padding: 4px 9px;
+        font-size: 0.72rem;
+    }
+
+    .clean-med-card .schedule-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .clean-med-card .time-label {
+        align-self: flex-start;
+    }
+
+    .clean-med-card .med-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .clean-med-card .med-action-row form {
+        min-width: 0;
+    }
+
+    .clean-med-card .med-action-row .inline-action,
+    .clean-med-card .med-delete-button {
+        width: 100%;
+        min-height: 38px;
+    }
+
+    .clean-med-card .med-delete-button {
+        border-radius: 11px;
+    }
+
+    .med-adherence-banner {
+        padding: 14px;
+        border-radius: 16px;
+    }
+}
+
+@media (max-width: 420px) {
+    .clean-med-card .med-action-row {
+        grid-template-columns: 1fr;
+    }
+
+    .clean-med-card .med-title-row h3 {
+        font-size: 1rem;
+    }
+
+    .clean-med-card p {
+        font-size: 0.86rem;
+    }
+
+    .med-progress-breakdown .med-status-badge {
+        width: 100%;
+        justify-content: flex-start;
+        white-space: normal;
+    }
+}
+
 html[data-theme="dark"] {
     color-scheme: dark;
 }

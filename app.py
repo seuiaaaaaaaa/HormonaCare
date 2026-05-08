@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-responsive-notes")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-meds-responsive")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -2152,6 +2152,8 @@ def register_routes(app):
         return day_start, day_start + timedelta(days=1)
 
     def medication_scheduled_at(medication, target_day=None):
+        if not getattr(medication, "time_of_day", None):
+            return None
         return datetime.combine(target_day or app_today(), medication.time_of_day)
 
     def medication_missed_cutoff_at(target_day=None):
@@ -2177,6 +2179,8 @@ def register_routes(app):
             message = "Logged as taken after the scheduled time." if label == "Taken late" else "Confirmed in your PCOS support routine."
             return status, label, tone, message, status, daily_log.taken_at
         scheduled_at = medication_scheduled_at(medication, now.date())
+        if not scheduled_at:
+            return "pending", "Needs time", "neutral", "Add a scheduled time to track this medication.", None, None
         if now < scheduled_at:
             return "pending", "Pending", "neutral", "Scheduled later today.", None, None
         if now >= medication_missed_cutoff_at(now.date()):
@@ -2276,6 +2280,14 @@ def register_routes(app):
             entry.event_tone = "warning" if entry.event_label == "Taken late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
             entry.event_message = "Logged as taken after the scheduled time." if entry.event_label == "Taken late" else "Confirmed in your PCOS support routine."
         return history_entries
+
+    def safe_medication_history_count(user):
+        try:
+            return MedicationLog.query.filter_by(user_id=user.id).count()
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Medication history count unavailable while database schema is preparing.")
+            return 0
 
     def health_assessment_for_inputs(sleep_hours, water_intake, stress_level, activity_minutes):
         return build_health_assessment(
@@ -5178,15 +5190,21 @@ def register_routes(app):
             db.session.commit()
             flash("Medication added.", "success")
             return redirect(url_for("medications"))
-        meds = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-        normalize_medication_statuses(user, meds)
-        decrypt_model_fields(meds, ["notes"])
+        try:
+            meds = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+            normalize_medication_statuses(user, meds)
+            decrypt_model_fields(meds, ["notes"])
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Medication page unavailable while database schema is preparing.")
+            meds = []
+            flash("Medication data is still loading. Please refresh in a moment.", "warning")
         recent_history = fetch_medication_history(user, limit=5)
         return render_template(
             "medications.html",
             medications=meds,
             recent_history=recent_history,
-            medication_history_count=MedicationLog.query.filter_by(user_id=user.id).count(),
+            medication_history_count=safe_medication_history_count(user),
         )
 
     @app.get("/medications/history")
@@ -5194,8 +5212,13 @@ def register_routes(app):
     def medication_history():
         user = current_user()
         history_entries = fetch_medication_history(user)
-        medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-        normalize_medication_statuses(user, medications)
+        try:
+            medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+            normalize_medication_statuses(user, medications)
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Medication history confirmation list unavailable while database schema is preparing.")
+            medications = []
         unconfirmed_entries = [
             medication
             for medication in medications

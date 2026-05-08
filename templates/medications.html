@@ -61,7 +61,7 @@
                 </div>
             </div>
             <div class="schedule-right">
-                <span class="time-label {% if daily_status in ['pending', 'unconfirmed', 'unconfirmed_missed'] %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') }}</span>
+                <span class="time-label {% if daily_status in ['pending', 'unconfirmed', 'unconfirmed_missed'] %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') if medication.time_of_day else 'Time not set' }}</span>
                 <div class="med-action-row">
                     {% if medication.daily_event_status != 'taken' %}
                         <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
@@ -87,22 +87,22 @@
                             <button class="inline-action muted" type="submit">Undo Today</button>
                         </form>
                     {% endif %}
+                    <form
+                        method="post"
+                        action="{{ url_for('medication_delete', medication_id=medication.id) }}"
+                        class="med-delete-form"
+                        data-confirm-dialog
+                        data-confirm-title="Delete medication?"
+                        data-confirm-message="This will remove {{ medication.name }} from your PCOS routine."
+                        data-confirm-action="Delete Medication"
+                    >
+                        <button class="med-delete-button" type="submit" aria-label="Delete {{ medication.name }}" title="Delete {{ medication.name }}">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 8h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 8z" fill="currentColor"></path>
+                            </svg>
+                        </button>
+                    </form>
                 </div>
-                <form
-                    method="post"
-                    action="{{ url_for('medication_delete', medication_id=medication.id) }}"
-                    class="med-delete-form"
-                    data-confirm-dialog
-                    data-confirm-title="Delete medication?"
-                    data-confirm-message="This will remove {{ medication.name }} from your PCOS routine."
-                    data-confirm-action="Delete Medication"
-                >
-                    <button class="med-delete-button" type="submit" aria-label="Delete {{ medication.name }}" title="Delete {{ medication.name }}">
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v8h-2v-8zm4 0h2v8h-2v-8zM7 8h10l-1 11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2L7 8z" fill="currentColor"></path>
-                        </svg>
-                    </button>
-                </form>
             </div>
         </article>
     {% else %}
