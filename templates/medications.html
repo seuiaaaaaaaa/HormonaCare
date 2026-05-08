@@ -63,28 +63,23 @@
             <div class="schedule-right">
                 <span class="time-label {% if daily_status in ['pending', 'unconfirmed', 'unconfirmed_missed'] %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') if medication.time_of_day else 'Time not set' }}</span>
                 <div class="med-action-row">
-                    {% if medication.daily_event_status != 'taken' %}
+                    {% if medication.has_daily_log %}
+                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                            <input type="hidden" name="status" value="pending">
+                            <button class="inline-action muted" type="submit">Clear Today</button>
+                        </form>
+                    {% else %}
                         <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
                             <input type="hidden" name="status" value="taken">
                             <button class="inline-action med-action-primary" type="submit">Mark Taken</button>
                         </form>
-                    {% endif %}
-                    {% if medication.daily_event_status != 'skipped' %}
                         <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
                             <input type="hidden" name="status" value="skipped">
                             <button class="inline-action muted" type="submit">Mark Skipped</button>
                         </form>
-                    {% endif %}
-                    {% if medication.daily_event_status != 'missed' %}
                         <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
                             <input type="hidden" name="status" value="missed">
                             <button class="inline-action danger-light" type="submit">Mark Missed</button>
-                        </form>
-                    {% endif %}
-                    {% if medication.has_daily_log %}
-                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
-                            <input type="hidden" name="status" value="pending">
-                            <button class="inline-action muted" type="submit">Undo Today</button>
                         </form>
                     {% endif %}
                     <form
