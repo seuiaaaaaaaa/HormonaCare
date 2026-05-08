@@ -139,6 +139,158 @@
     }
 }
 
+/* Medication cards must remain content-height, not dashboard-card height. */
+.med-schedule-list .clean-med-card.schedule-card {
+    min-height: 0 !important;
+    height: auto !important;
+    justify-content: flex-start !important;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+}
+
+.med-schedule-list .clean-med-card .schedule-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.med-schedule-list .clean-med-card .schedule-right {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+@media (max-width: 1080px) {
+    .med-schedule-list .clean-med-card.schedule-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-left,
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex: 0 0 auto;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 720px) {
+    .med-schedule-list .clean-med-card.schedule-card {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .med-schedule-list .clean-med-card .time-label {
+        align-self: flex-start;
+    }
+
+    .med-schedule-list .clean-med-card .med-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+    }
+
+    .med-schedule-list .clean-med-card .med-action-row .inline-action,
+    .med-schedule-list .clean-med-card .med-delete-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 420px) {
+    .med-schedule-list .clean-med-card .med-action-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Medication cards must remain content-height, not dashboard-card height. */
+.med-schedule-list .clean-med-card.schedule-card {
+    min-height: 0 !important;
+    height: auto !important;
+    justify-content: flex-start !important;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 18px;
+}
+
+.med-schedule-list .clean-med-card .schedule-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.med-schedule-list .clean-med-card .schedule-right {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+@media (max-width: 1080px) {
+    .med-schedule-list .clean-med-card.schedule-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-left,
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex: 0 0 auto;
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 720px) {
+    .med-schedule-list .clean-med-card.schedule-card {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .med-schedule-list .clean-med-card .schedule-right {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .med-schedule-list .clean-med-card .time-label {
+        align-self: flex-start;
+    }
+
+    .med-schedule-list .clean-med-card .med-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+    }
+
+    .med-schedule-list .clean-med-card .med-action-row .inline-action,
+    .med-schedule-list .clean-med-card .med-delete-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 420px) {
+    .med-schedule-list .clean-med-card .med-action-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Final medication card layout override: keep cards compact on every viewport. */
 .med-schedule-list {
     gap: 14px;
@@ -4088,6 +4240,20 @@ button {
     background: #fff;
     border: 2px solid #dde7f4;
     border-radius: 22px;
+}
+
+.clean-med-card.schedule-card {
+    min-height: 0 !important;
+    height: auto !important;
+    justify-content: flex-start !important;
+}
+
+.clean-med-card .schedule-left {
+    flex: 1 1 auto !important;
+}
+
+.clean-med-card .schedule-right {
+    flex: 0 0 auto !important;
 }
 
 .clean-med-card.current {
