@@ -925,14 +925,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!subscription || !endpoints.subscribeNotifications) {
                 return false;
             }
-            await fetchApiPayload(endpoints.subscribeNotifications, {
+            const savedSubscription = await fetchApiPayload(endpoints.subscribeNotifications, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({ subscription: subscription.toJSON() }),
             });
-            return true;
+            return !!(savedSubscription && savedSubscription.active);
         };
 
         const ensurePushSubscription = async () => {
@@ -1002,12 +1002,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 return false;
             }
             try {
+                const registration = await getReadyServiceWorkerRegistration();
+                const subscription = registration && registration.pushManager ? await registration.pushManager.getSubscription() : null;
                 await fetchApiPayload(endpoints.testPush, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                    body: JSON.stringify({}),
+                    body: JSON.stringify({
+                        subscription: subscription ? subscription.toJSON() : null,
+                    }),
                 });
                 return true;
             } catch (error) {

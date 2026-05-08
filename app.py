@@ -81,7 +81,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-push-sw-register")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-push-test-subscription")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -5068,14 +5068,7 @@ def register_routes(app):
             "auth": auth,
         }
 
-    @app.post("/api/notifications/subscribe")
-    @api_login_required
-    def api_notifications_subscribe():
-        user = current_user()
-        parsed_subscription = parse_push_subscription(api_json_body())
-        if not parsed_subscription:
-            return api_error("invalid_subscription", "A valid push subscription endpoint and keys are required.", status=422)
-
+    def save_browser_push_subscription(user, parsed_subscription):
         subscription = WebPushSubscription.query.filter_by(endpoint=parsed_subscription["endpoint"]).first()
         if not subscription:
             subscription = WebPushSubscription(endpoint=parsed_subscription["endpoint"])
@@ -5088,6 +5081,17 @@ def register_routes(app):
         subscription.is_active = True
         subscription.last_seen_at = datetime.now()
         db.session.commit()
+        return subscription
+
+    @app.post("/api/notifications/subscribe")
+    @api_login_required
+    def api_notifications_subscribe():
+        user = current_user()
+        parsed_subscription = parse_push_subscription(api_json_body())
+        if not parsed_subscription:
+            return api_error("invalid_subscription", "A valid push subscription endpoint and keys are required.", status=422)
+
+        subscription = save_browser_push_subscription(user, parsed_subscription)
         return api_success(
             data={
                 "id": subscription.id,
@@ -5120,6 +5124,10 @@ def register_routes(app):
                 "Install pywebpush to send server-originated push notifications.",
                 status=503,
             )
+
+        parsed_subscription = parse_push_subscription(api_json_body())
+        if parsed_subscription:
+            save_browser_push_subscription(user, parsed_subscription)
 
         payload = build_push_payload(
             "Server Push Test",
