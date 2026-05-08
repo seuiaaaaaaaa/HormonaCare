@@ -307,6 +307,8 @@ def build_push_payload(title, body, tag, url, notification_type):
 
 
 def process_due_push_notifications(app):
+    if not runtime_init_complete:
+        return
     now = datetime.now()
     medication_lead_seconds = int(os.getenv("MEDICATION_PUSH_LEAD_SECONDS", "120"))
     appointment_lead_seconds = int(os.getenv("APPOINTMENT_PUSH_LEAD_SECONDS", "1800"))
@@ -450,13 +452,13 @@ def create_app():
 
     db.init_app(app)
 
-    if os.getenv("SYNC_RUNTIME_INIT") == "1" or os.getenv("FLASK_ENV") == "production":
-        initialize_runtime(app)
-    else:
+    if os.getenv("ASYNC_RUNTIME_INIT") == "1":
         threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
+    else:
+        initialize_runtime(app)
 
     register_routes(app)
-    if os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production":
+    if runtime_init_complete and (os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production" or os.getenv("RENDER")):
         start_push_notification_scheduler(app)
     return app
 
@@ -636,7 +638,8 @@ def register_routes(app):
 
     @app.before_request
     def ensure_push_scheduler_running():
-        start_push_notification_scheduler(app)
+        if runtime_init_complete:
+            start_push_notification_scheduler(app)
 
     @app.after_request
     def apply_security_headers(response):
