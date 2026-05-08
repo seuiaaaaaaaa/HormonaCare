@@ -139,6 +139,101 @@
     }
 }
 
+/* Final medication card layout override: keep cards compact on every viewport. */
+.med-schedule-list {
+    gap: 14px;
+}
+
+.clean-med-card.schedule-card {
+    min-height: 0;
+    height: auto;
+    align-items: center;
+    padding: 16px 18px;
+}
+
+.clean-med-card .schedule-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.clean-med-card .schedule-right {
+    flex: 0 1 auto;
+}
+
+.clean-med-card .med-action-row {
+    gap: 8px;
+}
+
+.clean-med-card .med-action-row .inline-action {
+    min-height: 36px;
+}
+
+@media (max-width: 1080px) {
+    .clean-med-card.schedule-card {
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .clean-med-card .schedule-left {
+        flex: 0 1 auto;
+    }
+
+    .clean-med-card .schedule-right {
+        flex: 0 1 auto;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 720px) {
+    .clean-med-card.schedule-card {
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .clean-med-card .schedule-left {
+        align-items: flex-start;
+    }
+
+    .clean-med-card .schedule-right {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .clean-med-card .time-label {
+        align-self: flex-start;
+    }
+
+    .clean-med-card .med-action-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .clean-med-card .med-action-row form {
+        min-width: 0;
+    }
+
+    .clean-med-card .med-action-row .inline-action,
+    .clean-med-card .med-delete-button {
+        width: 100%;
+        min-height: 38px;
+    }
+}
+
+@media (max-width: 420px) {
+    .clean-med-card.schedule-card {
+        padding: 12px;
+    }
+
+    .clean-med-card .med-action-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Responsive medication page polish */
 .med-title-row,
 .med-action-row,
