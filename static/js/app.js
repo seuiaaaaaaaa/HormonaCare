@@ -2528,9 +2528,16 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
+    const registerHormonaCareServiceWorker = () => {
         navigator.serviceWorker.register("/static/service-worker.js", { scope: "/" }).catch(() => {
             // Keep registration failure silent for local demo environments.
         });
-    });
+    };
+
+    if (document.readyState === "complete") {
+        registerHormonaCareServiceWorker();
+    } else {
+        window.addEventListener("load", registerHormonaCareServiceWorker, { once: true });
+        registerHormonaCareServiceWorker();
+    }
 }
