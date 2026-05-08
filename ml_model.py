@@ -157,11 +157,6 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-import pandas as pd
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
-
 REQUIRED_WELLNESS_COLUMNS = [
     "sleep_duration",
     "sleep_quality",
@@ -300,6 +295,11 @@ def get_weekly_wellness_trend_bundle(dataset_path=None):
     This is supervised machine learning: the model learns from historical rows in
     ``weekly_wellness_dataset.csv`` instead of using fixed if/else trend rules.
     """
+    import pandas as pd
+    from sklearn.metrics import accuracy_score
+    from sklearn.model_selection import train_test_split
+    from sklearn.tree import DecisionTreeClassifier
+
     resolved_path = _resolve_dataset_path(dataset_path)
     if not resolved_path.exists():
         raise FileNotFoundError(
@@ -436,6 +436,8 @@ def predict_wellness(data_input, dataset_path=None):
 
     The prediction is informational only and does not diagnose medical conditions.
     """
+    import pandas as pd
+
     bundle = get_weekly_wellness_trend_bundle(dataset_path)
     model_input = _prepare_model_input(data_input, bundle["feature_medians"])
     prediction_frame = pd.DataFrame([model_input], columns=MODEL_FEATURE_COLUMNS)

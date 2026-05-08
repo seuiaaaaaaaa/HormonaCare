@@ -1,9 +1,13 @@
 {% extends 'base.html' %}
 
 {% block content %}
-{% set taken_count = medications|selectattr('status', 'equalto', 'taken')|list|length %}
+{% set taken_count = medications|selectattr('daily_status', 'equalto', 'taken')|list|length %}
+{% set skipped_count = medications|selectattr('daily_status', 'equalto', 'skipped')|list|length %}
+{% set missed_count = medications|selectattr('daily_status', 'equalto', 'missed')|list|length %}
+{% set unconfirmed_count = (medications|selectattr('daily_status', 'equalto', 'unconfirmed')|list|length) + (medications|selectattr('daily_status', 'equalto', 'unconfirmed_missed')|list|length) %}
+{% set confirmed_count = taken_count + skipped_count + missed_count %}
 {% set total_count = medications|length %}
-{% set percent = ((taken_count / total_count) * 100) if total_count else 0 %}
+{% set percent = ((taken_count / confirmed_count) * 100) if confirmed_count else 0 %}
 
 <section class="page-head with-action">
     <div>
@@ -18,7 +22,13 @@
 <section class="panel-card progress-panel meds-progress-panel">
     <div class="progress-copy">
         <h3>Today's PCOS Routine</h3>
-        <p>You have logged {{ taken_count }} out of {{ total_count }} medications or supplements in your PCOS routine today.</p>
+        <p>You have confirmed {{ confirmed_count }} out of {{ total_count }} medications or supplements today. {{ unconfirmed_count }} still need confirmation.</p>
+        <div class="med-progress-breakdown">
+            <span class="med-status-badge med-status-success">Taken {{ taken_count }}</span>
+            <span class="med-status-badge med-status-muted">Skipped {{ skipped_count }}</span>
+            <span class="med-status-badge med-status-danger">Missed {{ missed_count }}</span>
+            <span class="med-status-badge med-status-warning">Needs confirmation {{ unconfirmed_count }}</span>
+        </div>
         <div class="wide-progress">
             <span style="width: {{ percent }}%"></span>
         </div>
@@ -32,19 +42,52 @@
 
 <section class="med-schedule-list">
     {% for medication in medications %}
-        <article class="schedule-card clean-med-card {% if medication.status == 'taken' %}done{% elif medication.status == 'pending' %}current{% endif %}">
+        {% set daily_status = medication.daily_status if medication.daily_status is defined else medication.status %}
+        {% set daily_tone = medication.daily_status_tone if medication.daily_status_tone is defined else 'neutral' %}
+        <article class="schedule-card clean-med-card med-state-{{ daily_status }} {% if daily_status == 'taken' %}done{% elif daily_status in ['pending', 'unconfirmed', 'unconfirmed_missed'] %}current{% endif %}">
             <div class="schedule-left">
-                <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
-                    <input type="hidden" name="status" value="{{ 'pending' if medication.status == 'taken' else 'taken' }}">
-                    <button class="check-badge med-check {% if medication.status == 'taken' %}is-done{% endif %}" type="submit">{{ '&#10003;'|safe if medication.status == 'taken' else '' }}</button>
-                </form>
+                <span class="check-badge med-check {% if daily_status == 'taken' %}is-done{% elif daily_status in ['skipped', 'missed'] %}is-muted{% endif %}">
+                    {{ '&#10003;'|safe if daily_status == 'taken' else '!' if daily_status in ['unconfirmed', 'unconfirmed_missed', 'missed'] else '' }}
+                </span>
                 <div>
-                    <h3 class="{% if medication.status == 'taken' %}struck{% endif %}">{{ medication.name }}</h3>
+                    <div class="med-title-row">
+                        <h3 class="{% if daily_status in ['taken', 'skipped'] %}struck{% endif %}">{{ medication.name }}</h3>
+                        <span class="med-status-badge med-status-{{ daily_tone }}">{{ medication.daily_status_label if medication.daily_status_label is defined else daily_status|title }}</span>
+                    </div>
                     <p>{{ medication.dosage }} <span class="subtle-dot"></span> {{ medication.notes or 'Take with food' }}</p>
+                    {% if daily_status in ['unconfirmed', 'unconfirmed_missed', 'missed'] %}
+                        <p class="med-status-message">{{ medication.daily_status_message }}</p>
+                    {% endif %}
                 </div>
             </div>
             <div class="schedule-right">
-                <span class="time-label {% if medication.status == 'pending' %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') }}</span>
+                <span class="time-label {% if daily_status in ['pending', 'unconfirmed', 'unconfirmed_missed'] %}highlight-time{% endif %}">{{ medication.time_of_day.strftime('%I:%M %p') }}</span>
+                <div class="med-action-row">
+                    {% if medication.daily_event_status != 'taken' %}
+                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                            <input type="hidden" name="status" value="taken">
+                            <button class="inline-action med-action-primary" type="submit">Mark Taken</button>
+                        </form>
+                    {% endif %}
+                    {% if medication.daily_event_status != 'skipped' %}
+                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                            <input type="hidden" name="status" value="skipped">
+                            <button class="inline-action muted" type="submit">Mark Skipped</button>
+                        </form>
+                    {% endif %}
+                    {% if medication.daily_event_status != 'missed' %}
+                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                            <input type="hidden" name="status" value="missed">
+                            <button class="inline-action danger-light" type="submit">Mark Missed</button>
+                        </form>
+                    {% endif %}
+                    {% if medication.has_daily_log %}
+                        <form method="post" action="{{ url_for('medication_status', medication_id=medication.id) }}">
+                            <input type="hidden" name="status" value="pending">
+                            <button class="inline-action muted" type="submit">Undo Today</button>
+                        </form>
+                    {% endif %}
+                </div>
                 <form
                     method="post"
                     action="{{ url_for('medication_delete', medication_id=medication.id) }}"

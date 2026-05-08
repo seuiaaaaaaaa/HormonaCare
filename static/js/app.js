@@ -271,6 +271,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let pushConfigPromise = null;
         let pushSubscriptionPromise = null;
         let pushStatusReason = "";
+        let backgroundInitialCheckTimer = null;
         let medicationReminderRefreshTimer = null;
         let activeMedicationSchedules = [];
         const medicationReminderTimers = new Map();
@@ -1165,10 +1166,24 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             flushFlashNotifications();
-            checkAlerts();
             scheduleMedicationReminders(medicationSchedules);
-            checkUpcomingAppointments();
-            checkAssessmentUpdates();
+
+            if (!backgroundInitialCheckTimer) {
+                const runInitialBackgroundChecks = () => {
+                    backgroundInitialCheckTimer = null;
+                    if (!canNotify()) {
+                        return;
+                    }
+                    checkAlerts();
+                    checkUpcomingAppointments();
+                    checkAssessmentUpdates();
+                };
+                if ("requestIdleCallback" in window) {
+                    backgroundInitialCheckTimer = window.requestIdleCallback(runInitialBackgroundChecks, { timeout: 2500 });
+                } else {
+                    backgroundInitialCheckTimer = window.setTimeout(runInitialBackgroundChecks, 1800);
+                }
+            }
 
             if (!alertPollTimer && endpoints.alerts) {
                 alertPollTimer = window.setInterval(checkAlerts, Number(pollIntervals.alertsMs) || defaultPollIntervals.alertsMs);

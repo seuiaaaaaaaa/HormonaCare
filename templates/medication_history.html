@@ -4,7 +4,7 @@
 <section class="page-head with-action">
     <div>
         <h1><span class="title-icon blue"><span class="nav-icon nav-pill"></span></span> Medication History</h1>
-        <p>All medications and supplements you have logged as taken in your PCOS routine.</p>
+        <p>All medication and supplement events logged in your PCOS routine.</p>
     </div>
     <a class="dark-button" href="{{ url_for('medications') }}">Back to Medications</a>
 </section>
@@ -12,8 +12,8 @@
 <section class="panel-card">
     <div class="panel-head">
         <div>
-            <h3><span class="section-icon slate"></span> Taken Medication Logs</h3>
-            <p class="section-copy">Newest taken entries first.</p>
+            <h3><span class="section-icon slate"></span> Medication Logs</h3>
+            <p class="section-copy">Newest confirmed entries first. Unconfirmed medications stay separate until you choose what happened.</p>
         </div>
         {% if history_count %}
             <span class="mini-tag">{{ history_count }} total</span>
@@ -25,6 +25,7 @@
             <article class="feedback-preview-card feedback-history-card medication-history-card">
                 <div class="feedback-preview-head">
                     <strong>{{ entry.medication_name }}</strong>
+                    <span class="med-status-badge med-status-{{ entry.event_tone }}">{{ entry.event_label }}</span>
                 </div>
                 <div class="feedback-meta medication-history-meta">
                     <span>{{ entry.dosage }}</span>
@@ -33,12 +34,40 @@
                         <span>Scheduled {{ entry.scheduled_time.strftime('%I:%M %p') }}</span>
                     {% endif %}
                 </div>
-                <p class="feedback-preview-copy">{{ entry.notes or 'Logged as taken in your PCOS support routine.' }}</p>
-                <div class="feedback-history-date">Taken {{ entry.taken_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
+                <p class="feedback-preview-copy">{{ entry.event_message or entry.notes or 'Logged in your PCOS support routine.' }}</p>
+                <div class="feedback-history-date">{{ entry.event_label }} {{ entry.taken_at.strftime('%b %d, %Y at %I:%M %p') }}</div>
             </article>
         {% else %}
-            <div class="empty-state">No taken medication logs yet.</div>
+            <div class="empty-state">No medication logs yet.</div>
         {% endfor %}
     </div>
 </section>
+
+{% if unconfirmed_entries %}
+<section class="panel-card">
+    <div class="panel-head">
+        <div>
+            <h3><span class="section-icon slate"></span> Needs Confirmation</h3>
+            <p class="section-copy">These are not counted as confirmed missed until you choose Missed.</p>
+        </div>
+        <span class="mini-tag">{{ unconfirmed_entries|length }} unconfirmed</span>
+    </div>
+    <div class="feedback-history-list">
+        {% for medication in unconfirmed_entries %}
+            <article class="feedback-preview-card feedback-history-card medication-history-card">
+                <div class="feedback-preview-head">
+                    <strong>{{ medication.name }}</strong>
+                    <span class="med-status-badge med-status-{{ medication.daily_status_tone }}">{{ medication.daily_status_label }}</span>
+                </div>
+                <div class="feedback-meta medication-history-meta">
+                    <span>{{ medication.dosage }}</span>
+                    <span class="subtle-dot"></span>
+                    <span>Scheduled {{ medication.time_of_day.strftime('%I:%M %p') }}</span>
+                </div>
+                <p class="feedback-preview-copy">{{ medication.daily_status_message }}</p>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 {% endblock %}

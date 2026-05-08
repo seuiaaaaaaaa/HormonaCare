@@ -32,6 +32,113 @@
     --radius-md: 14px;
 }
 
+@media (max-width: 1080px) {
+    .bottom-nav {
+        display: flex;
+        width: 100vw;
+        grid-template-columns: none;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0;
+        padding: 0 max(6px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    }
+
+    .bottom-nav a {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        align-items: center;
+        text-align: center;
+    }
+
+    .bottom-nav a span:last-child {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mental-layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .mental-layout > *,
+    .mood-check-card,
+    .mood-trends-card {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+@media (min-width: 721px) and (max-width: 1080px) {
+    .calendar-board {
+        padding: 18px;
+    }
+
+    .calendar-weekdays,
+    .calendar-grid {
+        gap: 8px;
+    }
+
+    .calendar-cell {
+        min-height: 72px;
+        border-radius: 16px;
+        padding: 10px 9px;
+    }
+
+    .calendar-under {
+        grid-template-columns: 1fr;
+    }
+
+    .cycle-day-detail-grid,
+    .cycle-insights-meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cycle-insights-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mood-choice {
+        min-height: 96px;
+    }
+}
+
+@media (max-width: 720px) {
+    .cycle-insights-meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cycle-metric-chip,
+    .insight-chip {
+        min-height: 0;
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .calendar-cell {
+        aspect-ratio: 1 / 1;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 420px) {
+    .bottom-nav a {
+        flex: 1 1 0;
+        font-size: 0.5rem;
+        padding-left: 1px;
+        padding-right: 1px;
+    }
+
+    .bottom-nav .nav-icon {
+        width: 14px;
+        height: 14px;
+        flex-basis: 14px;
+    }
+}
+
 html[data-theme="dark"] {
     color-scheme: dark;
 }
@@ -9627,5 +9734,112 @@ body.theme-dark .settings-password-method span:last-child {
 
     .mood-chart {
         height: 210px;
+    }
+}
+
+@media (max-width: 1080px) {
+    .bottom-nav {
+        display: flex;
+        width: 100vw;
+        grid-template-columns: none;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0;
+        padding: 0 max(6px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+    }
+
+    .bottom-nav a {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        align-items: center;
+        text-align: center;
+    }
+
+    .bottom-nav a span:last-child {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mental-layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        align-items: start;
+    }
+
+    .mental-layout > *,
+    .mood-check-card,
+    .mood-trends-card {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+@media (min-width: 721px) and (max-width: 1080px) {
+    .calendar-board {
+        padding: 18px;
+    }
+
+    .calendar-weekdays,
+    .calendar-grid {
+        gap: 8px;
+    }
+
+    .calendar-cell {
+        min-height: 72px;
+        border-radius: 16px;
+        padding: 10px 9px;
+    }
+
+    .calendar-under {
+        grid-template-columns: 1fr;
+    }
+
+    .cycle-day-detail-grid,
+    .cycle-insights-meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cycle-insights-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .mood-choice {
+        min-height: 96px;
+    }
+}
+
+@media (max-width: 720px) {
+    .cycle-insights-meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cycle-metric-chip,
+    .insight-chip {
+        min-height: 0;
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .calendar-cell {
+        aspect-ratio: 1 / 1;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 420px) {
+    .bottom-nav a {
+        flex: 1 1 0;
+        font-size: 0.5rem;
+        padding-left: 1px;
+        padding-right: 1px;
+    }
+
+    .bottom-nav .nav-icon {
+        width: 14px;
+        height: 14px;
+        flex-basis: 14px;
     }
 }

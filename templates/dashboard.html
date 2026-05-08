@@ -106,33 +106,59 @@
     <article class="feature-card">
         <div class="feature-card-top">
             <span class="feature-icon blue"><span class="nav-icon nav-pill"></span></span>
-            <span class="mini-tag">{{ metrics.taken_count }}/{{ metrics.total_count }} Taken</span>
+            <span class="mini-tag">{{ metrics.confirmed_count }}/{{ metrics.total_count }} Confirmed</span>
         </div>
         <h3>PCOS Medications</h3>
         <p>{{ metrics.reminders[0] if metrics.reminders else 'No reminders yet. Add your first medication, supplement, or appointment.' }}</p>
-        <div class="thin-progress"><span style="width: {{ ((metrics.taken_count / metrics.total_count) * 100) if metrics.total_count else 0 }}%"></span></div>
+        <div class="med-progress-breakdown compact">
+            <span class="med-status-badge med-status-success">Taken {{ metrics.taken_count }}</span>
+            <span class="med-status-badge med-status-muted">Skipped {{ metrics.skipped_count }}</span>
+            <span class="med-status-badge med-status-danger">Missed {{ metrics.missed_count }}</span>
+            <span class="med-status-badge med-status-warning">Needs confirmation {{ metrics.unconfirmed_count }}</span>
+        </div>
+        <div class="thin-progress"><span style="width: {{ ((metrics.taken_count / metrics.confirmed_count) * 100) if metrics.confirmed_count else 0 }}%"></span></div>
     </article>
 
     <article class="feature-card">
         <div class="feature-card-top">
             <span class="feature-icon green"><span class="nav-icon nav-wave"></span></span>
-            <span class="mini-tag">On Track</span>
+            <span class="mini-tag">
+                {% if metrics.latest_lifestyle %}
+                    Latest log: {{ metrics.latest_lifestyle_date_label }}
+                {% else %}
+                    No logs yet
+                {% endif %}
+            </span>
         </div>
         <h3>PCOS Lifestyle &amp; Diet</h3>
-        <p class="metric-row">
-            <span>Water {{ metrics.latest_lifestyle.water_intake_liters if metrics.latest_lifestyle else 'Not logged' }}</span>
-            <span>Sleep {{ metrics.latest_lifestyle.sleep_hours ~ 'h' if metrics.latest_lifestyle else 'Not logged' }}</span>
-            <span>Exercise {{ metrics.latest_lifestyle.exercise_minutes ~ 'm' if metrics.latest_lifestyle else 'Not logged' }}</span>
-        </p>
+        {% if metrics.latest_lifestyle %}
+            <p class="metric-row">
+                <span>Water {{ metrics.latest_lifestyle.water_intake_liters }}</span>
+                <span>Sleep {{ metrics.latest_lifestyle.sleep_hours }}h</span>
+                <span>Exercise {{ metrics.latest_lifestyle.exercise_minutes }}m</span>
+            </p>
+        {% else %}
+            <p>No lifestyle logs yet. Add a lifestyle entry to see hydration, sleep, and exercise here.</p>
+        {% endif %}
     </article>
 
     <article class="feature-card">
         <div class="feature-card-top">
             <span class="feature-icon purple"><span class="nav-icon nav-user"></span></span>
-            <span class="mini-tag">Mood: {{ metrics.latest_mental.mood if metrics.latest_mental else 'Not logged' }}</span>
+            <span class="mini-tag">
+                {% if metrics.latest_mental %}
+                    Latest log: {{ metrics.latest_mental_date_label }}
+                {% else %}
+                    No logs yet
+                {% endif %}
+            </span>
         </div>
         <h3>Mood &amp; Stress Support</h3>
-        <p>{{ metrics.latest_mental.wellness_tip if metrics.latest_mental and metrics.latest_mental.wellness_tip else 'Log your first mood entry to see PCOS-aware guidance based on your own data.' }}</p>
+        {% if metrics.latest_mental %}
+            <p>Mood {{ metrics.latest_mental.mood }} &middot; Stress {{ metrics.latest_mental.stress_level }}/10{% if metrics.latest_mental.wellness_tip %}. {{ metrics.latest_mental.wellness_tip }}{% endif %}</p>
+        {% else %}
+            <p>No mood logs yet. Log your first mood entry to see PCOS-aware guidance based on your own data.</p>
+        {% endif %}
     </article>
 </section>
 

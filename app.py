@@ -14,7 +14,7 @@ import traceback
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
-from flask import Flask, flash, has_request_context, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, flash, g, has_request_context, jsonify, redirect, render_template, request, session, url_for
 import httpx
 from sqlalchemy import func, inspect, text
 from sqlalchemy.exc import IntegrityError
@@ -80,7 +80,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260507-notifications-fix3")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-responsive-notes")
 
 
 ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
@@ -425,10 +425,20 @@ def normalize_public_base_url(base_url):
     return base_url.rstrip("/")
 
 
+def resolve_database_uri(app):
+    try:
+        return normalize_database_url(os.getenv("DATABASE_URL"))
+    except RuntimeError as error:
+        os.makedirs(app.instance_path, exist_ok=True)
+        app.config["HORMONACARE_DATABASE_WARNING"] = str(error)
+        fallback_path = os.path.join(app.instance_path, "hormonacare.db")
+        return "sqlite:///" + fallback_path.replace("\\", "/")
+
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
-    app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(os.getenv("DATABASE_URL"))
+    app.config["SQLALCHEMY_DATABASE_URI"] = resolve_database_uri(app)
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
     app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -440,10 +450,10 @@ def create_app():
 
     db.init_app(app)
 
-    if os.getenv("FLASK_ENV") == "production":
-        threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
-    else:
+    if os.getenv("SYNC_RUNTIME_INIT") == "1":
         initialize_runtime(app)
+    else:
+        threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
 
     register_routes(app)
     if os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production":
@@ -560,6 +570,12 @@ def ensure_runtime_schema():
             if "user_id" not in columns:
                 connection.execute(text(statements["add_column"]))
             connection.execute(text(statements["index"]))
+    if "medication_logs" in tables:
+        columns = {column["name"] for column in inspector.get_columns("medication_logs")}
+        if "status" not in columns:
+            with db.engine.begin() as connection:
+                connection.execute(text("ALTER TABLE medication_logs ADD COLUMN status VARCHAR(20)"))
+                connection.execute(text("UPDATE medication_logs SET status = 'taken' WHERE status IS NULL"))
     if "user_profiles" in tables:
         columns = {column["name"] for column in inspector.get_columns("user_profiles")}
         required_columns = {
@@ -671,6 +687,17 @@ def register_routes(app):
 
     def owned_record_or_404(model, user, record_id):
         return user_records(model, user).filter_by(id=record_id).first_or_404()
+
+    def request_medication_summary(user):
+        cache = getattr(g, "medication_summary_cache", None) if has_request_context() else None
+        if cache and cache.get("user_id") == user.id:
+            return cache
+        medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+        normalize_medication_statuses(user, medications)
+        cache = {"user_id": user.id, "medications": medications}
+        if has_request_context():
+            g.medication_summary_cache = cache
+        return cache
 
     full_name_help = "Enter your full name using 2 to 120 characters."
     email_help = "Enter a valid email address."
@@ -816,8 +843,8 @@ def register_routes(app):
             "alerts": True,
         }
         if user:
-            medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-            normalize_medication_statuses(user, medications)
+            medication_cache = request_medication_summary(user)
+            medications = medication_cache["medications"]
             unread_reminders = len([medication for medication in medications if medication.status == "pending"])
             notification_medication_schedules = [
                 {
@@ -826,6 +853,8 @@ def register_routes(app):
                     "dosage": medication.dosage,
                     "time_of_day": medication.time_of_day.strftime("%H:%M:%S") if medication.time_of_day else None,
                     "status": medication.status,
+                    "daily_status": getattr(medication, "daily_status", medication.status),
+                    "event_status": getattr(medication, "daily_event_status", None),
                     "reminder_enabled": bool(medication.reminder_enabled),
                 }
                 for medication in medications
@@ -893,6 +922,16 @@ def register_routes(app):
 
     def iso_date(value):
         return value.isoformat() if value else None
+
+    def display_date_label(value, fallback=""):
+        if not value:
+            return fallback
+        if hasattr(value, "strftime"):
+            return value.strftime("%b %d, %Y")
+        try:
+            return datetime.fromisoformat(str(value)).strftime("%b %d, %Y")
+        except (TypeError, ValueError):
+            return str(value)
 
     def iso_time(value):
         return value.strftime("%H:%M:%S") if value else None
@@ -2107,6 +2146,74 @@ def register_routes(app):
         day_start = datetime.combine(day, datetime.min.time())
         return day_start, day_start + timedelta(days=1)
 
+    def medication_scheduled_at(medication, target_day=None):
+        return datetime.combine(target_day or app_today(), medication.time_of_day)
+
+    def medication_missed_cutoff_at(target_day=None):
+        cutoff_day = target_day or app_today()
+        return datetime.combine(cutoff_day, datetime.max.time()).replace(hour=23, minute=59, second=0, microsecond=0)
+
+    def medication_log_status(log_entry):
+        status = (getattr(log_entry, "status", None) or "taken").strip().lower()
+        return status if status in {"taken", "skipped", "missed"} else "taken"
+
+    def medication_log_is_late(log_entry):
+        if medication_log_status(log_entry) != "taken" or not log_entry.scheduled_time or not log_entry.taken_at:
+            return False
+        scheduled_at = datetime.combine(log_entry.taken_at.date(), log_entry.scheduled_time)
+        return log_entry.taken_at > scheduled_at + timedelta(minutes=30)
+
+    def medication_display_state(medication, daily_log=None):
+        now = app_now()
+        if daily_log:
+            status = medication_log_status(daily_log)
+            label = "Taken late" if medication_log_is_late(daily_log) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
+            tone = "warning" if label == "Taken late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
+            message = "Logged as taken after the scheduled time." if label == "Taken late" else "Confirmed in your PCOS support routine."
+            return status, label, tone, message, status, daily_log.taken_at
+        scheduled_at = medication_scheduled_at(medication, now.date())
+        if now < scheduled_at:
+            return "pending", "Pending", "neutral", "Scheduled later today.", None, None
+        if now >= medication_missed_cutoff_at(now.date()):
+            return "unconfirmed_missed", "Unconfirmed missed", "warning", "This was not confirmed by the cutoff. Please confirm what happened.", None, None
+        return "unconfirmed", "Needs confirmation", "warning", "Confirm whether this medication was taken, skipped, or missed.", None, None
+
+    def annotate_medication_display(medication, daily_log=None):
+        status, label, tone, message, event_status, logged_at = medication_display_state(medication, daily_log=daily_log)
+        medication.daily_status = status
+        medication.daily_status_label = label
+        medication.daily_status_tone = tone
+        medication.daily_status_message = message
+        medication.daily_event_status = event_status
+        medication.daily_logged_at = logged_at
+        medication.has_daily_log = bool(daily_log)
+        return medication
+
+    def medication_summary_counts(medications):
+        counts = Counter(getattr(medication, "daily_status", medication.status or "pending") for medication in medications)
+        confirmed_count = counts.get("taken", 0) + counts.get("skipped", 0) + counts.get("missed", 0)
+        unconfirmed_count = counts.get("unconfirmed", 0) + counts.get("unconfirmed_missed", 0)
+        return {
+            "taken_count": counts.get("taken", 0),
+            "skipped_count": counts.get("skipped", 0),
+            "missed_count": counts.get("missed", 0),
+            "unconfirmed_count": unconfirmed_count,
+            "confirmed_count": confirmed_count,
+            "total_count": len(medications),
+        }
+
+    def create_medication_log(user, medication, status):
+        return MedicationLog(
+            user_id=user.id,
+            medication_id=medication.id,
+            medication_name=medication.name,
+            dosage=medication.dosage,
+            scheduled_time=medication.time_of_day,
+            notes=medication.notes,
+            status=status,
+            taken_at=app_now(),
+        )
+
     def normalize_medication_statuses(user, medications=None):
         if not user:
             return medications or []
@@ -2115,30 +2222,31 @@ def register_routes(app):
         if medication_records is None:
             medication_records = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
 
-        taken_medications = [medication for medication in medication_records if medication.status == "taken"]
-        if not taken_medications:
-            return medication_records
-
         day_start, day_end = medication_log_window()
-        taken_ids_today = {
-            medication_id
-            for medication_id, in (
-                db.session.query(MedicationLog.medication_id)
-                .filter(
+        medication_ids = [medication.id for medication in medication_records if medication.id]
+        logs = []
+        if medication_ids:
+            logs = (
+                MedicationLog.query.filter(
                     MedicationLog.user_id == user.id,
-                    MedicationLog.medication_id.in_([medication.id for medication in taken_medications]),
+                    MedicationLog.medication_id.in_(medication_ids),
                     MedicationLog.taken_at >= day_start,
                     MedicationLog.taken_at < day_end,
                 )
-                .distinct()
+                .order_by(MedicationLog.taken_at.asc(), MedicationLog.id.asc())
                 .all()
             )
-        }
+        logs_by_medication_id = {}
+        for log_entry in logs:
+            logs_by_medication_id[log_entry.medication_id] = log_entry
 
         changed = False
-        for medication in taken_medications:
-            if medication.id not in taken_ids_today:
-                medication.status = "pending"
+        for medication in medication_records:
+            daily_log = logs_by_medication_id.get(medication.id)
+            annotate_medication_display(medication, daily_log=daily_log)
+            legacy_status = medication.daily_event_status or "pending"
+            if medication.status != legacy_status:
+                medication.status = legacy_status
                 changed = True
 
         if changed:
@@ -2151,6 +2259,12 @@ def register_routes(app):
             query = query.limit(limit)
         history_entries = query.all()
         decrypt_model_fields(history_entries, ["notes"])
+        for entry in history_entries:
+            status = medication_log_status(entry)
+            entry.event_status = status
+            entry.event_label = "Taken late" if medication_log_is_late(entry) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
+            entry.event_tone = "warning" if entry.event_label == "Taken late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
+            entry.event_message = "Logged as taken after the scheduled time." if entry.event_label == "Taken late" else "Confirmed in your PCOS support routine."
         return history_entries
 
     def health_assessment_for_inputs(sleep_hours, water_intake, stress_level, activity_minutes):
@@ -2892,8 +3006,8 @@ def register_routes(app):
         lifestyle_log = get_today_lifestyle_log(user)
         mental_log = get_today_mental_log(user)
         cycle_log = get_latest_cycle_log(user)
-        medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-        normalize_medication_statuses(user, medications)
+        medication_cache = request_medication_summary(user)
+        medications = medication_cache["medications"]
         pcos_state = build_pcos_state(get_or_create_profile(user))
 
         due_medications = []
@@ -3015,8 +3129,8 @@ def register_routes(app):
             latest_lifestyle_details["exercise_entries"][-1] if latest_lifestyle_details["exercise_entries"] else None
         )
         latest_food_entry = latest_lifestyle_details["food_entries"][-1] if latest_lifestyle_details["food_entries"] else None
-        medications_today = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-        normalize_medication_statuses(user, medications_today)
+        medication_cache = request_medication_summary(user)
+        medications_today = medication_cache["medications"]
         upcoming_appointments = (
             Appointment.query.filter(Appointment.user_id == user.id, Appointment.appointment_date >= date.today())
             .order_by(Appointment.appointment_date.asc())
@@ -3061,8 +3175,13 @@ def register_routes(app):
                 reminders.append(f"Appointment with {doctor_name} on {appt.appointment_date:%b %d}")
             else:
                 reminders.append(f"Appointment with {doctor_name}")
-        taken_count = len([med for med in medications_today if med.status == "taken"])
-        total_count = len(medications_today)
+        medication_summary = medication_summary_counts(medications_today)
+        taken_count = medication_summary["taken_count"]
+        skipped_count = medication_summary["skipped_count"]
+        missed_count = medication_summary["missed_count"]
+        unconfirmed_count = medication_summary["unconfirmed_count"]
+        confirmed_count = medication_summary["confirmed_count"]
+        total_count = medication_summary["total_count"]
         has_user_activity = bool(
             latest_lifestyle
             or latest_mental
@@ -3078,7 +3197,9 @@ def register_routes(app):
                 else "Here is your daily PCOS support summary based on your logged habits."
             ),
             "latest_lifestyle": latest_lifestyle,
+            "latest_lifestyle_date_label": display_date_label(latest_lifestyle.log_date) if latest_lifestyle else "",
             "latest_mental": latest_mental,
+            "latest_mental_date_label": display_date_label(latest_mental.log_date) if latest_mental else "",
             "cycle_info": cycle_info,
             "upcoming_appointments": upcoming_appointments,
             "reminders": reminders,
@@ -3086,6 +3207,10 @@ def register_routes(app):
             "weekly_wellness_trend": weekly_wellness_trend,
             "smart_prompts": build_smart_prompts(user),
             "taken_count": taken_count,
+            "skipped_count": skipped_count,
+            "missed_count": missed_count,
+            "unconfirmed_count": unconfirmed_count,
+            "confirmed_count": confirmed_count,
             "total_count": total_count,
             "has_user_activity": has_user_activity,
         }
@@ -4295,6 +4420,9 @@ def register_routes(app):
                 "api_version": api_version,
                 "auth_mode": "session_cookie",
                 "web_push_available": webpush is not None,
+                "runtime_ready": runtime_init_complete,
+                "database_configured": not bool(app.config.get("HORMONACARE_DATABASE_WARNING")),
+                "database_warning": app.config.get("HORMONACARE_DATABASE_WARNING", ""),
             }
         )
 
@@ -4783,6 +4911,11 @@ def register_routes(app):
                     "time_of_day": iso_time(medication.time_of_day),
                     "notes": medication.notes,
                     "status": medication.status,
+                    "daily_status": getattr(medication, "daily_status", medication.status),
+                    "daily_status_label": getattr(medication, "daily_status_label", medication.status.title()),
+                    "daily_status_tone": getattr(medication, "daily_status_tone", "neutral"),
+                    "daily_status_message": getattr(medication, "daily_status_message", ""),
+                    "event_status": getattr(medication, "daily_event_status", None),
                     "reminder_enabled": safe_bool(medication.reminder_enabled),
                 }
                 for medication in medications
@@ -5051,10 +5184,18 @@ def register_routes(app):
     def medication_history():
         user = current_user()
         history_entries = fetch_medication_history(user)
+        medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+        normalize_medication_statuses(user, medications)
+        unconfirmed_entries = [
+            medication
+            for medication in medications
+            if getattr(medication, "daily_status", "") in {"unconfirmed", "unconfirmed_missed"}
+        ]
         return render_template(
             "medication_history.html",
             history_entries=history_entries,
             history_count=len(history_entries),
+            unconfirmed_entries=unconfirmed_entries,
         )
 
     @app.post("/medications/<int:medication_id>/status")
@@ -5064,55 +5205,31 @@ def register_routes(app):
         medication = owned_record_or_404(Medication, user, medication_id)
         normalize_medication_statuses(user, [medication])
         requested_status = (request.form.get("status") or "").strip().lower()
-        if requested_status not in {"pending", "taken"}:
+        if requested_status not in {"pending", "taken", "skipped", "missed"}:
             flash("Invalid medication status.", "danger")
             return redirect(url_for("medications"))
 
-        if requested_status == "taken" and medication.status != "taken":
-            day_start, day_end = medication_log_window()
-            existing_log = (
-                MedicationLog.query.filter(
-                    MedicationLog.user_id == user.id,
-                    MedicationLog.medication_id == medication.id,
-                    MedicationLog.taken_at >= day_start,
-                    MedicationLog.taken_at < day_end,
-                )
-                .order_by(MedicationLog.taken_at.desc())
-                .first()
-            )
-            if not existing_log:
-                db.session.add(
-                    MedicationLog(
-                        user_id=user.id,
-                        medication_id=medication.id,
-                        medication_name=medication.name,
-                        dosage=medication.dosage,
-                        scheduled_time=medication.time_of_day,
-                        notes=medication.notes,
-                        taken_at=app_now(),
-                    )
-                )
-        elif requested_status == "pending" and medication.status == "taken":
-            day_start, day_end = medication_log_window()
-            latest_today_log = (
-                MedicationLog.query.filter(
-                    MedicationLog.user_id == user.id,
-                    MedicationLog.medication_id == medication.id,
-                    MedicationLog.taken_at >= day_start,
-                    MedicationLog.taken_at < day_end,
-                )
-                .order_by(MedicationLog.taken_at.desc())
-                .first()
-            )
-            if latest_today_log:
-                db.session.delete(latest_today_log)
+        day_start, day_end = medication_log_window()
+        MedicationLog.query.filter(
+            MedicationLog.user_id == user.id,
+            MedicationLog.medication_id == medication.id,
+            MedicationLog.taken_at >= day_start,
+            MedicationLog.taken_at < day_end,
+        ).delete(synchronize_session=False)
 
-        medication.status = requested_status
+        if requested_status in {"taken", "skipped", "missed"}:
+            db.session.add(create_medication_log(user, medication, requested_status))
+            medication.status = requested_status
+        else:
+            medication.status = "pending"
         db.session.commit()
-        flash(
-            f"{medication.name} logged as taken." if requested_status == "taken" else f"{medication.name} marked as pending.",
-            "success",
-        )
+        status_messages = {
+            "taken": f"{medication.name} logged as taken.",
+            "skipped": f"{medication.name} logged as skipped.",
+            "missed": f"{medication.name} logged as missed.",
+            "pending": f"{medication.name} reset for today's tracking.",
+        }
+        flash(status_messages[requested_status], "success")
         return redirect(url_for("medications"))
 
     @app.post("/medications/<int:medication_id>/delete")

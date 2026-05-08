@@ -53,6 +53,7 @@ class MedicationLog(db.Model):
     dosage = db.Column(db.String(80), nullable=False)
     scheduled_time = db.Column(db.Time)
     notes = db.Column(db.Text)
+    status = db.Column(db.String(20), default="taken")
     taken_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
 
