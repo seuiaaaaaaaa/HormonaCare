@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, flash, g, has_request_context, jsonify, redirect, render_template, request, session, url_for
 import httpx
 from sqlalchemy import func, inspect, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -450,7 +450,7 @@ def create_app():
 
     db.init_app(app)
 
-    if os.getenv("SYNC_RUNTIME_INIT") == "1":
+    if os.getenv("SYNC_RUNTIME_INIT") == "1" or os.getenv("FLASK_ENV") == "production":
         initialize_runtime(app)
     else:
         threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
@@ -692,8 +692,13 @@ def register_routes(app):
         cache = getattr(g, "medication_summary_cache", None) if has_request_context() else None
         if cache and cache.get("user_id") == user.id:
             return cache
-        medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-        normalize_medication_statuses(user, medications)
+        try:
+            medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+            normalize_medication_statuses(user, medications)
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Medication summary unavailable while database schema is preparing.")
+            medications = []
         cache = {"user_id": user.id, "medications": medications}
         if has_request_context():
             g.medication_summary_cache = cache
@@ -2257,8 +2262,13 @@ def register_routes(app):
         query = MedicationLog.query.filter_by(user_id=user.id).order_by(MedicationLog.taken_at.desc())
         if limit:
             query = query.limit(limit)
-        history_entries = query.all()
-        decrypt_model_fields(history_entries, ["notes"])
+        try:
+            history_entries = query.all()
+            decrypt_model_fields(history_entries, ["notes"])
+        except SQLAlchemyError:
+            db.session.rollback()
+            app.logger.exception("Medication history unavailable while database schema is preparing.")
+            return []
         for entry in history_entries:
             status = medication_log_status(entry)
             entry.event_status = status
