@@ -43,6 +43,26 @@
                 <p class="wellness-compact-note" title="{{ metrics.weekly_wellness_trend.disclaimer|default('') }}">
                     {{ metrics.weekly_wellness_trend.footer_note|default('This insight does not replace medical advice.') }}
                 </p>
+                {% if false %}
+                <p class="wellness-status-explanation">{{ metrics.weekly_wellness_trend.explanation }}</p>
+                {% if metrics.weekly_wellness_trend.confidence_label %}
+                <p class="wellness-confidence-label">
+                    {{ metrics.weekly_wellness_trend.confidence_label }}
+                    {% if false and metrics.weekly_wellness_trend.checkin_summary %}
+                    · {{ metrics.weekly_wellness_trend.checkin_summary }}
+                    {% endif %}
+                </p>
+                {% endif %}
+                {% if metrics.weekly_wellness_trend.data_completeness_label %}
+                <p class="wellness-data-completeness">{{ metrics.weekly_wellness_trend.data_completeness_label }}</p>
+                {% endif %}
+                {% if metrics.weekly_wellness_trend.weekly_completion_helper %}
+                <p class="wellness-data-helper">{{ metrics.weekly_wellness_trend.weekly_completion_helper }}</p>
+                {% endif %}
+                {% if metrics.weekly_wellness_trend.disclaimer %}
+                <p class="wellness-disclaimer">{{ metrics.weekly_wellness_trend.disclaimer }}</p>
+                {% endif %}
+                {% endif %}
             </div>
             {% if metrics.weekly_wellness_trend.chart_points %}
             <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}">
@@ -61,6 +81,25 @@
             </div>
             {% endif %}
         </div>
+
+        {% if false and metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.pattern_highlights %}
+        <div class="wellness-section-label">PCOS Insight Signals</div>
+        <div class="wellness-factor-list">
+            {% for factor in metrics.weekly_wellness_trend.pattern_highlights %}
+                <span class="wellness-factor-chip">{{ factor }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if false and metrics.weekly_wellness_trend.has_sufficient_data and metrics.weekly_wellness_trend.recommendation %}
+        <div class="wellness-section-label">PCOS Support Recommendation</div>
+        <div class="wellness-recommendation-box">
+            <div class="wellness-recommendation-copy">
+                <span class="wellness-recommendation-tag">PCOS Insight</span>
+                <p>{{ metrics.weekly_wellness_trend.recommendation }}</p>
+            </div>
+        </div>
+        {% endif %}
     </article>
 </section>
 

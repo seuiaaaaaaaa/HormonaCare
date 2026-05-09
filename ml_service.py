@@ -13,6 +13,7 @@ from ml_model import (
 )
 
 COMPLETE_WEEK_LOGGED_DAYS = 7
+MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 1
 WEEKLY_WELLNESS_DISCLAIMER = (
     "This insight is based on recent logged wellness data and does not replace medical advice."
 )
@@ -123,6 +124,35 @@ def _summarize_week(rows):
     }
 
 
+def _predict_weekly_label(current_week_score, previous_week_score):
+    if current_week_score > previous_week_score + 0.05:
+        return "Improving"
+    if current_week_score < previous_week_score - 0.05:
+        return "Declining"
+    return "Stable"
+
+
+def _build_weekly_highlights(summary):
+    highlights = []
+    if summary["stress_logs"] and summary["stress_score"] > 0.6:
+        highlights.append("Higher stress may be adding pressure to hormonal balance")
+    if summary["hydration_logs"] and summary["hydration_score"] < 0.5:
+        highlights.append("Lower hydration may be adding to fatigue or routine inconsistency")
+    if summary["sleep_logs"] and summary["sleep_score"] >= 0.8:
+        highlights.append("More consistent sleep supported hormonal rhythm")
+    if summary["exercise_logs"] and summary["exercise_score"] >= 0.5:
+        highlights.append("Regular movement supported blood sugar and routine balance")
+    return highlights
+
+
+def _build_weekly_recommendation(predicted_label):
+    if predicted_label == "Improving":
+        return "Your recent routine is moving in a supportive direction for PCOS management. Keep those habits steady."
+    if predicted_label == "Declining":
+        return "Recent logs suggest your PCOS support routine may need attention. Focus on sleep, meals, movement, and stress recovery."
+    return "Your routine looks steady right now. Maintain consistent sleep, hydration, and activity to support PCOS balance."
+
+
 def _decrease_confidence_level(level):
     if level == "High":
         return "Medium"
@@ -200,12 +230,33 @@ def build_weekly_footer_note(logged_days):
     return "Only recorded wellness entries are analyzed."
 
 
+def format_weekly_checkin_summary(logged_days):
+    """Describe how many recent days include logs."""
+    entry_label = "entry" if logged_days == 1 else "entries"
+    return f"{logged_days} recent wellness {entry_label} analyzed"
+
+
+def format_weekly_activity_summary(logged_days):
+    """Describe recent logged activity in sentence form."""
+    return format_weekly_checkin_summary(logged_days)
+
+
 def build_weekly_explanation(logged_days):
     """Keep full-window wording only when all seven days are present."""
     if logged_days <= 0:
         return "Log wellness check-ins to generate a trend from recent recorded data."
     entry_label = "entry" if logged_days == 1 else "entries"
     return f"Based on recent logged wellness data. {logged_days} recent wellness {entry_label} analyzed."
+
+
+def build_weekly_data_completeness_label(logged_days):
+    return "Based on recent logged wellness data"
+
+
+def build_weekly_completion_helper(logged_days):
+    if logged_days <= 0:
+        return "Missing days are left neutral until you add a wellness log."
+    return "Missing days reduce confidence, not wellness quality."
 
 
 def build_weekly_chart_window_label(logged_days):
@@ -316,6 +367,9 @@ def build_weekly_wellness_fallback(logged_days=0):
         "chart_points": [],
         "current_week_score": None,
         "logged_days": logged_days,
+        "checkin_summary": None,
+        "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+        "weekly_completion_helper": build_weekly_completion_helper(logged_days),
         "chart_window_label": build_weekly_chart_window_label(logged_days),
         "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
         "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
@@ -359,6 +413,9 @@ def build_weekly_wellness_trend(daily_rows):
             "chart_points": build_weekly_chart_points(current_week_rows),
             "current_week_score": None,
             "logged_days": logged_days,
+            "checkin_summary": None,
+            "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+            "weekly_completion_helper": build_weekly_completion_helper(logged_days),
             "chart_window_label": build_weekly_chart_window_label(logged_days),
             "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
             "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
@@ -391,6 +448,9 @@ def build_weekly_wellness_trend(daily_rows):
             "chart_points": build_weekly_chart_points(current_week_rows),
             "current_week_score": None,
             "logged_days": logged_days,
+            "checkin_summary": None,
+            "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+            "weekly_completion_helper": build_weekly_completion_helper(logged_days),
             "chart_window_label": build_weekly_chart_window_label(logged_days),
             "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
             "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
@@ -428,6 +488,9 @@ def build_weekly_wellness_trend(daily_rows):
         "chart_points": build_weekly_chart_points(current_week_rows),
         "current_week_score": current_week_summary["wellness_score"],
         "logged_days": logged_days,
+        "checkin_summary": None,
+        "data_completeness_label": build_weekly_data_completeness_label(logged_days),
+        "weekly_completion_helper": build_weekly_completion_helper(logged_days),
         "chart_window_label": build_weekly_chart_window_label(logged_days),
         "disclaimer": WEEKLY_WELLNESS_DISCLAIMER,
         "is_complete_week": logged_days >= COMPLETE_WEEK_LOGGED_DAYS,
