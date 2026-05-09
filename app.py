@@ -51,6 +51,7 @@ from security_utils import (
     decrypt_text,
     encryption_available,
     encrypt_text,
+    field_encryption_status,
     hash_password,
     validate_strong_password,
     verify_password,
@@ -817,6 +818,11 @@ def register_routes(app):
             "auth_mode": "session_cookie",
             "description": "Shared API layer for the current web interface and future mobile clients.",
             "core_function": "Provide one Python backend so multiple clients can reuse the same data, business logic, and wellness services.",
+            "security": {
+                "password_storage": "Passwords and verification codes are stored as bcrypt hashes.",
+                "data_in_transit": "HTTPS is required in production, and Supabase/PostgreSQL connections use SSL when configured.",
+                "data_at_rest": field_encryption_status(),
+            },
             "endpoints": [
                 {"method": "GET", "path": "/api/health", "auth_required": False, "purpose": "Service health and backend identity"},
                 {"method": "GET", "path": "/api/docs", "auth_required": False, "purpose": "API capabilities and integration guide"},
@@ -2183,9 +2189,9 @@ def register_routes(app):
         now = app_now()
         if daily_log:
             status = medication_log_status(daily_log)
-            label = "Taken late" if medication_log_is_late(daily_log) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
-            tone = "warning" if label == "Taken late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
-            message = "Logged as taken after the scheduled time." if label == "Taken late" else "Confirmed in your PCOS support routine."
+            label = "Logged late" if medication_log_is_late(daily_log) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
+            tone = "warning" if label == "Logged late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
+            message = "Confirmed as taken after the scheduled time." if label == "Logged late" else "Confirmed in your PCOS support routine."
             return status, label, tone, message, status, daily_log.taken_at
         scheduled_at = medication_scheduled_at(medication, now.date())
         if not scheduled_at:
@@ -2285,9 +2291,9 @@ def register_routes(app):
         for entry in history_entries:
             status = medication_log_status(entry)
             entry.event_status = status
-            entry.event_label = "Taken late" if medication_log_is_late(entry) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
-            entry.event_tone = "warning" if entry.event_label == "Taken late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
-            entry.event_message = "Logged as taken after the scheduled time." if entry.event_label == "Taken late" else "Confirmed in your PCOS support routine."
+            entry.event_label = "Logged late" if medication_log_is_late(entry) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
+            entry.event_tone = "warning" if entry.event_label == "Logged late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
+            entry.event_message = "Confirmed as taken after the scheduled time." if entry.event_label == "Logged late" else "Confirmed in your PCOS support routine."
         return history_entries
 
     def safe_medication_history_count(user):
@@ -4451,6 +4457,7 @@ def register_routes(app):
                 "api_version": api_version,
                 "auth_mode": "session_cookie",
                 "web_push_available": webpush is not None,
+                "field_encryption": field_encryption_status(),
                 "runtime_ready": runtime_init_complete,
                 "database_configured": not bool(app.config.get("HORMONACARE_DATABASE_WARNING")),
                 "database_warning": app.config.get("HORMONACARE_DATABASE_WARNING", ""),
