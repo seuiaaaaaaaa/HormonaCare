@@ -524,5 +524,5 @@ def build_weekly_trend_guidance(predicted_label):
     if predicted_label == "Improving":
         return "Continue consistent sleep, hydration, and balanced daily habits to support your positive wellness trend."
     if predicted_label == "Declining":
-        return "Focus on consistent sleep, hydration, and balanced daily habits to help strengthen your wellness trend this week."
+        return "Focus on consistent sleep, hydration, and balanced daily habits to help strengthen your wellness trend."
     return "Your wellness is stable. Maintain consistent sleep, hydration, and activity to sustain this trend."

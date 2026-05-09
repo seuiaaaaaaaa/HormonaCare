@@ -13,10 +13,9 @@ from ml_model import (
 )
 
 COMPLETE_WEEK_LOGGED_DAYS = 7
-MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 4
-INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE = "Not enough data to generate a reliable wellness trend."
+MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION = 1
 WEEKLY_WELLNESS_DISCLAIMER = (
-    "This insight is based on recent lifestyle data and does not replace medical advice."
+    "This insight is based on recent logged wellness data and does not replace medical advice."
 )
 
 
@@ -83,8 +82,7 @@ def _summarize_week(rows):
         exercise_value = _extract_first_number(row, ["physical_activity", "exercise_minutes"])
         stress_value = _extract_first_number(row, ["stress_level"])
 
-        metric_values = [sleep_value, hydration_value, exercise_value, stress_value]
-        if any(value is not None for value in metric_values):
+        if row.get("has_user_data") is not False:
             logged_days += 1
 
         if sleep_value is not None:
@@ -155,49 +153,64 @@ def _build_weekly_recommendation(predicted_label):
     return "Your routine looks steady right now. Maintain consistent sleep, hydration, and activity to support PCOS balance."
 
 
-def build_weekly_confidence_label(logged_days):
-    """Describe display confidence without changing the ML prediction output."""
-    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
-        return "High confidence."
-    if logged_days == 6:
-        return "Moderate confidence (6/7 days logged)."
-    if logged_days >= MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
-        return "Low confidence (limited data)."
-    return None
-
-
-def build_weekly_confidence_level(logged_days):
-    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
-        return "High"
-    if logged_days == 6:
-        return "Moderate"
-    if logged_days >= MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+def _decrease_confidence_level(level):
+    if level == "High":
+        return "Medium"
+    if level == "Medium":
         return "Low"
-    return "Needs more data"
+    return level
+
+
+def build_weekly_confidence_level(logged_days, days_since_latest=None):
+    if logged_days >= 6:
+        level = "High"
+    elif logged_days >= 4:
+        level = "Medium"
+    elif logged_days >= 1:
+        level = "Low"
+    else:
+        return "Needs data"
+
+    if days_since_latest is not None and days_since_latest >= 3:
+        level = _decrease_confidence_level(level)
+
+    return level
+
+
+def build_weekly_confidence_label(logged_days, days_since_latest=None):
+    """Describe display confidence without changing the ML prediction output."""
+    level = build_weekly_confidence_level(logged_days, days_since_latest)
+    if level == "Needs data":
+        return None
+    entry_label = "entry" if logged_days == 1 else "entries"
+    recency_note = ""
+    if days_since_latest is not None and days_since_latest >= 3:
+        recency_note = "; latest log is not recent"
+    return f"{level} confidence ({logged_days} recent wellness {entry_label}{recency_note})."
 
 
 def build_weekly_display_label(predicted_label, logged_days):
-    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
-        return INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE
+    if logged_days <= 0:
+        return "No recent logged wellness data"
     if logged_days <= 5:
         return f"Preliminary trend: {predicted_label}"
     return predicted_label
 
 
 def build_weekly_badge_label(predicted_label, logged_days):
-    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
-        return "Needs data"
-    return "ML insight"
+    if logged_days <= 0:
+        return "No recent logs"
+    return "Recent logged data"
 
 
 def build_weekly_result_label(predicted_label, logged_days):
-    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
-        return "Not enough data"
+    if logged_days <= 0:
+        return "No data yet"
     return predicted_label
 
 
 def build_weekly_trend_label(logged_days):
-    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+    if logged_days <= 0:
         return "Trend pending"
     if logged_days <= 5:
         return "Preliminary Trend"
@@ -205,47 +218,48 @@ def build_weekly_trend_label(logged_days):
 
 
 def build_weekly_checkin_line(logged_days):
-    return f"Based on {logged_days} of {COMPLETE_WEEK_LOGGED_DAYS} recent check-ins"
+    if logged_days <= 0:
+        return "No recent wellness entries recorded"
+    entry_label = "entry" if logged_days == 1 else "entries"
+    return f"{logged_days} recent wellness {entry_label} analyzed"
 
 
 def build_weekly_footer_note(logged_days):
-    if logged_days < COMPLETE_WEEK_LOGGED_DAYS:
-        return "Log more days to improve accuracy."
-    return "Decision Tree insight from recent lifestyle data."
+    if logged_days <= 0:
+        return "Log wellness entries to generate a trend."
+    return "Only recorded wellness entries are analyzed."
 
 
 def format_weekly_checkin_summary(logged_days):
     """Describe how many recent days include logs."""
-    return f"{logged_days}/{COMPLETE_WEEK_LOGGED_DAYS} days logged"
+    entry_label = "entry" if logged_days == 1 else "entries"
+    return f"{logged_days} recent wellness {entry_label} analyzed"
 
 
 def format_weekly_activity_summary(logged_days):
     """Describe recent logged activity in sentence form."""
-    day_label = "day" if logged_days == 1 else "days"
-    return f"{logged_days} of {COMPLETE_WEEK_LOGGED_DAYS} {day_label} logged"
+    return format_weekly_checkin_summary(logged_days)
 
 
 def build_weekly_explanation(logged_days):
     """Keep full-window wording only when all seven days are present."""
-    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
-        return "Predicted from your recent 7-day window."
-    return f"Based on partial data ({format_weekly_activity_summary(logged_days)})."
+    if logged_days <= 0:
+        return "Log wellness check-ins to generate a trend from recent recorded data."
+    return f"Based on recent logged wellness data. {format_weekly_activity_summary(logged_days).capitalize()}."
 
 
 def build_weekly_data_completeness_label(logged_days):
-    return f"Data completeness: {logged_days}/{COMPLETE_WEEK_LOGGED_DAYS} days."
+    return "Based on recent logged wellness data"
 
 
 def build_weekly_completion_helper(logged_days):
-    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
-        return None
-    return "Log more days to improve accuracy."
+    if logged_days <= 0:
+        return "Missing days are left neutral until you add a wellness log."
+    return "Missing days reduce confidence, not wellness quality."
 
 
 def build_weekly_chart_window_label(logged_days):
-    if logged_days >= COMPLETE_WEEK_LOGGED_DAYS:
-        return "7-day window"
-    return "Recent check-ins"
+    return "Recent 7-day wellness activity"
 
 
 def build_weekly_chart_points(daily_rows):
@@ -262,10 +276,7 @@ def build_weekly_chart_points(daily_rows):
         row = row or {}
         row_date = row.get("date")
         label = row_date.strftime("%a") if hasattr(row_date, "strftime") else fallback_labels[index]
-        has_data = row.get("has_user_data") is not False and any(
-            row.get(key) is not None
-            for key in ("sleep_hours", "sleep_duration", "water_intake", "physical_activity", "exercise_minutes", "stress_level")
-        )
+        has_data = row.get("has_user_data") is True
         raw_values.append(_calculate_daily_wellness_score(row) if has_data else None)
         labels.append(label)
 
@@ -283,7 +294,7 @@ def build_weekly_chart_points(daily_rows):
                 "label": labels[index],
                 "height": height,
                 "has_data": has_data,
-                "tooltip": f"{labels[index]}: logged" if has_data else "No data recorded.",
+                "tooltip": f"{labels[index]}: wellness entry recorded" if has_data else f"{labels[index]}: no recorded data",
             }
         )
 
@@ -342,7 +353,7 @@ def build_weekly_wellness_fallback(logged_days=0):
         "result_label": "Unavailable",
         "trend_label": "Trend unavailable",
         "checkin_line": build_weekly_checkin_line(logged_days),
-        "confidence_level": "Unavailable",
+        "confidence_level": build_weekly_confidence_level(logged_days),
         "footer_note": build_weekly_footer_note(logged_days),
         "explanation": f"{build_weekly_explanation(logged_days)}, but the wellness trend could not be calculated right now.",
         "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
@@ -369,19 +380,26 @@ def build_weekly_wellness_trend(daily_rows):
     rows = list(daily_rows or [])
     current_week_rows = rows[-7:]
     current_week_summary = _summarize_week(current_week_rows)
-    model_rows = [row for row in current_week_rows if row.get("has_user_data", True)]
+    model_rows = [row for row in current_week_rows if row.get("has_user_data") is True]
     logged_days = current_week_summary["logged_days"]
+    latest_logged_date = max((row.get("date") for row in model_rows if row.get("date")), default=None)
+    newest_window_date = max((row.get("date") for row in current_week_rows if row.get("date")), default=None)
+    days_since_latest = (
+        (newest_window_date - latest_logged_date).days
+        if newest_window_date is not None and latest_logged_date is not None
+        else None
+    )
 
-    if logged_days < MIN_LOGGED_DAYS_FOR_WEEKLY_WELLNESS_PREDICTION:
+    if logged_days <= 0:
         return {
             "title": "PCOS Wellness Trend",
             "predicted_label": None,
-            "display_label": INSUFFICIENT_WEEKLY_WELLNESS_MESSAGE,
-            "badge_label": "Needs data",
+            "display_label": "No recent logged wellness data",
+            "badge_label": "No recent logs",
             "result_label": build_weekly_result_label(None, logged_days),
             "trend_label": build_weekly_trend_label(logged_days),
             "checkin_line": build_weekly_checkin_line(logged_days),
-            "confidence_level": build_weekly_confidence_level(logged_days),
+            "confidence_level": build_weekly_confidence_level(logged_days, days_since_latest),
             "footer_note": build_weekly_footer_note(logged_days),
             "explanation": build_weekly_explanation(logged_days),
             "recommendation": None,
@@ -416,7 +434,7 @@ def build_weekly_wellness_trend(daily_rows):
             "result_label": "Unavailable",
             "trend_label": "Trend unavailable",
             "checkin_line": build_weekly_checkin_line(logged_days),
-            "confidence_level": "Unavailable",
+            "confidence_level": build_weekly_confidence_level(logged_days, days_since_latest),
             "footer_note": build_weekly_footer_note(logged_days),
             "explanation": f"{build_weekly_explanation(logged_days)}, but the PCOS trend model is temporarily unavailable.",
             "recommendation": "Keep logging sleep, meals, movement, stress, and hydration so the next PCOS trend update has stronger data.",
@@ -425,7 +443,7 @@ def build_weekly_wellness_trend(daily_rows):
             "model_source": "ml_model_unavailable",
             "model_dataset": None,
             "model_test_accuracy": None,
-            "confidence_label": build_weekly_confidence_label(logged_days),
+            "confidence_label": build_weekly_confidence_label(logged_days, days_since_latest),
             "chart_points": build_weekly_chart_points(current_week_rows),
             "current_week_score": None,
             "logged_days": logged_days,
@@ -456,7 +474,7 @@ def build_weekly_wellness_trend(daily_rows):
         "result_label": build_weekly_result_label(predicted_label, logged_days),
         "trend_label": build_weekly_trend_label(logged_days),
         "checkin_line": build_weekly_checkin_line(logged_days),
-        "confidence_level": build_weekly_confidence_level(logged_days),
+        "confidence_level": build_weekly_confidence_level(logged_days, days_since_latest),
         "footer_note": build_weekly_footer_note(logged_days),
         "explanation": build_weekly_explanation(logged_days),
         "recommendation": build_weekly_trend_guidance(predicted_label),
@@ -465,7 +483,7 @@ def build_weekly_wellness_trend(daily_rows):
         "model_source": "decision_tree_classifier_from_csv_dataset",
         "model_dataset": model_bundle["dataset_path"],
         "model_test_accuracy": model_bundle["test_accuracy"],
-        "confidence_label": build_weekly_confidence_label(logged_days),
+        "confidence_label": build_weekly_confidence_label(logged_days, days_since_latest),
         "chart_points": build_weekly_chart_points(current_week_rows),
         "current_week_score": current_week_summary["wellness_score"],
         "logged_days": logged_days,
