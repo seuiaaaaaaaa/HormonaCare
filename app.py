@@ -51,7 +51,6 @@ from security_utils import (
     decrypt_text,
     encryption_available,
     encrypt_text,
-    field_encryption_status,
     hash_password,
     validate_strong_password,
     verify_password,
@@ -818,11 +817,6 @@ def register_routes(app):
             "auth_mode": "session_cookie",
             "description": "Shared API layer for the current web interface and future mobile clients.",
             "core_function": "Provide one Python backend so multiple clients can reuse the same data, business logic, and wellness services.",
-            "security": {
-                "password_storage": "Passwords and verification codes are stored as bcrypt hashes.",
-                "data_in_transit": "HTTPS is required in production, and Supabase/PostgreSQL connections use SSL when configured.",
-                "data_at_rest": field_encryption_status(),
-            },
             "endpoints": [
                 {"method": "GET", "path": "/api/health", "auth_required": False, "purpose": "Service health and backend identity"},
                 {"method": "GET", "path": "/api/docs", "auth_required": False, "purpose": "API capabilities and integration guide"},
@@ -4457,7 +4451,6 @@ def register_routes(app):
                 "api_version": api_version,
                 "auth_mode": "session_cookie",
                 "web_push_available": webpush is not None,
-                "field_encryption": field_encryption_status(),
                 "runtime_ready": runtime_init_complete,
                 "database_configured": not bool(app.config.get("HORMONACARE_DATABASE_WARNING")),
                 "database_warning": app.config.get("HORMONACARE_DATABASE_WARNING", ""),
