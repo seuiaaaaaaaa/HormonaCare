@@ -10,6 +10,13 @@ except Exception:  # pragma: no cover - optional dependency scaffold
     InvalidToken = Exception
 
 ENCRYPTION_PREFIX = "__ENC__"
+PROTECTED_FIELD_LABELS = [
+    "medication notes",
+    "lifestyle notes",
+    "cycle metadata and symptoms",
+    "appointment notes",
+    "appointment prescriptions",
+]
 
 
 def load_local_env():
@@ -28,18 +35,41 @@ def load_local_env():
 load_local_env()
 
 
-def encryption_available():
-    return Fernet is not None and bool(os.getenv("FIELD_ENCRYPTION_KEY"))
+def _field_encryption_key():
+    return os.getenv("FIELD_ENCRYPTION_KEY", "").strip()
 
 
 def _build_cipher():
-    if not encryption_available():
+    if Fernet is None:
         return None
-    key = os.getenv("FIELD_ENCRYPTION_KEY", "").encode("utf-8")
+    key = _field_encryption_key()
+    if not key:
+        return None
     try:
-        return Fernet(key)
+        return Fernet(key.encode("utf-8"))
     except (TypeError, ValueError):
         return None
+
+
+def encryption_available():
+    return _build_cipher() is not None
+
+
+def field_encryption_status():
+    key_configured = bool(_field_encryption_key())
+    key_valid = encryption_available()
+    return {
+        "enabled": key_valid,
+        "key_configured": key_configured,
+        "key_valid": key_valid,
+        "algorithm": "Fernet symmetric encryption" if key_valid else "",
+        "protected_fields": PROTECTED_FIELD_LABELS,
+        "message": (
+            "Sensitive free-text health fields are encrypted before database storage."
+            if key_valid
+            else "FIELD_ENCRYPTION_KEY is missing or invalid, so sensitive free-text fields cannot be encrypted."
+        ),
+    }
 
 
 def encrypt_text(value):
