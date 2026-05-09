@@ -245,8 +245,7 @@ def build_weekly_explanation(logged_days):
     """Keep full-window wording only when all seven days are present."""
     if logged_days <= 0:
         return "Log wellness check-ins to generate a trend from recent recorded data."
-    entry_label = "entry" if logged_days == 1 else "entries"
-    return f"Based on recent logged wellness data. {logged_days} recent wellness {entry_label} analyzed."
+    return f"Based on recent logged wellness data. {format_weekly_activity_summary(logged_days).capitalize()}."
 
 
 def build_weekly_data_completeness_label(logged_days):
