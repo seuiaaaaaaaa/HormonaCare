@@ -730,7 +730,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const closeAfterMs = Number(options.closeAfterMs || payload.closeAfterMs) || closeAfterMsDefault;
             const notificationOptions = buildBrowserNotificationOptions(type, content, dedupeKey, requireInteraction);
 
-            if (options.serviceWorker !== false) {
+            if (options.serviceWorker !== false && requireInteraction) {
                 return showServiceWorkerNotification(content, notificationOptions, dedupeKey).then((shown) => {
                     if (shown) {
                         return shown;
