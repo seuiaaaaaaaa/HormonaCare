@@ -1,6 +1,7 @@
 Flask==3.1.0
 Flask-SQLAlchemy==3.1.1
 bcrypt==4.2.1
+httpx==0.28.1
 scikit-learn==1.6.1
 pandas==2.2.3
 openpyxl==3.1.5
