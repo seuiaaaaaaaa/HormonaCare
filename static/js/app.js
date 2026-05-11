@@ -247,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const badgeUrl = notificationConfig.badgeUrl || iconUrl;
         const permissionStorageKey = notificationConfig.permissionStorageKey || "hormonacare-notification-permission-v1";
         const dedupeStorageKey = notificationConfig.dedupeStorageKey || "hormonacare-notification-dedupe-v1";
-        const closeAfterMsDefault = Number(notificationConfig.closeAfterMs) || 6500;
+        const closeAfterMsDefault = Number(notificationConfig.closeAfterMs) || 10000;
         const persistentNotifications = notificationConfig.persistentNotifications !== false;
         const medicationReminderLeadMs = Number(notificationConfig.medicationReminderLeadMs) || 120000;
         const pollIntervals = notificationConfig.pollIntervals || {};
@@ -719,7 +719,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const requireInteraction =
-                persistentNotifications ||
                 options.requireInteraction === true ||
                 payload.requireInteraction === true ||
                 content.requireInteraction === true;
@@ -1120,6 +1119,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         {
                             body: `Upcoming appointment with ${appointment.doctor_name || "your doctor"} at ${formatClockTime(appointment.appointment_time)}.`,
                             url: pages.appointments,
+                            requireInteraction: true,
                         },
                         {
                             dedupeKey: `appointment-${appointment.id}-${appointment.appointment_date}-${appointment.appointment_time}`,
