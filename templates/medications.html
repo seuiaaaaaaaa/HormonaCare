@@ -7,7 +7,7 @@
 {% set unconfirmed_count = (medications|selectattr('daily_status', 'equalto', 'unconfirmed')|list|length) + (medications|selectattr('daily_status', 'equalto', 'unconfirmed_missed')|list|length) %}
 {% set confirmed_count = taken_count + skipped_count + missed_count %}
 {% set total_count = medications|length %}
-{% set percent = ((taken_count / confirmed_count) * 100) if confirmed_count else 0 %}
+{% set percent = ((taken_count / total_count) * 100) if total_count else 0 %}
 
 <section class="page-head with-action">
     <div>
