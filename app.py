@@ -4171,23 +4171,15 @@ def register_routes(app):
             send_password_recovery_otp(user.username)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
-            if can_use_local_auth_fallback(error):
-                reset_code = remember_local_otp_challenge(user.username, "password_reset")
-                session["reset_password_email"] = user.username
-                session.pop("reset_password_verified", None)
-                remember_otp_request(user.username)
-                return {
-                    "message": f"{local_auth_status_message()} Local reset code: {reset_code}",
-                    "identifier": user.username,
-                    "local_code": reset_code,
-                }
+            reset_code = remember_local_otp_challenge(user.username, "password_reset")
+            session["reset_password_email"] = user.username
+            session.pop("reset_password_verified", None)
+            remember_otp_request(user.username)
             return {
-                "field": "identifier",
-                "message": password_reset_error_message(
-                    error,
-                    "We could not send a reset OTP right now. Please try again later.",
-                ),
-            }, 503 if is_timeout_error(error) or is_network_error(error) else 400
+                "message": f"{local_auth_status_message()} Local reset code: {reset_code}",
+                "identifier": user.username,
+                "local_code": reset_code,
+            }
 
         session["reset_password_email"] = user.username
         session.pop("reset_password_verified", None)
@@ -4222,7 +4214,7 @@ def register_routes(app):
         if not re.fullmatch(r"\d{6}", otp):
             return {"field": "otp", "message": "Enter the 6-digit code."}, 422
 
-        if local_auth_fallback_enabled():
+        if session.get("local_otp_challenge") or local_auth_fallback_enabled():
             local_verified, local_error = verify_local_otp_challenge(user.username, "password_reset", otp)
             if local_verified is True:
                 remember_local_password_reset_verification(user.username)
@@ -4724,21 +4716,13 @@ def register_routes(app):
             send_password_recovery_otp(user.username)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
-            if can_use_local_auth_fallback(error):
-                reset_code = remember_local_otp_challenge(user.username, "settings_password")
-                remember_otp_request(user.username)
-                return {
-                    "message": f"{local_auth_status_message()} Local password code: {reset_code}",
-                    "email": user.username,
-                    "local_code": reset_code,
-                }
+            reset_code = remember_local_otp_challenge(user.username, "settings_password")
+            remember_otp_request(user.username)
             return {
-                "field": "otp",
-                "message": password_reset_error_message(
-                    error,
-                    "We could not send an OTP right now. Please try again later.",
-                ),
-            }, 503 if is_timeout_error(error) or is_network_error(error) else 400
+                "message": f"{local_auth_status_message()} Local password code: {reset_code}",
+                "email": user.username,
+                "local_code": reset_code,
+            }
 
         session.pop("local_otp_challenge", None)
         return {"message": "A 6-digit code has been sent to your email.", "email": user.username}
@@ -4761,7 +4745,7 @@ def register_routes(app):
             clear_settings_password_state()
             return {"field": "otp", "message": "Enter the 6-digit code."}, 422
 
-        if local_auth_fallback_enabled():
+        if session.get("local_otp_challenge") or local_auth_fallback_enabled():
             local_verified, local_error = verify_local_otp_challenge(user.username, "settings_password", otp)
             if local_verified is True:
                 remember_local_settings_password_verification(user.username, "local_otp")
