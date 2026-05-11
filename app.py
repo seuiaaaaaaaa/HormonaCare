@@ -317,9 +317,10 @@ def process_due_push_notifications(app):
 
     medications = Medication.query.filter_by(reminder_enabled=True, status="pending").all()
     for medication in medications:
-        if not medication.user or not medication.time_of_day:
+        user = db.session.get(User, medication.user_id)
+        if not user or not medication.time_of_day:
             continue
-        if not user_allows_push_category(medication.user, "medication"):
+        if not user_allows_push_category(user, "medication"):
             continue
         scheduled_at = datetime.combine(today, medication.time_of_day)
         reminder_at = scheduled_at - timedelta(seconds=medication_lead_seconds)
@@ -345,12 +346,13 @@ def process_due_push_notifications(app):
 
     appointments = Appointment.query.filter_by(appointment_date=today).all()
     for appointment in appointments:
-        if not appointment.user or not appointment.appointment_time:
+        user = db.session.get(User, appointment.user_id)
+        if not user or not appointment.appointment_time:
             continue
         meta = unpack_appointment_meta_for_push(appointment.notes)
         if not meta.get("reminder_enabled") or meta.get("status") != "scheduled":
             continue
-        if not user_allows_push_category(appointment.user, "appointment"):
+        if not user_allows_push_category(user, "appointment"):
             continue
         scheduled_at = datetime.combine(today, appointment.appointment_time)
         reminder_at = scheduled_at - timedelta(seconds=appointment_lead_seconds)
@@ -3296,6 +3298,7 @@ def register_routes(app):
             app.logger.exception("Unable to calculate weekly wellness trend for profile")
             wellness_trend = build_weekly_wellness_fallback(0)
         return {
+            "user": user,
             "profile": profile,
             "pcos_state": pcos_state,
             "cycle_info": cycle_info,
@@ -3461,11 +3464,12 @@ def register_routes(app):
 
     def serialize_profile_summary(summary):
         profile = summary["profile"]
+        user = summary["user"]
         return {
             "identity": {
-                "full_name": summary["profile"].user.full_name,
-                "username": summary["profile"].user.full_name,
-                "email": summary["profile"].user.username,
+                "full_name": user.full_name,
+                "username": user.full_name,
+                "email": user.username,
                 "age": profile.age,
                 "diagnosis_date": iso_date(profile.diagnosis_date),
             },
@@ -5133,6 +5137,15 @@ def register_routes(app):
     @login_required
     def delete_account():
         user = current_user()
+        WebPushSubscription.query.filter_by(user_id=user.id).delete()
+        PushNotificationLog.query.filter_by(user_id=user.id).delete()
+        MedicationLog.query.filter_by(user_id=user.id).delete()
+        Medication.query.filter_by(user_id=user.id).delete()
+        LifestyleLog.query.filter_by(user_id=user.id).delete()
+        MentalLog.query.filter_by(user_id=user.id).delete()
+        CycleLog.query.filter_by(user_id=user.id).delete()
+        Appointment.query.filter_by(user_id=user.id).delete()
+        UserProfile.query.filter_by(user_id=user.id).delete()
         db.session.delete(user)
         db.session.commit()
         session.clear()

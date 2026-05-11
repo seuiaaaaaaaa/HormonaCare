@@ -18,16 +18,6 @@ class User(db.Model):
     email_verified_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
-    medications = db.relationship("Medication", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    medication_logs = db.relationship("MedicationLog", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    lifestyle_logs = db.relationship("LifestyleLog", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    mental_logs = db.relationship("MentalLog", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    cycle_logs = db.relationship("CycleLog", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    appointments = db.relationship("Appointment", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    push_subscriptions = db.relationship("WebPushSubscription", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    push_notification_logs = db.relationship("PushNotificationLog", backref=db.backref("user", lazy="select"), lazy="select", cascade="all, delete-orphan")
-    profile = db.relationship("UserProfile", backref=db.backref("user", lazy="select"), uselist=False, lazy="select", cascade="all, delete-orphan")
-
 
 class Medication(db.Model):
     __tablename__ = "medications"
