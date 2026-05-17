@@ -12,10 +12,6 @@ HormonaCare now follows a single-backend approach where Python is the core servi
 - `API Layer`: JSON endpoints for future mobile/web consumers under `/api/*`
 - `Mobile Compatibility`: a future Kivy, BeeWare, React Native, or Flutter client can consume the same Python API
 
-This supports the final-project requirement of using one backend language while allowing multiple client interfaces.
-
-HormonaCare does not use a separate managed API Gateway service such as AWS API Gateway. The gateway requirement is implemented at the application level inside Flask, where the same Python core service receives web and API requests, enforces session/email-verification checks for protected API routes, and communicates with Supabase PostgreSQL.
-
 ## Features
 
 - Secure registration and login with bcrypt password hashing
@@ -122,20 +118,6 @@ curl http://127.0.0.1:5000/api/health
 
 Protected API routes require an active authenticated session.
 
-### Application-Level API Gateway
-
-The Flask backend includes an application-level API gateway entrypoint for `/api/*` requests. It provides a centralized API catalog, applies authentication and email-verification checks for protected endpoints, attaches API identity headers, and routes requests to the same Python core service used by the web interface.
-
-This is intentionally not a separate AWS API Gateway deployment. For the current capstone scope, Amazon EC2 hosts the Flask core service directly, while Render can be used as a backup/testing deployment.
-
-### Offline-First Synchronization
-
-HormonaCare supports offline-first PWA behavior for selected user data-entry forms. When the browser is offline, supported POST actions for lifestyle logs, mood and stress entries, cycle logs, medications, appointments, profile information, and settings are saved in a browser local queue instead of being discarded. Each queued item receives a client-generated sync ID, timestamp, retry count, and status value: `pending`, `syncing`, `synced`, or `failed`.
-
-When the browser comes back online, `static/js/app.js` automatically sends queued records to `POST /api/sync/batch`. The Flask core service validates the authenticated session, applies the queued changes to the SQLAlchemy models, and stores sync metadata in the database. For simple conflicts, the system uses a latest-update-wins rule: older queued records are ignored when a newer synchronized timestamp already exists. Destructive actions and account-security actions are intentionally not queued offline.
-
-Internet access is still required for account creation, OTP verification, server-side authentication, cloud synchronization, and cloud backup. The offline queue improves continuity of use, but it should not be described as a separate mobile backend or as clinical real-time medical monitoring.
-
 ### Mobile-Ready API Notes
 
 - The Flask backend acts as the shared Python Core Service for both the current web UI and future mobile clients.
@@ -154,27 +136,3 @@ Internet access is still required for account creation, OTP verification, server
 - HTTPS should be enabled in deployment so data in transit is encrypted
 - Sensitive notes and appointment metadata now go through a field-encryption helper before being stored
 - To activate real field-level encryption at rest, install `cryptography` and set `FIELD_ENCRYPTION_KEY`
-
-## Deployment Notes
-
-### Render
-
-- Create a new Web Service
-- Build command: `pip install -r requirements.txt`
-- Start command: `gunicorn app:app -c gunicorn.conf.py`
-- Add environment variables from `.env.example`
-- Set `FLASK_ENV=production`
-- Set `FIELD_ENCRYPTION_KEY` after generating a Fernet key
-
-### Railway
-
-- Create a Python service
-- Set the start command to `gunicorn app:app`
-- Add `DATABASE_URL` as an environment variable
-
-### PythonAnywhere
-
-- Upload the project
-- Install dependencies
-- Set the WSGI file to import `app` from `app.py`
-- Configure environment variables inside the dashboard
