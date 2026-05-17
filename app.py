@@ -3,7 +3,7 @@ import base64
 from calendar import monthrange
 from collections import Counter
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 import json
 import re
@@ -33,7 +33,7 @@ except ImportError:
     WebPushException = Exception
     webpush = None
 
-from ml_service import build_health_assessment, build_weekly_wellness_fallback, build_weekly_wellness_trend
+from ml_service import build_health_assessment, build_weekly_wellness_trend
 from models import (
     Appointment,
     CycleLog,
@@ -82,25 +82,6 @@ except Exception:
     APP_TIMEZONE = None
 
 STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-push-test-subscription")
-
-
-ENCRYPTED_TEXT_RE = re.compile(r"^_+ENC_+[A-Za-z0-9_\-=]{20,}$")
-
-
-def looks_like_unreadable_encrypted_text(value):
-    if not isinstance(value, str):
-        return False
-    return bool(ENCRYPTED_TEXT_RE.fullmatch(value.strip()))
-
-
-def decrypt_display_text(value):
-    try:
-        decrypted_value = decrypt_text(value)
-    except Exception:
-        return ""
-    if looks_like_unreadable_encrypted_text(decrypted_value):
-        return ""
-    return decrypted_value or ""
 
 
 def app_now():
@@ -278,7 +259,7 @@ def unpack_appointment_meta_for_push(notes_blob):
         "status": "scheduled",
         "notes_text": "",
     }
-    notes_blob = decrypt_display_text(notes_blob)
+    notes_blob = decrypt_text(notes_blob)
     if not notes_blob or not notes_blob.startswith("__META__"):
         return default_meta
     try:
@@ -307,52 +288,386 @@ def build_push_payload(title, body, tag, url, notification_type):
     }
 
 
+MEDICATION_EVENT_STATUSES = {"taken", "skipped", "missed"}
+MEDICATION_DISPLAY_META = {
+    "pending": {
+        "label": "Pending",
+        "tone": "neutral",
+        "message": "Scheduled later today.",
+    },
+    "due": {
+        "label": "Needs confirmation",
+        "tone": "info",
+        "message": "Confirm whether this medication was taken, skipped, or missed.",
+    },
+    "overdue": {
+        "label": "Needs confirmation",
+        "tone": "warning",
+        "message": "This scheduled medication has not been confirmed yet.",
+    },
+    "unconfirmed": {
+        "label": "Needs confirmation",
+        "tone": "warning",
+        "message": "Confirm whether this medication was taken, skipped, or missed.",
+    },
+    "unconfirmed_missed": {
+        "label": "Unconfirmed missed",
+        "tone": "warning",
+        "message": "This was not confirmed by the cutoff. Please confirm what happened.",
+    },
+    "taken": {
+        "label": "Taken on time",
+        "tone": "success",
+        "message": "Logged as taken today.",
+    },
+    "skipped": {
+        "label": "Skipped",
+        "tone": "muted",
+        "message": "Logged as intentionally skipped today.",
+    },
+    "missed": {
+        "label": "Confirmed missed",
+        "tone": "danger",
+        "message": "You confirmed this medication was missed.",
+    },
+}
+
+
+def positive_int_env(name, default):
+    try:
+        value = int(os.getenv(name, str(default)))
+        return value if value > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def medication_due_window_minutes():
+    return positive_int_env("MEDICATION_DUE_WINDOW_MINUTES", 15)
+
+
+def medication_followup_delay_seconds():
+    return positive_int_env("MEDICATION_FOLLOWUP_DELAY_SECONDS", 900)
+
+
+def medication_missed_notification_window_seconds():
+    scheduler_interval = positive_int_env("PUSH_SCHEDULER_INTERVAL_SECONDS", 15)
+    return positive_int_env("MEDICATION_MISSED_NOTIFICATION_WINDOW_SECONDS", max(300, scheduler_interval + 60))
+
+
+def medication_missed_cutoff_time_string():
+    raw_value = (os.getenv("MEDICATION_MISSED_CUTOFF_TIME") or "23:59").strip()
+    match = re.match(r"^(\d{1,2}):(\d{2})$", raw_value)
+    if not match:
+        return "23:59"
+    hours = max(0, min(23, int(match.group(1))))
+    minutes = max(0, min(59, int(match.group(2))))
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def medication_day_window(target_day=None):
+    day = target_day or app_today()
+    day_start = datetime.combine(day, datetime.min.time())
+    return day_start, day_start + timedelta(days=1)
+
+
+def medication_missed_cutoff_at(target_day=None):
+    day = target_day or app_today()
+    cutoff_time = datetime.strptime(medication_missed_cutoff_time_string(), "%H:%M").time()
+    return datetime.combine(day, cutoff_time)
+
+
+def medication_scheduled_at(medication, target_day=None):
+    if not getattr(medication, "time_of_day", None):
+        return None
+    day = target_day or app_today()
+    return datetime.combine(day, medication.time_of_day)
+
+
+def medication_log_status(log_entry):
+    raw_status = (getattr(log_entry, "status", None) or "taken").strip().lower()
+    return raw_status if raw_status in MEDICATION_EVENT_STATUSES else "taken"
+
+
+def medication_status_meta(status):
+    return MEDICATION_DISPLAY_META.get(status, MEDICATION_DISPLAY_META["pending"])
+
+
+def medication_log_display_label(status):
+    return medication_status_meta(status)["label"]
+
+
+def medication_log_is_late(log_entry):
+    if medication_log_status(log_entry) != "taken" or not log_entry.scheduled_time or not log_entry.taken_at:
+        return False
+    scheduled_at = datetime.combine(log_entry.taken_at.date(), log_entry.scheduled_time)
+    return log_entry.taken_at > scheduled_at + timedelta(minutes=medication_due_window_minutes())
+
+
+def medication_log_display_meta(log_entry):
+    event_status = medication_log_status(log_entry)
+    meta = dict(medication_status_meta(event_status))
+    if event_status == "taken":
+        if medication_log_is_late(log_entry):
+            meta.update(
+                {
+                    "label": "Logged late",
+                    "tone": "warning",
+                    "message": "Confirmed as taken after the scheduled time.",
+                }
+            )
+        else:
+            meta.update({"label": "Taken on time"})
+    return meta
+
+
+def query_medication_day_logs(user_id, medication_ids, target_day=None):
+    medication_ids = [medication_id for medication_id in medication_ids if medication_id]
+    if not medication_ids:
+        return {}
+
+    day_start, day_end = medication_day_window(target_day)
+    logs = (
+        MedicationLog.query.filter(
+            MedicationLog.user_id == user_id,
+            MedicationLog.medication_id.in_(medication_ids),
+            MedicationLog.taken_at >= day_start,
+            MedicationLog.taken_at < day_end,
+        )
+        .order_by(MedicationLog.taken_at.asc(), MedicationLog.id.asc())
+        .all()
+    )
+    latest_by_medication_id = {}
+    for log_entry in logs:
+        latest_by_medication_id[log_entry.medication_id] = log_entry
+    return latest_by_medication_id
+
+
+def create_medication_event_log(user, medication, status, event_time=None):
+    event_status = status if status in MEDICATION_EVENT_STATUSES else "taken"
+    return MedicationLog(
+        user_id=user.id,
+        medication_id=medication.id,
+        medication_name=medication.name,
+        dosage=medication.dosage,
+        scheduled_time=medication.time_of_day,
+        notes=medication.notes,
+        status=event_status,
+        taken_at=event_time or app_now(),
+    )
+
+
+def replace_medication_day_event(user, medication, status=None, event_time=None):
+    day_start, day_end = medication_day_window()
+    MedicationLog.query.filter(
+        MedicationLog.user_id == user.id,
+        MedicationLog.medication_id == medication.id,
+        MedicationLog.taken_at >= day_start,
+        MedicationLog.taken_at < day_end,
+    ).delete(synchronize_session=False)
+
+    if status in MEDICATION_EVENT_STATUSES:
+        db.session.add(create_medication_event_log(user, medication, status, event_time=event_time))
+        medication.status = status
+    else:
+        medication.status = "pending"
+
+
+def compute_medication_daily_state(medication, daily_log=None, now=None, target_day=None):
+    current_time = now or app_now()
+    day = target_day or current_time.date()
+
+    if daily_log:
+        status = medication_log_status(daily_log)
+        meta = medication_log_display_meta(daily_log)
+    elif day < current_time.date():
+        status = "unconfirmed_missed"
+        meta = medication_status_meta(status)
+    else:
+        scheduled_at = medication_scheduled_at(medication, day)
+        if not scheduled_at:
+            status = "pending"
+            meta = {
+                "label": "Needs time",
+                "tone": "neutral",
+                "message": "Add a scheduled time to track this medication.",
+            }
+        elif current_time < scheduled_at:
+            status = "pending"
+        elif current_time >= medication_missed_cutoff_at(day):
+            status = "unconfirmed_missed"
+        else:
+            status = "unconfirmed"
+        meta = medication_status_meta(status)
+
+    return {
+        "status": status,
+        "label": meta["label"],
+        "tone": meta["tone"],
+        "message": meta["message"],
+        "event_status": medication_log_status(daily_log) if daily_log else None,
+        "logged_at": daily_log.taken_at if daily_log else None,
+        "has_daily_log": bool(daily_log),
+    }
+
+
+def annotate_medication_daily_state(medication, state):
+    medication.daily_status = state["status"]
+    medication.daily_status_label = state["label"]
+    medication.daily_status_tone = state["tone"]
+    medication.daily_status_message = state["message"]
+    medication.daily_event_status = state["event_status"]
+    medication.daily_logged_at = state["logged_at"]
+    medication.has_daily_log = state["has_daily_log"]
+    return medication
+
+
+def build_medication_daily_summary(user, medications=None, target_day=None, auto_mark_missed=True):
+    medication_records = list(medications) if medications is not None else Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
+    day = target_day or app_today()
+    now = app_now()
+    logs_by_medication_id = query_medication_day_logs(user.id, [medication.id for medication in medication_records], day)
+    changed = False
+
+    for medication in medication_records:
+        daily_log = logs_by_medication_id.get(medication.id)
+        state = compute_medication_daily_state(medication, daily_log=daily_log, now=now, target_day=day)
+        annotate_medication_daily_state(medication, state)
+        legacy_status = state["event_status"] or "pending"
+        if medication.status != legacy_status:
+            medication.status = legacy_status
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+    counts = Counter(getattr(medication, "daily_status", "pending") for medication in medication_records)
+    confirmed_count = counts.get("taken", 0) + counts.get("skipped", 0) + counts.get("missed", 0)
+    unconfirmed_count = counts.get("unconfirmed", 0) + counts.get("unconfirmed_missed", 0) + counts.get("due", 0) + counts.get("overdue", 0)
+    return {
+        "medications": medication_records,
+        "taken_count": counts.get("taken", 0),
+        "skipped_count": counts.get("skipped", 0),
+        "missed_count": counts.get("missed", 0),
+        "unconfirmed_count": unconfirmed_count,
+        "confirmed_count": confirmed_count,
+        "pending_count": counts.get("pending", 0) + unconfirmed_count,
+        "total_count": len(medication_records),
+    }
+
+
+def medication_state_payload(medication):
+    return {
+        "id": medication.id,
+        "name": medication.name,
+        "dosage": medication.dosage,
+        "time_of_day": medication.time_of_day.strftime("%H:%M:%S") if medication.time_of_day else None,
+        "status": medication.status,
+        "daily_status": getattr(medication, "daily_status", medication.status or "pending"),
+        "daily_status_label": getattr(medication, "daily_status_label", medication_log_display_label(medication.status or "pending")),
+        "daily_status_tone": getattr(medication, "daily_status_tone", "neutral"),
+        "daily_status_message": getattr(medication, "daily_status_message", ""),
+        "event_status": getattr(medication, "daily_event_status", None),
+        "reminder_enabled": bool(medication.reminder_enabled),
+    }
+
+
+def annotate_medication_log_display(log_entry):
+    event_status = medication_log_status(log_entry)
+    meta = medication_log_display_meta(log_entry)
+    log_entry.event_status = event_status
+    log_entry.event_label = meta["label"]
+    log_entry.event_tone = meta["tone"]
+    log_entry.event_message = meta["message"]
+    return log_entry
+
+
+def medication_has_day_event(user_id, medication_id, target_day=None):
+    return medication_id in query_medication_day_logs(user_id, [medication_id], target_day)
+
+
 def process_due_push_notifications(app):
     if not runtime_init_complete:
         return
-    now = datetime.now()
+    now = app_now()
     medication_lead_seconds = int(os.getenv("MEDICATION_PUSH_LEAD_SECONDS", "120"))
     appointment_lead_seconds = int(os.getenv("APPOINTMENT_PUSH_LEAD_SECONDS", "1800"))
+    scheduler_window_seconds = positive_int_env("PUSH_SCHEDULER_INTERVAL_SECONDS", 15) + 30
+    medication_followup_seconds = medication_followup_delay_seconds()
+    medication_missed_window_seconds = medication_missed_notification_window_seconds()
     today = now.date()
 
-    medications = Medication.query.filter_by(reminder_enabled=True, status="pending").all()
+    medications = Medication.query.filter_by(reminder_enabled=True).all()
     for medication in medications:
-        user = db.session.get(User, medication.user_id)
-        if not user or not medication.time_of_day:
+        if not medication.user or not medication.time_of_day:
             continue
-        if not user_allows_push_category(user, "medication"):
+        if not user_allows_push_category(medication.user, "medication"):
             continue
+        if medication_has_day_event(medication.user_id, medication.id, today):
+            continue
+
         scheduled_at = datetime.combine(today, medication.time_of_day)
         reminder_at = scheduled_at - timedelta(seconds=medication_lead_seconds)
-        if not (reminder_at <= now < scheduled_at):
-            continue
+        followup_at = scheduled_at + timedelta(seconds=medication_followup_seconds)
+        missed_at = medication_missed_cutoff_at(today)
 
-        notification_key = f"medication:{medication.user_id}:{medication.id}:{today.isoformat()}:{medication.time_of_day.isoformat()}"
-        delivery = claim_push_delivery(medication.user_id, notification_key, "medication_reminder")
-        if not delivery:
-            continue
+        if reminder_at <= now < scheduled_at:
+            notification_key = f"medication:{medication.user_id}:{medication.id}:{today.isoformat()}:{medication.time_of_day.isoformat()}"
+            delivery = claim_push_delivery(medication.user_id, notification_key, "medication_reminder")
+            if delivery:
+                body = f"{medication.name} is scheduled at {format_push_time(medication.time_of_day)}."
+                if medication.dosage:
+                    body = f"{medication.name} ({medication.dosage}) is scheduled at {format_push_time(medication.time_of_day)}."
+                sent_count = dispatch_user_push(
+                    app,
+                    medication.user_id,
+                    build_push_payload("Medication Reminder", body, notification_key, "/medications", "medication_reminder"),
+                    ttl_seconds=medication_lead_seconds + 300,
+                )
+                if sent_count == 0:
+                    release_push_delivery(delivery)
 
-        body = f"{medication.name} is scheduled at {format_push_time(medication.time_of_day)}."
-        if medication.dosage:
-            body = f"{medication.name} ({medication.dosage}) is scheduled at {format_push_time(medication.time_of_day)}."
-        sent_count = dispatch_user_push(
-            app,
-            medication.user_id,
-            build_push_payload("Medication Reminder", body, notification_key, "/medications", "medication_reminder"),
-            ttl_seconds=medication_lead_seconds + 300,
-        )
-        if sent_count == 0:
-            release_push_delivery(delivery)
+        if followup_at <= now < followup_at + timedelta(seconds=scheduler_window_seconds):
+            notification_key = f"medication-followup:{medication.user_id}:{medication.id}:{today.isoformat()}:{medication.time_of_day.isoformat()}"
+            delivery = claim_push_delivery(medication.user_id, notification_key, "medication_followup")
+            if delivery:
+                body = (
+                    f"{medication.name} has not been logged yet. "
+                    "Follow your care instructions or contact your provider if unsure."
+                )
+                sent_count = dispatch_user_push(
+                    app,
+                    medication.user_id,
+                    build_push_payload("Medication Check-in", body, notification_key, "/medications", "medication_followup"),
+                    ttl_seconds=max(medication_followup_seconds, 300),
+                )
+                if sent_count == 0:
+                    release_push_delivery(delivery)
+
+        if scheduled_at <= now and missed_at <= now < missed_at + timedelta(seconds=medication_missed_window_seconds):
+            notification_key = f"medication-missed:{medication.user_id}:{medication.id}:{today.isoformat()}:{medication.time_of_day.isoformat()}"
+            delivery = claim_push_delivery(medication.user_id, notification_key, "medication_missed")
+            if delivery:
+                body = (
+                    f"{medication.name} was not confirmed by today's cutoff. "
+                    "Please confirm whether it was taken, skipped, or missed."
+                )
+                sent_count = dispatch_user_push(
+                    app,
+                    medication.user_id,
+                    build_push_payload("Medication Needs Confirmation", body, notification_key, "/medications", "medication_missed"),
+                    ttl_seconds=max(medication_missed_window_seconds, 300),
+                )
+                if sent_count == 0:
+                    release_push_delivery(delivery)
 
     appointments = Appointment.query.filter_by(appointment_date=today).all()
     for appointment in appointments:
-        user = db.session.get(User, appointment.user_id)
-        if not user or not appointment.appointment_time:
+        if not appointment.user or not appointment.appointment_time:
             continue
         meta = unpack_appointment_meta_for_push(appointment.notes)
         if not meta.get("reminder_enabled") or meta.get("status") != "scheduled":
             continue
-        if not user_allows_push_category(user, "appointment"):
+        if not user_allows_push_category(appointment.user, "appointment"):
             continue
         scheduled_at = datetime.combine(today, appointment.appointment_time)
         reminder_at = scheduled_at - timedelta(seconds=appointment_lead_seconds)
@@ -580,12 +895,26 @@ def ensure_runtime_schema():
             if "user_id" not in columns:
                 connection.execute(text(statements["add_column"]))
             connection.execute(text(statements["index"]))
-    if "medication_logs" in tables:
-        columns = {column["name"] for column in inspector.get_columns("medication_logs")}
-        if "status" not in columns:
-            with db.engine.begin() as connection:
-                connection.execute(text("ALTER TABLE medication_logs ADD COLUMN status VARCHAR(20)"))
-                connection.execute(text("UPDATE medication_logs SET status = 'taken' WHERE status IS NULL"))
+    offline_sync_tables = {
+        "medications",
+        "medication_logs",
+        "lifestyle_logs",
+        "mental_logs",
+        "cycle_logs",
+        "appointments",
+    }
+    for table_name in offline_sync_tables:
+        if table_name not in tables:
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table_name)}
+        with db.engine.begin() as connection:
+            if "client_sync_id" not in columns:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_sync_id VARCHAR(80)"))
+            if "client_updated_at" not in columns:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_updated_at TIMESTAMP"))
+            connection.execute(
+                text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_client_sync_id ON {table_name}(client_sync_id)")
+            )
     if "user_profiles" in tables:
         columns = {column["name"] for column in inspector.get_columns("user_profiles")}
         required_columns = {
@@ -621,6 +950,22 @@ def ensure_runtime_schema():
             with db.engine.begin() as connection:
                 for ddl in missing:
                     connection.execute(text(ddl))
+    if "medication_logs" in tables:
+        columns = {column["name"] for column in inspector.get_columns("medication_logs")}
+        required_columns = {
+            "status": "ALTER TABLE medication_logs ADD COLUMN status VARCHAR(20)",
+        }
+        missing = [ddl for name, ddl in required_columns.items() if name not in columns]
+        with db.engine.begin() as connection:
+            for ddl in missing:
+                connection.execute(text(ddl))
+            connection.execute(text("UPDATE medication_logs SET status = COALESCE(status, 'taken')"))
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_medication_logs_user_med_taken_at "
+                    "ON medication_logs(user_id, medication_id, taken_at)"
+                )
+            )
     try:
         if "web_push_subscriptions" in tables:
             columns = {column["name"] for column in inspector.get_columns("web_push_subscriptions")}
@@ -643,11 +988,74 @@ def ensure_runtime_schema():
 def register_routes(app):
     login_attempts = {}
     api_version = "v1"
+    api_gateway_name = "HormonaCare Application API Gateway"
+    api_gateway_public_paths = {
+        "/api/health",
+        "/api/docs",
+        "/api/gateway",
+        "/api/auth/register",
+        "/api/auth/login",
+    }
+    api_gateway_route_catalog = [
+        {"method": "GET", "path": "/api/health", "auth_required": False, "purpose": "Service health and backend identity"},
+        {"method": "GET", "path": "/api/docs", "auth_required": False, "purpose": "API capabilities and integration guide"},
+        {"method": "GET", "path": "/api/gateway", "auth_required": False, "purpose": "Describe the application-level API gateway behavior"},
+        {"method": "POST", "path": "/api/auth/register", "auth_required": False, "purpose": "Create an account through the shared API"},
+        {"method": "POST", "path": "/api/auth/login", "auth_required": False, "purpose": "Start an authenticated API session"},
+        {"method": "POST", "path": "/api/auth/logout", "auth_required": True, "purpose": "End the current API session"},
+        {"method": "GET", "path": "/api/me", "auth_required": True, "purpose": "Return the authenticated user profile"},
+        {"method": "GET", "path": "/api/dashboard", "auth_required": True, "purpose": "Return overview data for dashboard clients"},
+        {"method": "GET", "path": "/api/profile", "auth_required": True, "purpose": "Return profile summary data"},
+        {"method": "GET", "path": "/api/cycle", "auth_required": True, "purpose": "Return cycle insights for a selected date"},
+        {"method": "GET", "path": "/api/alerts", "auth_required": True, "purpose": "Return alert and risk indicator data"},
+        {"method": "GET", "path": "/api/medications", "auth_required": True, "purpose": "Return medication records"},
+        {"method": "GET", "path": "/api/lifestyle", "auth_required": True, "purpose": "Return recent lifestyle logs"},
+        {"method": "GET", "path": "/api/mental-health", "auth_required": True, "purpose": "Return recent mental health logs"},
+        {"method": "GET", "path": "/api/appointments", "auth_required": True, "purpose": "Return appointment records"},
+        {"method": "GET", "path": "/api/ml/health-assessment", "auth_required": True, "purpose": "Return the current health assessment payload"},
+        {"method": "POST", "path": "/api/sync/batch", "auth_required": True, "purpose": "Synchronize queued offline PWA changes with the Flask core service"},
+        {"method": "GET", "path": "/api/notifications/config", "auth_required": True, "purpose": "Return Web Push browser configuration"},
+        {"method": "POST", "path": "/api/notifications/subscribe", "auth_required": True, "purpose": "Save the current browser Web Push subscription"},
+        {"method": "POST", "path": "/api/notifications/unsubscribe", "auth_required": True, "purpose": "Deactivate a browser Web Push subscription"},
+        {"method": "POST", "path": "/api/notifications/test-push", "auth_required": True, "purpose": "Send a server-originated test push notification"},
+    ]
+    api_gateway_route_keys = {
+        (route["method"], route["path"])
+        for route in api_gateway_route_catalog
+    }
 
     @app.before_request
     def ensure_push_scheduler_running():
         if runtime_init_complete:
             start_push_notification_scheduler(app)
+
+    @app.before_request
+    def api_gateway_entrypoint():
+        if not request.path.startswith("/api/"):
+            return None
+
+        g.api_gateway = {
+            "name": api_gateway_name,
+            "version": api_version,
+            "core_service": "Flask",
+            "request_path": request.path,
+            "request_method": request.method,
+        }
+
+        if (request.method, request.path) not in api_gateway_route_keys:
+            return None
+
+        if request.path in api_gateway_public_paths:
+            return None
+
+        user = current_user()
+        if not user:
+            return api_error("authentication_required", "Authentication is required for this API endpoint.", status=401)
+        if not user.email_verified:
+            remember_pending_verification(user.username)
+            return api_error("email_verification_required", "Verify your email before using this API.", status=403)
+        g.api_user = user
+        return None
 
     @app.after_request
     def apply_security_headers(response):
@@ -680,6 +1088,7 @@ def register_routes(app):
             )
         if request.path.startswith("/api/"):
             response.headers["X-Core-Service"] = "HormonaCare Core Service"
+            response.headers["X-API-Gateway"] = api_gateway_name
             response.headers["X-API-Version"] = api_version
         return response
 
@@ -705,12 +1114,22 @@ def register_routes(app):
             return cache
         try:
             medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-            normalize_medication_statuses(user, medications)
+            summary = build_medication_daily_summary(user, medications)
         except SQLAlchemyError:
             db.session.rollback()
             app.logger.exception("Medication summary unavailable while database schema is preparing.")
             medications = []
-        cache = {"user_id": user.id, "medications": medications}
+            summary = {
+                "medications": [],
+                "taken_count": 0,
+                "skipped_count": 0,
+                "missed_count": 0,
+                "unconfirmed_count": 0,
+                "confirmed_count": 0,
+                "pending_count": 0,
+                "total_count": 0,
+            }
+        cache = {"user_id": user.id, "medications": medications, "summary": summary}
         if has_request_context():
             g.medication_summary_cache = cache
         return cache
@@ -814,32 +1233,14 @@ def register_routes(app):
     def build_api_docs():
         return {
             "service": "HormonaCare Core Service",
+            "gateway": api_gateway_name,
             "backend_language": "Python",
             "api_version": api_version,
             "auth_mode": "session_cookie",
-            "description": "Shared API layer for the current web interface and future mobile clients.",
+            "description": "Shared Flask API layer for the current web interface and future mobile clients.",
+            "gateway_scope": "Application-level gateway inside Flask; not a separate AWS API Gateway service.",
             "core_function": "Provide one Python backend so multiple clients can reuse the same data, business logic, and wellness services.",
-            "endpoints": [
-                {"method": "GET", "path": "/api/health", "auth_required": False, "purpose": "Service health and backend identity"},
-                {"method": "GET", "path": "/api/docs", "auth_required": False, "purpose": "API capabilities and integration guide"},
-                {"method": "POST", "path": "/api/auth/register", "auth_required": False, "purpose": "Create an account through the shared API"},
-                {"method": "POST", "path": "/api/auth/login", "auth_required": False, "purpose": "Start an authenticated API session"},
-                {"method": "POST", "path": "/api/auth/logout", "auth_required": True, "purpose": "End the current API session"},
-                {"method": "GET", "path": "/api/me", "auth_required": True, "purpose": "Return the authenticated user profile"},
-                {"method": "GET", "path": "/api/dashboard", "auth_required": True, "purpose": "Return overview data for dashboard clients"},
-                {"method": "GET", "path": "/api/profile", "auth_required": True, "purpose": "Return profile summary data"},
-                {"method": "GET", "path": "/api/cycle", "auth_required": True, "purpose": "Return cycle insights for a selected date"},
-                {"method": "GET", "path": "/api/alerts", "auth_required": True, "purpose": "Return alert and risk indicator data"},
-                {"method": "GET", "path": "/api/medications", "auth_required": True, "purpose": "Return medication records"},
-                {"method": "GET", "path": "/api/lifestyle", "auth_required": True, "purpose": "Return recent lifestyle logs"},
-                {"method": "GET", "path": "/api/mental-health", "auth_required": True, "purpose": "Return recent mental health logs"},
-                {"method": "GET", "path": "/api/appointments", "auth_required": True, "purpose": "Return appointment records"},
-                {"method": "GET", "path": "/api/ml/health-assessment", "auth_required": True, "purpose": "Return the current health assessment payload"},
-                {"method": "GET", "path": "/api/notifications/config", "auth_required": True, "purpose": "Return Web Push browser configuration"},
-                {"method": "POST", "path": "/api/notifications/subscribe", "auth_required": True, "purpose": "Save the current browser Web Push subscription"},
-                {"method": "POST", "path": "/api/notifications/unsubscribe", "auth_required": True, "purpose": "Deactivate a browser Web Push subscription"},
-                {"method": "POST", "path": "/api/notifications/test-push", "auth_required": True, "purpose": "Send a server-originated test push notification"},
-            ],
+            "endpoints": api_gateway_route_catalog,
         }
 
     @app.context_processor
@@ -861,20 +1262,9 @@ def register_routes(app):
         if user:
             medication_cache = request_medication_summary(user)
             medications = medication_cache["medications"]
-            unread_reminders = len([medication for medication in medications if medication.status == "pending"])
-            notification_medication_schedules = [
-                {
-                    "id": medication.id,
-                    "name": medication.name,
-                    "dosage": medication.dosage,
-                    "time_of_day": medication.time_of_day.strftime("%H:%M:%S") if medication.time_of_day else None,
-                    "status": medication.status,
-                    "daily_status": getattr(medication, "daily_status", medication.status),
-                    "event_status": getattr(medication, "daily_event_status", None),
-                    "reminder_enabled": bool(medication.reminder_enabled),
-                }
-                for medication in medications
-            ]
+            medication_summary = medication_cache["summary"]
+            unread_reminders = medication_summary["pending_count"]
+            notification_medication_schedules = [medication_state_payload(medication) for medication in medications]
             profile = UserProfile.query.filter_by(user_id=user.id).first()
             dark_mode_enabled = bool(profile and profile.dark_mode)
             if profile:
@@ -892,6 +1282,8 @@ def register_routes(app):
             "field_encryption_enabled": encryption_available(),
             "notification_preferences": notification_preferences,
             "notification_medication_schedules": notification_medication_schedules,
+            "notification_medication_followup_delay_ms": medication_followup_delay_seconds() * 1000,
+            "notification_medication_missed_cutoff_time": medication_missed_cutoff_time_string(),
             "static_asset_version": STATIC_ASSET_VERSION,
         }
 
@@ -1634,7 +2026,7 @@ def register_routes(app):
             "exercise_entries": [],
             "food_entries": [],
         }
-        decrypted_blob = decrypt_display_text(note_blob)
+        decrypted_blob = decrypt_text(note_blob)
         if not decrypted_blob:
             return parsed
 
@@ -1873,7 +2265,7 @@ def register_routes(app):
 
     def build_weekly_wellness_rows(user, days=7):
         """Build a rolling window of summarized wellness rows for trend analysis."""
-        end_date = app_today()
+        end_date = date.today()
         start_date = end_date - timedelta(days=days - 1)
         lifestyle_logs = (
             LifestyleLog.query.filter(
@@ -1906,58 +2298,37 @@ def register_routes(app):
                 "exercise_entries": [],
                 "food_entries": [],
             }
-            has_lifestyle_data = False
-            raw_sleep_hours = 0
-            raw_water_intake = 0
-            raw_exercise_minutes = 0
-            if lifestyle_log:
-                raw_sleep_hours = parse_float(getattr(lifestyle_log, "sleep_hours", 0), default=0)
-                raw_water_intake = parse_float(getattr(lifestyle_log, "water_intake_liters", 0), default=0)
-                raw_exercise_minutes = parse_int(getattr(lifestyle_log, "exercise_minutes", 0), default=0)
-                has_lifestyle_data = any(
-                    [
-                        raw_sleep_hours > 0,
-                        raw_water_intake > 0,
-                        raw_exercise_minutes > 0,
-                        bool(parsed_notes["exercise_entries"]),
-                        bool(parsed_notes["food_entries"]),
-                        (lifestyle_log.diet_quality or "").strip().lower() not in {"", "not logged"},
-                    ]
-            )
             exercise_summary = summarize_daily_exercise(
                 parsed_notes["exercise_entries"],
-                fallback_minutes=raw_exercise_minutes if has_lifestyle_data else 0,
+                fallback_minutes=lifestyle_log.exercise_minutes if lifestyle_log else 0,
             )
             food_summary = summarize_daily_food(
                 parsed_notes["food_entries"],
-                fallback_category=lifestyle_log.diet_quality if has_lifestyle_data else "",
+                fallback_category=lifestyle_log.diet_quality if lifestyle_log else "",
             )
-            sleep_hours = raw_sleep_hours if has_lifestyle_data and raw_sleep_hours > 0 else None
-            exercise_minutes = raw_exercise_minutes if has_lifestyle_data and raw_exercise_minutes > 0 else None
-            water_intake = raw_water_intake if has_lifestyle_data and raw_water_intake > 0 else None
             rows.append(
                 {
                     "date": row_date,
                     "mood": mental_log.mood if mental_log else "Okay",
                     "stress_level": mental_log.stress_level if mental_log else None,
-                    "sleep_hours": sleep_hours,
-                    "sleep_duration": sleep_hours,
+                    "sleep_hours": lifestyle_log.sleep_hours if lifestyle_log else None,
+                    "sleep_duration": lifestyle_log.sleep_hours if lifestyle_log else None,
                     "sleep_quality": getattr(lifestyle_log, "sleep_quality", None) if lifestyle_log else None,
-                    "physical_activity": exercise_minutes,
-                    "exercise_minutes": exercise_minutes,
-                    "water_intake": water_intake,
+                    "physical_activity": lifestyle_log.exercise_minutes if lifestyle_log else None,
+                    "exercise_minutes": lifestyle_log.exercise_minutes if lifestyle_log else None,
+                    "water_intake": lifestyle_log.water_intake_liters if lifestyle_log else None,
                     "heart_rate": getattr(lifestyle_log, "heart_rate", None) if lifestyle_log else None,
                     "daily_steps": getattr(lifestyle_log, "daily_steps", None) if lifestyle_log else None,
-                    "food_classification": food_summary["label"] if has_lifestyle_data else "Not logged",
-                    "exercise_summary": exercise_summary["label"] if has_lifestyle_data else "No Activity",
+                    "food_classification": food_summary["label"],
+                    "exercise_summary": exercise_summary["label"],
                     "hydration_status": (
                         "Low Hydration"
-                        if water_intake is not None and water_intake < 1.5
+                        if lifestyle_log and lifestyle_log.water_intake_liters < 1.5
                         else "Hydration Level Supporting PCOS Management"
-                        if water_intake is not None
+                        if lifestyle_log
                         else None
                     ),
-                    "has_user_data": bool(has_lifestyle_data or mental_log),
+                    "has_user_data": bool(lifestyle_log or mental_log),
                 }
             )
 
@@ -1987,48 +2358,40 @@ def register_routes(app):
         return encrypt_text("__META__" + json.dumps(meta))
 
     def unpack_appointment_notes(notes_blob):
-        decrypted_blob = decrypt_display_text(notes_blob)
         default_meta = {
             "specialty": "General Checkup",
             "location": "Clinic location",
             "reminder_enabled": False,
             "status": "scheduled",
-            "notes_text": decrypted_blob if decrypted_blob and not decrypted_blob.startswith("__META__") else "",
+            "notes_text": notes_blob or "",
         }
-        if not decrypted_blob or not decrypted_blob.startswith("__META__"):
+        notes_blob = decrypt_text(notes_blob)
+        if not notes_blob or not notes_blob.startswith("__META__"):
             return default_meta
         try:
-            parsed = json.loads(decrypted_blob.replace("__META__", "", 1))
-            return {
-                **default_meta,
-                "specialty": parsed.get("specialty") or default_meta["specialty"],
-                "location": parsed.get("location") or default_meta["location"],
-                "reminder_enabled": bool(parsed.get("reminder_enabled")),
-                "status": parsed.get("status") or default_meta["status"],
-                "notes_text": decrypt_display_text(parsed.get("notes_text", "")),
-            }
+            parsed = json.loads(notes_blob.replace("__META__", "", 1))
+            return {**default_meta, **parsed}
         except json.JSONDecodeError:
             return default_meta
 
     def appointment_status_meta(appointment, meta):
         raw_status = (meta.get("status") or "scheduled").strip().lower()
-        appointment_date = appointment.appointment_date
         if raw_status == "completed":
-            return {"key": "completed", "label": "Done", "tone": "muted"}
+            return {"key": "completed", "label": "Completed", "tone": "success"}
         if raw_status == "cancelled":
             return {"key": "cancelled", "label": "Cancelled", "tone": "muted"}
-        if raw_status == "missed" or (appointment_date and appointment_date < date.today()):
+        if raw_status == "missed" or appointment.appointment_date < date.today():
             return {"key": "missed", "label": "Missed", "tone": "warning"}
-        if appointment_date == date.today():
+        if appointment.appointment_date == date.today():
             return {"key": "today", "label": "Today", "tone": "info"}
-        return {"key": "scheduled", "label": "Upcoming", "tone": "success"}
+        return {"key": "scheduled", "label": "Scheduled", "tone": "info"}
 
     def build_appointment_editor_payload(appointment, meta):
         return {
             "id": appointment.id,
             "doctor_name": appointment.doctor_name,
-            "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d") if appointment.appointment_date else "",
-            "appointment_time": appointment.appointment_time.strftime("%H:%M") if appointment.appointment_time else "",
+            "appointment_date": appointment.appointment_date.strftime("%Y-%m-%d"),
+            "appointment_time": appointment.appointment_time.strftime("%H:%M"),
             "specialty": meta.get("specialty", "General Checkup"),
             "location": meta.get("location", "Clinic location"),
             "notes": meta.get("notes_text", ""),
@@ -2084,7 +2447,7 @@ def register_routes(app):
         all_appointments = Appointment.query.filter(Appointment.user_id == user.id).order_by(Appointment.appointment_date.asc()).all()
         decorated = []
         for appointment in all_appointments:
-            appointment.prescription = decrypt_display_text(appointment.prescription)
+            appointment.prescription = decrypt_text(appointment.prescription)
             meta = unpack_appointment_notes(appointment.notes)
             decorated.append(
                 {
@@ -2100,17 +2463,15 @@ def register_routes(app):
 
         upcoming = [
             item for item in decorated
-            if item["appointment"].appointment_date
-            and item["appointment"].appointment_date >= date.today()
+            if item["appointment"].appointment_date >= date.today()
             and item["status"]["key"] not in {"completed", "cancelled", "missed"}
         ]
         past = [
             item for item in decorated
-            if not item["appointment"].appointment_date
-            or item["appointment"].appointment_date < date.today()
+            if item["appointment"].appointment_date < date.today()
             or item["status"]["key"] in {"completed", "cancelled", "missed"}
         ]
-        past.sort(key=lambda item: item["appointment"].appointment_date or date.min, reverse=True)
+        past.sort(key=lambda item: item["appointment"].appointment_date, reverse=True)
 
         appointment_form_values = empty_appointment_form_values()
         if form_values:
@@ -2139,7 +2500,7 @@ def register_routes(app):
         return encrypt_text("__CYCLE__" + json.dumps(payload))
 
     def unpack_cycle_details(stored_value):
-        decrypted_value = decrypt_display_text(stored_value)
+        decrypted_value = decrypt_text(stored_value)
         fallback = {"symptoms": decrypted_value or "", "notes": ""}
         if not decrypted_value or not decrypted_value.startswith("__CYCLE__"):
             return fallback
@@ -2154,124 +2515,16 @@ def register_routes(app):
             for field_name in field_names:
                 raw_value = getattr(record, field_name, None)
                 if isinstance(raw_value, str) and raw_value:
-                    setattr(record, field_name, decrypt_display_text(raw_value))
+                    setattr(record, field_name, decrypt_text(raw_value))
         return records
 
     def medication_log_window(target_day=None):
-        day = target_day or app_today()
-        day_start = datetime.combine(day, datetime.min.time())
-        return day_start, day_start + timedelta(days=1)
-
-    def medication_scheduled_at(medication, target_day=None):
-        if not getattr(medication, "time_of_day", None):
-            return None
-        return datetime.combine(target_day or app_today(), medication.time_of_day)
-
-    def medication_missed_cutoff_at(target_day=None):
-        cutoff_day = target_day or app_today()
-        return datetime.combine(cutoff_day, datetime.max.time()).replace(hour=23, minute=59, second=0, microsecond=0)
-
-    def medication_log_status(log_entry):
-        status = (getattr(log_entry, "status", None) or "taken").strip().lower()
-        return status if status in {"taken", "skipped", "missed"} else "taken"
-
-    def medication_log_is_late(log_entry):
-        if medication_log_status(log_entry) != "taken" or not log_entry.scheduled_time or not log_entry.taken_at:
-            return False
-        scheduled_at = datetime.combine(log_entry.taken_at.date(), log_entry.scheduled_time)
-        return log_entry.taken_at > scheduled_at + timedelta(minutes=30)
-
-    def medication_display_state(medication, daily_log=None):
-        now = app_now()
-        if daily_log:
-            status = medication_log_status(daily_log)
-            label = "Logged late" if medication_log_is_late(daily_log) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
-            tone = "warning" if label == "Logged late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
-            message = "Confirmed as taken after the scheduled time." if label == "Logged late" else "Confirmed in your PCOS support routine."
-            return status, label, tone, message, status, daily_log.taken_at
-        scheduled_at = medication_scheduled_at(medication, now.date())
-        if not scheduled_at:
-            return "pending", "Needs time", "neutral", "Add a scheduled time to track this medication.", None, None
-        if now < scheduled_at:
-            return "pending", "Pending", "neutral", "Scheduled later today.", None, None
-        if now >= medication_missed_cutoff_at(now.date()):
-            return "unconfirmed_missed", "Unconfirmed missed", "warning", "This was not confirmed by the cutoff. Please confirm what happened.", None, None
-        return "unconfirmed", "Needs confirmation", "warning", "Confirm whether this medication was taken, skipped, or missed.", None, None
-
-    def annotate_medication_display(medication, daily_log=None):
-        status, label, tone, message, event_status, logged_at = medication_display_state(medication, daily_log=daily_log)
-        medication.daily_status = status
-        medication.daily_status_label = label
-        medication.daily_status_tone = tone
-        medication.daily_status_message = message
-        medication.daily_event_status = event_status
-        medication.daily_logged_at = logged_at
-        medication.has_daily_log = bool(daily_log)
-        return medication
-
-    def medication_summary_counts(medications):
-        counts = Counter(getattr(medication, "daily_status", medication.status or "pending") for medication in medications)
-        confirmed_count = counts.get("taken", 0) + counts.get("skipped", 0) + counts.get("missed", 0)
-        unconfirmed_count = counts.get("unconfirmed", 0) + counts.get("unconfirmed_missed", 0)
-        return {
-            "taken_count": counts.get("taken", 0),
-            "skipped_count": counts.get("skipped", 0),
-            "missed_count": counts.get("missed", 0),
-            "unconfirmed_count": unconfirmed_count,
-            "confirmed_count": confirmed_count,
-            "total_count": len(medications),
-        }
-
-    def create_medication_log(user, medication, status):
-        return MedicationLog(
-            user_id=user.id,
-            medication_id=medication.id,
-            medication_name=medication.name,
-            dosage=medication.dosage,
-            scheduled_time=medication.time_of_day,
-            notes=medication.notes,
-            status=status,
-            taken_at=app_now(),
-        )
+        return medication_day_window(target_day)
 
     def normalize_medication_statuses(user, medications=None):
         if not user:
             return medications or []
-
-        medication_records = medications
-        if medication_records is None:
-            medication_records = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-
-        day_start, day_end = medication_log_window()
-        medication_ids = [medication.id for medication in medication_records if medication.id]
-        logs = []
-        if medication_ids:
-            logs = (
-                MedicationLog.query.filter(
-                    MedicationLog.user_id == user.id,
-                    MedicationLog.medication_id.in_(medication_ids),
-                    MedicationLog.taken_at >= day_start,
-                    MedicationLog.taken_at < day_end,
-                )
-                .order_by(MedicationLog.taken_at.asc(), MedicationLog.id.asc())
-                .all()
-            )
-        logs_by_medication_id = {}
-        for log_entry in logs:
-            logs_by_medication_id[log_entry.medication_id] = log_entry
-
-        changed = False
-        for medication in medication_records:
-            daily_log = logs_by_medication_id.get(medication.id)
-            annotate_medication_display(medication, daily_log=daily_log)
-            legacy_status = medication.daily_event_status or "pending"
-            if medication.status != legacy_status:
-                medication.status = legacy_status
-                changed = True
-
-        if changed:
-            db.session.commit()
-        return medication_records
+        return build_medication_daily_summary(user, medications)["medications"]
 
     def fetch_medication_history(user, limit=None):
         query = MedicationLog.query.filter_by(user_id=user.id).order_by(MedicationLog.taken_at.desc())
@@ -2285,11 +2538,7 @@ def register_routes(app):
             app.logger.exception("Medication history unavailable while database schema is preparing.")
             return []
         for entry in history_entries:
-            status = medication_log_status(entry)
-            entry.event_status = status
-            entry.event_label = "Logged late" if medication_log_is_late(entry) else "Taken on time" if status == "taken" else "Skipped" if status == "skipped" else "Confirmed missed"
-            entry.event_tone = "warning" if entry.event_label == "Logged late" else "success" if status == "taken" else "muted" if status == "skipped" else "danger"
-            entry.event_message = "Confirmed as taken after the scheduled time." if entry.event_label == "Logged late" else "Confirmed in your PCOS support routine."
+            annotate_medication_log_display(entry)
         return history_entries
 
     def safe_medication_history_count(user):
@@ -2519,26 +2768,26 @@ def register_routes(app):
         )
 
         if not observed_lengths:
-            pattern_summary = "Add a period start"
-            confidence_message = "Limited Data"
+            pattern_summary = "Start logging your cycle to build PCOS-aware cycle insights."
+            confidence_message = "Start logging your cycle to build PCOS-aware cycle insights."
         elif limited_data:
-            pattern_summary = "Early pattern"
-            confidence_message = "Developing"
+            pattern_summary = "We're still learning how your cycle behaves. PCOS cycles can take longer to map clearly, so keep logging."
+            confidence_message = "Confidence is still building. Ovulation timing can be less predictable in PCOS, so more logs help."
         elif trend_slope >= 1.2:
-            pattern_summary = "Trending longer"
-            confidence_message = "Adaptive Estimate"
+            pattern_summary = "Your recent cycle lengths are trending slightly longer, which can happen with PCOS-related irregularity."
+            confidence_message = "We have enough history to estimate a range, and we'll keep refining it as new cycle data comes in."
         elif trend_slope <= -1.2:
-            pattern_summary = "Trending shorter"
-            confidence_message = "Adaptive Estimate"
+            pattern_summary = "Your recent cycle lengths are trending slightly shorter than your usual pattern."
+            confidence_message = "We have enough history to estimate a range, and we'll keep refining it as new cycle data comes in."
         elif irregular:
-            pattern_summary = "Irregular pattern"
-            confidence_message = "Adaptive Estimate"
+            pattern_summary = "Your cycle pattern shows noticeable irregularity, which is commonly observed in PCOS."
+            confidence_message = "Confidence is improving, but your recent cycle timing has been irregular and may shift further."
         elif cycle_variability <= 2.5:
-            pattern_summary = "Consistent pattern"
-            confidence_message = "Moderate"
+            pattern_summary = "Your recent logs suggest the cycle pattern is becoming a bit more consistent."
+            confidence_message = "Confidence is improving as your recent cycle pattern becomes more consistent."
         else:
-            pattern_summary = "Steady pattern"
-            confidence_message = "Moderate"
+            pattern_summary = "Your recent cycle pattern looks steadier, though PCOS-related shifts can still happen."
+            confidence_message = "We have enough history to keep this estimate responsive to your latest logs."
 
         observed_signal_days = []
         for signal_date, signal in ovulation_signals.items():
@@ -2570,15 +2819,14 @@ def register_routes(app):
         if typical_ovulation_day and cycle_length:
             fertile_window = (max(6, typical_ovulation_day - 5), min(cycle_length, typical_ovulation_day + 1))
             if limited_data:
-                fertile_confidence = "developing"
+                fertile_confidence = "building"
             elif irregular:
-                fertile_confidence = "adaptive"
+                fertile_confidence = "flexible"
             else:
-                fertile_confidence = "moderate"
+                fertile_confidence = "steady"
 
         latest_period_start = period_starts[-1] if period_starts else None
-        today_value = app_today()
-        days_since_last_period = (today_value - latest_period_start).days if latest_period_start else None
+        days_since_last_period = (date.today() - latest_period_start).days if latest_period_start else None
         average_period_length = round(average_value(period_lengths), 1) if period_lengths else None
         period_length_low = min(period_lengths) if period_lengths else None
         period_length_high = max(period_lengths) if period_lengths else None
@@ -2675,8 +2923,8 @@ def register_routes(app):
 
         if not model.get("phase_estimation_enabled"):
             if not model.get("has_cycle_history"):
-                return "Add period data"
-            return "Building pattern"
+                return "Start logging your PCOS cycle"
+            return "We're still learning your PCOS cycle"
 
         day_signal = model["ovulation_signals"].get(target_date, {"likely": False, "confidence": "none"})
         if day_signal["likely"]:
@@ -2690,7 +2938,7 @@ def register_routes(app):
         if ovulation_date and ovulation_date < target_date:
             return "Luteal Phase"
 
-        return "Cycle in Progress" if model.get("prediction_ready") else "Building pattern"
+        return "Cycle in Progress" if model.get("prediction_ready") else "We're still learning your PCOS cycle"
 
     def cycle_visual_phase(target_date, day_number, cycle_start, model, log=None):
         if logged_period_day(log, day_number):
@@ -2716,58 +2964,30 @@ def register_routes(app):
     def cycle_prediction_summary(reference_date, cycle_start, model):
         cycle_length = model.get("cycle_length")
         if not model.get("prediction_ready") or not cycle_length or not cycle_start or len(model["period_starts"]) < 2:
-            fallback_message = "More cycle logs are needed for stronger estimates."
+            fallback_message = (
+                "Start logging your cycle to build PCOS-aware insights."
+                if not model.get("has_cycle_history")
+                else "We're still learning your cycle. PCOS-related irregularity can make predictions less certain until more logs are added."
+            )
             return {
                 "next_period": None,
                 "next_period_earliest": None,
                 "next_period_latest": None,
                 "days_until_next_period": None,
                 "prediction_text": fallback_message,
-                "prediction_range_text": "Prediction Unavailable",
-                "expected_date_text": "Prediction Unavailable",
-                "confidence": "Limited Data",
-                "forecast_state": "unavailable",
-                "forecast_status_label": "Prediction Unavailable",
-                "forecast_headline": "Prediction Unavailable",
-                "next_period_label": "Prediction Unavailable",
-                "next_period_metric_label": "Prediction",
-                "prediction_basis": fallback_message,
-                "expired_prediction_range_text": "",
+                "prediction_range_text": fallback_message,
+                "expected_date_text": fallback_message,
+                "confidence": model.get("confidence_message"),
             }
 
         earliest_date = cycle_start + timedelta(days=model["cycle_low"])
         latest_date = cycle_start + timedelta(days=model["cycle_high"])
         predicted_date = cycle_start + timedelta(days=cycle_length)
         range_text = compact_date_range(earliest_date, latest_date)
-        if latest_date < reference_date:
-            return {
-                "next_period": None,
-                "next_period_earliest": None,
-                "next_period_latest": None,
-                "days_until_next_period": None,
-                "prediction_text": "Your previous estimate has passed without a confirmed cycle log.",
-                "prediction_range_text": "Cycle Delayed",
-                "expected_date_text": "Recalculating Forecast",
-                "confidence": "Adaptive Estimate",
-                "forecast_state": "delayed",
-                "forecast_status_label": "Cycle Delayed",
-                "forecast_headline": "Cycle Delayed",
-                "next_period_label": "Cycle Delayed",
-                "next_period_metric_label": "Forecast Status",
-                "prediction_basis": "Your previous estimate has passed without a confirmed cycle log.",
-                "expired_prediction_range_text": range_text,
-            }
         prediction_text = (
-            f"Estimated next period may start around {predicted_date.strftime('%b %d, %Y')}."
+            f"Based on your recent PCOS cycle logs, your next period may start around {predicted_date.strftime('%b %d, %Y')}."
             if earliest_date == latest_date
-            else f"Estimated next period may start around {range_text}."
-        )
-        prediction_basis = (
-            "Early adaptive estimate. PCOS timing can shift."
-            if model["limited_data"]
-            else "Adaptive estimate using recent cycle timing and symptom signals."
-            if model["observed_signal_days"]
-            else "Adaptive estimate using recent cycle timing. PCOS cycles may vary."
+            else f"Based on your recent PCOS cycle logs, your next period may start around {range_text}."
         )
         return {
             "next_period": predicted_date,
@@ -2778,13 +2998,6 @@ def register_routes(app):
             "prediction_range_text": range_text,
             "expected_date_text": predicted_date.strftime("%b %d, %Y"),
             "confidence": model["confidence_message"],
-            "forecast_state": "active",
-            "forecast_status_label": "Estimated",
-            "forecast_headline": f"Estimated: {range_text}",
-            "next_period_label": range_text,
-            "next_period_metric_label": "Estimated Next Period",
-            "prediction_basis": prediction_basis,
-            "expired_prediction_range_text": "",
         }
 
     def resolve_cycle_day_value(log_date, model, requested_cycle_day=None, mark_period_start=False):
@@ -2800,7 +3013,7 @@ def register_routes(app):
     def get_cycle_info(user, reference_date=None):
         logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.asc()).all()
         model = cycle_model(logs)
-        reference_date = reference_date or app_today()
+        reference_date = reference_date or date.today()
         log_for_date = next((log for log in logs if log.log_date == reference_date), None)
         recent_period = recent_period_tracking(logs, model["period_starts"], reference_date)
         day_number, cycle_start = inferred_cycle_day(reference_date, model)
@@ -2814,33 +3027,42 @@ def register_routes(app):
         prediction = cycle_prediction_summary(reference_date, cycle_start, model)
         fertile_window = model.get("fertile_window")
         fertile_window_text = (
-            f"Days {fertile_window[0]}-{fertile_window[1]}"
+            f"Often around days {fertile_window[0]}-{fertile_window[1]} in your recent pattern, though ovulation can be less predictable in PCOS."
             if fertile_window
-            else "Needs more history"
+            else "We'll estimate this after a little more cycle history."
         )
         day_signal = model["ovulation_signals"].get(reference_date, {"likely": False, "confidence": "none"})
         ovulation_status = (
-            "Ovulation signals detected."
+            "Your recent symptom logs suggest ovulation may be close, though timing can be less certain in PCOS."
             if day_signal["likely"] and day_signal.get("signal_count", 0) >= 2
-            else "Possible ovulation signal."
+            else "A few recent symptoms may point to ovulation around this time, but PCOS can make the timing less predictable."
             if day_signal["likely"]
-            else f"Usually near day {model['typical_ovulation_day']}."
+            else f"Your logs most often point to ovulation around day {model['typical_ovulation_day']}, but that timing can shift in PCOS."
             if model.get("typical_ovulation_day")
-            else "No ovulation pattern yet."
+            else "We'll look for ovulation patterns as you log more symptoms."
         )
-        prediction_basis = prediction["prediction_basis"]
+        if prediction["next_period"]:
+            prediction_basis = (
+                "We're still learning your cycle. PCOS-related irregularity can make predictions less certain until more logs are added."
+                if model["limited_data"]
+                else "This estimate adapts to your recent cycle timing and symptom logs while allowing for PCOS-related variation."
+                if model["observed_signal_days"]
+                else "This estimate adapts to your recent cycle timing as you add new cycle logs."
+            )
+        else:
+            prediction_basis = model["pattern_summary"]
         irregularity_text = model["pattern_summary"]
         anovulation_warning = (
-            "Long gap detected. Consider a clinician check-in if this feels unusual."
+            "A long gap appears in your recent cycle logs. Irregular or absent ovulation can be seen in PCOS, so consider monitoring symptoms closely and checking with your clinician if this feels unusual for you."
             if model["possible_anovulatory"]
             else ""
         )
         if recent_period["needs_flow_log_prompt"]:
-            tracking_message = "Flow update needed."
+            tracking_message = "Please log your flow to keep your PCOS cycle timing up to date."
         elif not model["has_cycle_history"]:
-            tracking_message = "Add a period start to begin forecasting."
+            tracking_message = "Start logging your cycle to build PCOS-aware insights."
         elif model["limited_data"]:
-            tracking_message = "Add another cycle to sharpen the estimate."
+            tracking_message = "We're still learning your cycle. PCOS-related irregularity can take longer to map clearly."
         else:
             tracking_message = model["pattern_summary"]
         cycle_day_label = "Log more cycle data"
@@ -2852,52 +3074,22 @@ def register_routes(app):
             )
         elif model["prediction_ready"] and day_number:
             cycle_day_label = f"Estimated Day {day_number}"
-        def metric_days(value):
-            if value is None:
-                return "--"
-            if isinstance(value, float) and value.is_integer():
-                value = int(value)
-            unit = "day" if value == 1 else "days"
-            return f"{value} {unit}"
-
-        period_length_label = "Need flow data"
-        period_length_range_label = ""
+        period_length_label = "Not enough logged flow data"
         if model["average_period_length"]:
-            period_length_label = metric_days(model["average_period_length"])
+            period_length_label = f"{model['average_period_length']} day average"
             if model["period_length_low"] and model["period_length_high"]:
-                period_length_range_label = f"{model['period_length_low']}-{model['period_length_high']} days"
-        current_period_label = ""
+                period_length_label += f" ({model['period_length_low']}-{model['period_length_high']} observed)"
         if recent_period["current_period_length"]:
-            current_period_label = f"{recent_period['current_period_length']} days current"
+            period_length_label = f"{recent_period['current_period_length']} logged day(s) in current period"
         insight_summary = (
-            "Flow update needed."
+            "Please log your flow to keep your PCOS cycle timing up to date."
             if recent_period["needs_flow_log_prompt"]
             else ovulation_status
             if day_signal["likely"]
             else prediction["prediction_text"]
-            if prediction["forecast_state"] in {"active", "delayed", "unavailable"}
+            if prediction["next_period"]
             else tracking_message
         )
-        average_cycle_label = metric_days(model["cycle_length"]) if model["cycle_length"] else "--"
-        cycle_range_label = (
-            f"{model['cycle_low']}-{model['cycle_high']} days"
-            if model["cycle_low"] and model["cycle_high"] and model["cycle_low"] != model["cycle_high"]
-            else average_cycle_label
-        )
-        next_period_label = prediction["next_period_label"]
-        forecast_status_label = prediction["forecast_status_label"]
-        if prediction["forecast_state"] == "delayed":
-            uncertainty_note = "PCOS cycles can be irregular; log a new period start when it begins to recalculate."
-        elif prediction["forecast_state"] == "unavailable":
-            uncertainty_note = "More cycle logs are needed for stronger estimates."
-        else:
-            uncertainty_note = (
-                "Add more cycle entries to improve timing."
-                if model["limited_data"]
-                else "Estimate updates with each new entry."
-                if not model["irregular"]
-                else "Timing may shift because recent cycles vary."
-            )
         return {
             "phase": phase,
             "phase_visual": visual_phase,
@@ -2911,10 +3103,6 @@ def register_routes(app):
             "prediction_range_text": prediction["prediction_range_text"],
             "expected_date_text": prediction["expected_date_text"],
             "prediction_confidence": prediction["confidence"],
-            "forecast_state": prediction["forecast_state"],
-            "forecast_headline": prediction["forecast_headline"],
-            "next_period_metric_label": prediction["next_period_metric_label"],
-            "expired_prediction_range_text": prediction["expired_prediction_range_text"],
             "cycle_length": model["cycle_length"],
             "average_cycle_length": model["cycle_length"],
             "min_cycle_length": model["cycle_low"] if model["observed_lengths"] else None,
@@ -2923,8 +3111,6 @@ def register_routes(app):
             "min_period_length": model["period_length_low"],
             "max_period_length": model["period_length_high"],
             "period_length_label": period_length_label,
-            "period_length_range_label": period_length_range_label,
-            "current_period_label": current_period_label,
             "cycle_start": cycle_start,
             "last_period_start": model["latest_period_start"],
             "days_since_last_period": model["days_since_last_period"],
@@ -2935,23 +3121,23 @@ def register_routes(app):
             "anovulation_warning": anovulation_warning,
             "tracking_message": tracking_message,
             "needs_flow_log_prompt": recent_period["needs_flow_log_prompt"],
-            "uncertainty_note": uncertainty_note,
+            "uncertainty_note": (
+                "Confidence is still building. In PCOS, ovulation and cycle timing can be less predictable, so this estimate may shift as more logs are recorded."
+                if model["limited_data"]
+                else "We'll keep adjusting this PCOS cycle estimate as new entries are added."
+                if not model["irregular"]
+                else "This estimate may shift because your recent cycle timing has been irregular."
+            ),
             "smart_mode_enabled": model["smart_mode_enabled"],
             "prediction_ready": model["prediction_ready"],
             "phase_estimation_enabled": model["phase_estimation_enabled"],
             "has_cycle_history": model["has_cycle_history"],
-            "confidence": prediction["confidence"],
-            "confidence_message": prediction["confidence"],
+            "confidence": model["confidence_message"],
+            "confidence_message": model["confidence_message"],
             "pattern_summary": model["pattern_summary"],
             "limited_data": model["limited_data"],
             "insight_summary": insight_summary,
             "irregular": model["irregular"],
-            "average_cycle_label": average_cycle_label,
-            "cycle_range_label": cycle_range_label,
-            "next_period_label": next_period_label,
-            "forecast_status_label": forecast_status_label,
-            "confidence_level": prediction["confidence"],
-            "pattern_label": model["pattern_summary"],
         }
 
     def build_mental_tip(mood, stress_level):
@@ -3032,7 +3218,7 @@ def register_routes(app):
         return {"ratio": round(ratio, 2), "intensity": intensity}
 
     def build_smart_prompts(user):
-        now = datetime.now()
+        now = app_now()
         today = now.date()
         prompts = []
         consistency = logging_consistency_profile(user)
@@ -3045,8 +3231,6 @@ def register_routes(app):
 
         due_medications = []
         for medication in medications:
-            if not medication.time_of_day:
-                continue
             scheduled_at = datetime.combine(today, medication.time_of_day)
             if medication.status == "pending" and now >= scheduled_at:
                 overdue_hours = (now - scheduled_at).total_seconds() / 3600
@@ -3064,7 +3248,7 @@ def register_routes(app):
                 message = (
                     "Please log today's medication to keep your PCOS support plan current."
                     if most_due["overdue_hours"] >= 2
-                    else "It's time to take your medication. Log it when you're ready."
+                    else "This medication has not been logged yet. Follow your care instructions or contact your provider if unsure."
                 )
             prompts.append(
                 {
@@ -3149,11 +3333,7 @@ def register_routes(app):
         latest_lifestyle = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).first()
         latest_mental = MentalLog.query.filter_by(user_id=user.id).order_by(MentalLog.log_date.desc()).first()
         cycle_info = get_cycle_info(user)
-        try:
-            weekly_wellness_rows = build_weekly_wellness_rows(user)
-        except Exception:
-            app.logger.exception("Unable to build weekly wellness rows for dashboard")
-            weekly_wellness_rows = []
+        weekly_wellness_rows = build_weekly_wellness_rows(user)
         latest_lifestyle_details = parse_lifestyle_notes(latest_lifestyle.notes) if latest_lifestyle else {
             "exercise_entries": [],
             "food_entries": [],
@@ -3164,6 +3344,7 @@ def register_routes(app):
         latest_food_entry = latest_lifestyle_details["food_entries"][-1] if latest_lifestyle_details["food_entries"] else None
         medication_cache = request_medication_summary(user)
         medications_today = medication_cache["medications"]
+        medication_summary = medication_cache["summary"]
         upcoming_appointments = (
             Appointment.query.filter(Appointment.user_id == user.id, Appointment.appointment_date >= date.today())
             .order_by(Appointment.appointment_date.asc())
@@ -3176,39 +3357,16 @@ def register_routes(app):
             stress_level=latest_mental.stress_level if latest_mental else 5,
             activity_minutes=latest_lifestyle.exercise_minutes if latest_lifestyle else 30,
         )
-        try:
-            weekly_wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
-        except Exception:
-            app.logger.exception("Unable to calculate weekly wellness trend for dashboard")
-            logged_days = 0
-            for row in weekly_wellness_rows:
-                if row.get("has_user_data") is False:
-                    continue
-                if any(
-                    row.get(key) is not None
-                    for key in ("sleep_hours", "sleep_duration", "water_intake", "physical_activity", "exercise_minutes", "stress_level")
-                ):
-                    logged_days += 1
-            weekly_wellness_trend = build_weekly_wellness_fallback(logged_days)
+        weekly_wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
         weekly_wellness_trend["support_note"] = (
             "PCOS Insight: personalized from your logged cycle, mood, sleep, nutrition, and activity data. For educational support only."
             if pcos_state["has_info"]
             else "PCOS Insight: this trend is based on your recent lifestyle logs."
         )
-        reminders = []
-        for med in medications_today:
-            medication_name = med.name or "Medication"
-            if med.time_of_day:
-                reminders.append(f"{medication_name} at {med.time_of_day.strftime('%H:%M')}")
-            else:
-                reminders.append(f"{medication_name} time not set")
-        for appt in upcoming_appointments:
-            doctor_name = appt.doctor_name or "Doctor"
-            if appt.appointment_date:
-                reminders.append(f"Appointment with {doctor_name} on {appt.appointment_date:%b %d}")
-            else:
-                reminders.append(f"Appointment with {doctor_name}")
-        medication_summary = medication_summary_counts(medications_today)
+        reminders = [f"{med.name} at {med.time_of_day.strftime('%H:%M')}" for med in medications_today]
+        reminders.extend(
+            f"Appointment with {appt.doctor_name} on {appt.appointment_date:%b %d}" for appt in upcoming_appointments
+        )
         taken_count = medication_summary["taken_count"]
         skipped_count = medication_summary["skipped_count"]
         missed_count = medication_summary["missed_count"]
@@ -3291,14 +3449,8 @@ def register_routes(app):
             if symptoms and latest_symptom_date is None:
                 latest_symptom_date = log.log_date
             symptom_counts.update(symptoms)
-        try:
-            weekly_wellness_rows = build_weekly_wellness_rows(user)
-            wellness_trend = build_weekly_wellness_trend(weekly_wellness_rows)
-        except Exception:
-            app.logger.exception("Unable to calculate weekly wellness trend for profile")
-            wellness_trend = build_weekly_wellness_fallback(0)
+        wellness_trend = build_weekly_wellness_trend(build_weekly_wellness_rows(user))
         return {
-            "user": user,
             "profile": profile,
             "pcos_state": pcos_state,
             "cycle_info": cycle_info,
@@ -3375,7 +3527,7 @@ def register_routes(app):
                 },
                 {
                     "label": "PCOS wellness trend",
-                    "value": wellness_trend.get("display_label") or wellness_trend.get("predicted_label") or "Not enough data",
+                    "value": wellness_trend["predicted_label"],
                     "helper": wellness_trend["explanation"],
                 },
             ],
@@ -3421,10 +3573,6 @@ def register_routes(app):
             "prediction_range_text": cycle_info.get("prediction_range_text"),
             "expected_date_text": cycle_info.get("expected_date_text"),
             "prediction_confidence": cycle_info.get("prediction_confidence"),
-            "forecast_state": cycle_info.get("forecast_state"),
-            "forecast_headline": cycle_info.get("forecast_headline"),
-            "next_period_metric_label": cycle_info.get("next_period_metric_label"),
-            "expired_prediction_range_text": cycle_info.get("expired_prediction_range_text"),
             "average_cycle_length": cycle_info.get("average_cycle_length"),
             "min_cycle_length": cycle_info.get("min_cycle_length"),
             "max_cycle_length": cycle_info.get("max_cycle_length"),
@@ -3432,8 +3580,6 @@ def register_routes(app):
             "min_period_length": cycle_info.get("min_period_length"),
             "max_period_length": cycle_info.get("max_period_length"),
             "period_length_label": cycle_info.get("period_length_label"),
-            "period_length_range_label": cycle_info.get("period_length_range_label"),
-            "current_period_label": cycle_info.get("current_period_label"),
             "last_period_start": iso_date(cycle_info.get("last_period_start")),
             "days_since_last_period": cycle_info.get("days_since_last_period"),
             "fertile_window_text": cycle_info.get("fertile_window_text"),
@@ -3454,22 +3600,15 @@ def register_routes(app):
             "limited_data": safe_bool(cycle_info.get("limited_data")),
             "insight_summary": cycle_info.get("insight_summary"),
             "irregular": safe_bool(cycle_info.get("irregular")),
-            "average_cycle_label": cycle_info.get("average_cycle_label"),
-            "cycle_range_label": cycle_info.get("cycle_range_label"),
-            "next_period_label": cycle_info.get("next_period_label"),
-            "forecast_status_label": cycle_info.get("forecast_status_label"),
-            "confidence_level": cycle_info.get("confidence_level"),
-            "pattern_label": cycle_info.get("pattern_label"),
         }
 
     def serialize_profile_summary(summary):
         profile = summary["profile"]
-        user = summary["user"]
         return {
             "identity": {
-                "full_name": user.full_name,
-                "username": user.full_name,
-                "email": user.username,
+                "full_name": summary["profile"].user.full_name,
+                "username": summary["profile"].user.full_name,
+                "email": summary["profile"].user.username,
                 "age": profile.age,
                 "diagnosis_date": iso_date(profile.diagnosis_date),
             },
@@ -3487,6 +3626,7 @@ def register_routes(app):
                     "dosage": medication.dosage,
                     "time_of_day": iso_time(medication.time_of_day),
                     "status": medication.status,
+                    "daily_status": getattr(medication, "daily_status", medication.status),
                 }
                 for medication in summary["medications"]
             ],
@@ -3501,6 +3641,8 @@ def register_routes(app):
             },
             "dashboard_intro": metrics["dashboard_intro"],
             "taken_count": metrics["taken_count"],
+            "skipped_count": metrics["skipped_count"],
+            "missed_count": metrics["missed_count"],
             "total_count": metrics["total_count"],
             "health_score": metrics["health_score"],
             "reminders": metrics["reminders"],
@@ -4175,15 +4317,23 @@ def register_routes(app):
             send_password_recovery_otp(user.username)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
-            reset_code = remember_local_otp_challenge(user.username, "password_reset")
-            session["reset_password_email"] = user.username
-            session.pop("reset_password_verified", None)
-            remember_otp_request(user.username)
+            if can_use_local_auth_fallback(error):
+                reset_code = remember_local_otp_challenge(user.username, "password_reset")
+                session["reset_password_email"] = user.username
+                session.pop("reset_password_verified", None)
+                remember_otp_request(user.username)
+                return {
+                    "message": f"{local_auth_status_message()} Local reset code: {reset_code}",
+                    "identifier": user.username,
+                    "local_code": reset_code,
+                }
             return {
-                "message": f"{local_auth_status_message()} Local reset code: {reset_code}",
-                "identifier": user.username,
-                "local_code": reset_code,
-            }
+                "field": "identifier",
+                "message": password_reset_error_message(
+                    error,
+                    "We could not send a reset OTP right now. Please try again later.",
+                ),
+            }, 503 if is_timeout_error(error) or is_network_error(error) else 400
 
         session["reset_password_email"] = user.username
         session.pop("reset_password_verified", None)
@@ -4218,7 +4368,7 @@ def register_routes(app):
         if not re.fullmatch(r"\d{6}", otp):
             return {"field": "otp", "message": "Enter the 6-digit code."}, 422
 
-        if session.get("local_otp_challenge") or local_auth_fallback_enabled():
+        if local_auth_fallback_enabled():
             local_verified, local_error = verify_local_otp_challenge(user.username, "password_reset", otp)
             if local_verified is True:
                 remember_local_password_reset_verification(user.username)
@@ -4457,6 +4607,28 @@ def register_routes(app):
     def api_docs():
         return api_success(data=build_api_docs())
 
+    @app.get("/api/gateway")
+    def api_gateway_status():
+        return api_success(
+            data={
+                "gateway": api_gateway_name,
+                "type": "application_level_gateway",
+                "implementation": "Flask before_request gateway entrypoint plus centralized API route catalog",
+                "separate_managed_gateway": False,
+                "core_service": "Python Flask",
+                "responsibilities": [
+                    "central API request entrypoint",
+                    "route catalog and API documentation",
+                    "session authentication checks for protected API routes",
+                    "email verification enforcement for protected API routes",
+                    "standard JSON success and error responses",
+                    "API identity headers",
+                    "communication with Supabase PostgreSQL through the Flask core service",
+                ],
+                "deployment_note": "This is not AWS API Gateway. Amazon EC2 hosts the Flask core service, and Render may be used only as a backup or testing deployment.",
+            }
+        )
+
     @app.post("/api/auth/register")
     def api_register():
         payload = api_json_body()
@@ -4613,6 +4785,332 @@ def register_routes(app):
         user = current_user()
         return api_success(data=serialize_auth_user(user))
 
+    def sync_field(fields, name, default=""):
+        value = fields.get(name, default)
+        if isinstance(value, list):
+            return value[-1] if value else default
+        return default if value is None else value
+
+    def sync_bool(fields, name):
+        value = sync_field(fields, name, "")
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def sync_client_timestamp(value):
+        raw_value = str(value or "").strip()
+        if not raw_value:
+            return datetime.utcnow()
+        if raw_value.endswith("Z"):
+            raw_value = raw_value[:-1] + "+00:00"
+        try:
+            parsed_value = datetime.fromisoformat(raw_value)
+        except ValueError:
+            return datetime.utcnow()
+        if parsed_value.tzinfo:
+            parsed_value = parsed_value.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed_value
+
+    def sync_record_is_stale(record, client_updated_at):
+        stored_updated_at = getattr(record, "client_updated_at", None)
+        return bool(stored_updated_at and client_updated_at and client_updated_at < stored_updated_at)
+
+    def sync_success(sync_id, record_type, record_id=None, status="synced"):
+        payload = {"client_id": sync_id, "type": record_type, "status": status}
+        if record_id is not None:
+            payload["server_id"] = record_id
+        return payload
+
+    def apply_offline_sync_item(user, item):
+        sync_id = str(item.get("client_id") or item.get("id") or "").strip()[:80]
+        request_path = urlparse(str(item.get("path") or "")).path
+        fields = item.get("fields") if isinstance(item.get("fields"), dict) else {}
+        client_updated_at = sync_client_timestamp(item.get("updated_at") or item.get("queued_at"))
+
+        if not sync_id:
+            return {"status": "failed", "error": "missing_client_id"}
+        if not request_path:
+            return {"client_id": sync_id, "status": "failed", "error": "missing_path"}
+        if any(marker in request_path for marker in ("/delete", "/logout")) or request_path == "/settings/password":
+            return {"client_id": sync_id, "status": "failed", "error": "unsupported_destructive_or_security_flow"}
+
+        if request_path == "/lifestyle/water":
+            log = get_or_create_today_lifestyle_log(user)
+            if sync_record_is_stale(log, client_updated_at):
+                return sync_success(sync_id, "lifestyle_water", log.id, status="stale_ignored")
+            glasses = max(0, min(8, parse_int(sync_field(fields, "glasses"), 0)))
+            log.water_intake_liters = round(glasses * 0.25, 2)
+            log.client_sync_id = sync_id
+            log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "lifestyle_water", log.id)
+
+        if request_path == "/lifestyle/sleep":
+            log = get_or_create_today_lifestyle_log(user)
+            if sync_record_is_stale(log, client_updated_at):
+                return sync_success(sync_id, "lifestyle_sleep", log.id, status="stale_ignored")
+            log.sleep_hours = max(0, min(24, parse_float(sync_field(fields, "sleep_hours"), 0)))
+            log.client_sync_id = sync_id
+            log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "lifestyle_sleep", log.id)
+
+        if request_path == "/lifestyle/exercise":
+            log = get_or_create_today_lifestyle_log(user)
+            if sync_record_is_stale(log, client_updated_at):
+                return sync_success(sync_id, "lifestyle_exercise", log.id, status="stale_ignored")
+            evaluation = evaluate_exercise_entry(
+                sync_field(fields, "activity_type", "").strip(),
+                parse_int(sync_field(fields, "duration_minutes") or sync_field(fields, "exercise_minutes"), -1),
+                sync_field(fields, "intensity", "").strip().lower(),
+            )
+            if not evaluation["ok"]:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": evaluation["errors"]}
+            parsed_notes = parse_lifestyle_notes(log.notes)
+            parsed_notes["exercise_entries"].append(evaluation["entry"])
+            log.exercise_minutes = evaluation["entry"]["raw_input"]["duration_minutes"]
+            log.notes = encrypt_text(
+                serialize_lifestyle_notes(
+                    general_notes=parsed_notes["general_notes"],
+                    exercise_entries=parsed_notes["exercise_entries"],
+                    food_entries=parsed_notes["food_entries"],
+                )
+            )
+            log.client_sync_id = sync_id
+            log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "lifestyle_exercise", log.id)
+
+        if request_path == "/lifestyle/quick-food":
+            log = get_or_create_today_lifestyle_log(user)
+            if sync_record_is_stale(log, client_updated_at):
+                return sync_success(sync_id, "lifestyle_food", log.id, status="stale_ignored")
+            evaluation = evaluate_food_entry(
+                sync_field(fields, "food_name", "").strip() or sync_field(fields, "meal_text", "").strip(),
+                sync_field(fields, "portion_size", "").strip().lower() or ("medium" if sync_field(fields, "meal_text", "").strip() else ""),
+                sync_field(fields, "food_category", "").strip().lower() or ("balanced" if sync_field(fields, "meal_text", "").strip() else ""),
+            )
+            if not evaluation["ok"]:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": evaluation["errors"]}
+            parsed_notes = parse_lifestyle_notes(log.notes)
+            parsed_notes["food_entries"].append(evaluation["entry"])
+            category_labels = {
+                "high sugar": "High Sugar",
+                "protein-rich": "Protein-Rich",
+                "balanced": "Balanced",
+                "fast food": "Fast Food",
+            }
+            log.diet_quality = category_labels.get(evaluation["entry"]["raw_input"]["food_category"], log.diet_quality)
+            log.notes = encrypt_text(
+                serialize_lifestyle_notes(
+                    general_notes=parsed_notes["general_notes"],
+                    exercise_entries=parsed_notes["exercise_entries"],
+                    food_entries=parsed_notes["food_entries"],
+                )
+            )
+            log.client_sync_id = sync_id
+            log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "lifestyle_food", log.id)
+
+        if request_path == "/mental-health":
+            log_date, log_date_error = parse_form_date(sync_field(fields, "log_date"), "Log date")
+            if log_date_error:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [log_date_error]}
+            log = MentalLog.query.filter_by(user_id=user.id, log_date=log_date).first()
+            if not log:
+                log = MentalLog(user_id=user.id, log_date=log_date)
+                db.session.add(log)
+            if sync_record_is_stale(log, client_updated_at):
+                return sync_success(sync_id, "mental_health", log.id, status="stale_ignored")
+            mood = sync_field(fields, "mood", "Okay")
+            slider_stress = max(1, min(5, parse_int(sync_field(fields, "stress_level"), 3)))
+            stress_level = min(10, slider_stress * 2)
+            log.mood = mood
+            log.stress_level = stress_level
+            log.wellness_tip = build_mental_tip(mood, stress_level)
+            log.client_sync_id = sync_id
+            log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "mental_health", log.id)
+
+        if request_path == "/calendar":
+            log_date, log_date_error = parse_form_date(sync_field(fields, "log_date"), "Log date")
+            if log_date_error:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [log_date_error]}
+            if sync_bool(fields, "delete_day_log"):
+                return {"client_id": sync_id, "status": "failed", "error": "offline_delete_not_supported"}
+            existing_logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.asc()).all()
+            period_start = sync_bool(fields, "period_start") or sync_bool(fields, "mark_period_start")
+            end_period = sync_bool(fields, "end_period")
+            save_day_details = sync_bool(fields, "save_day_details") or end_period
+            cycle_day_value = resolve_cycle_day_value(
+                log_date,
+                cycle_model(existing_logs),
+                requested_cycle_day=parse_int(sync_field(fields, "cycle_day"), default=0),
+                mark_period_start=period_start,
+            )
+            cycle_log = CycleLog.query.filter_by(user_id=user.id, log_date=log_date).first()
+            if not cycle_log:
+                cycle_log = CycleLog(user_id=user.id, log_date=log_date)
+                db.session.add(cycle_log)
+            if sync_record_is_stale(cycle_log, client_updated_at):
+                return sync_success(sync_id, "cycle_log", cycle_log.id, status="stale_ignored")
+            cycle_log.cycle_day = cycle_day_value
+            cycle_log.period_start = period_start
+            if save_day_details:
+                cycle_log.symptoms = pack_cycle_details(sync_field(fields, "symptoms", ""), sync_field(fields, "notes", ""))
+                cycle_log.flow_level = "No Flow" if end_period else normalize_flow_level(sync_field(fields, "flow_level", ""))
+            elif is_explicit_no_flow(cycle_log.flow_level):
+                cycle_log.flow_level = ""
+            cycle_log.client_sync_id = sync_id
+            cycle_log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "cycle_log", cycle_log.id)
+
+        if request_path == "/medications":
+            medication = Medication.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
+            if not medication:
+                medication = Medication(user_id=user.id, client_sync_id=sync_id)
+                db.session.add(medication)
+            if sync_record_is_stale(medication, client_updated_at):
+                return sync_success(sync_id, "medication", medication.id, status="stale_ignored")
+            medication.name = sync_field(fields, "name", "").strip()
+            medication.dosage = sync_field(fields, "dosage", "").strip()
+            medication.time_of_day = datetime.strptime(sync_field(fields, "time_of_day"), "%H:%M").time()
+            medication.notes = encrypt_text(sync_field(fields, "notes", "").strip())
+            medication.status = "pending"
+            medication.reminder_enabled = sync_bool(fields, "reminder_enabled")
+            medication.client_updated_at = client_updated_at
+            return sync_success(sync_id, "medication", medication.id)
+
+        medication_status_match = re.fullmatch(r"/medications/(\d+)/status", request_path)
+        if medication_status_match:
+            medication = owned_record_or_404(Medication, user, int(medication_status_match.group(1)))
+            status_value = sync_field(fields, "status", "").strip().lower()
+            if status_value not in {"pending", "taken", "skipped", "missed"}:
+                return {"client_id": sync_id, "status": "failed", "error": "invalid_medication_status"}
+            existing_log = MedicationLog.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
+            if existing_log and sync_record_is_stale(existing_log, client_updated_at):
+                return sync_success(sync_id, "medication_status", existing_log.id, status="stale_ignored")
+            replace_medication_day_event(
+                user,
+                medication,
+                status_value if status_value in MEDICATION_EVENT_STATUSES else None,
+                event_time=client_updated_at or app_now(),
+            )
+            latest_log = (
+                MedicationLog.query.filter_by(user_id=user.id, medication_id=medication.id)
+                .order_by(MedicationLog.taken_at.desc())
+                .first()
+            )
+            if latest_log:
+                latest_log.client_sync_id = sync_id
+                latest_log.client_updated_at = client_updated_at
+            return sync_success(sync_id, "medication_status", latest_log.id if latest_log else medication.id)
+
+        if request_path == "/appointments":
+            appointment_id = parse_int(sync_field(fields, "appointment_id"), default=0)
+            appointment = None
+            if appointment_id:
+                appointment = user_records(Appointment, user).filter_by(id=appointment_id).first()
+            if not appointment:
+                appointment = Appointment.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
+            if not appointment:
+                appointment = Appointment(user_id=user.id, client_sync_id=sync_id)
+                db.session.add(appointment)
+            if sync_record_is_stale(appointment, client_updated_at):
+                return sync_success(sync_id, "appointment", appointment.id, status="stale_ignored")
+            appointment_date, appointment_date_error = parse_form_date(sync_field(fields, "appointment_date"), "Appointment date")
+            appointment_time, appointment_time_error = parse_form_time(sync_field(fields, "appointment_time"), "Appointment time")
+            follow_up_date, follow_up_date_error = parse_form_date(sync_field(fields, "follow_up_date"), "Follow-up date", required=False)
+            validation_errors = [
+                error for error in [
+                    "Doctor name is required." if not sync_field(fields, "doctor_name", "").strip() else None,
+                    "Specialty is required." if not sync_field(fields, "specialty", "").strip() else None,
+                    "Location is required." if not sync_field(fields, "location", "").strip() else None,
+                    appointment_date_error,
+                    appointment_time_error,
+                    follow_up_date_error,
+                ]
+                if error
+            ]
+            if validation_errors:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": validation_errors}
+            existing_status = unpack_appointment_notes(appointment.notes).get("status", "scheduled") if appointment.notes else "scheduled"
+            appointment.doctor_name = sync_field(fields, "doctor_name", "").strip()
+            appointment.appointment_date = appointment_date
+            appointment.appointment_time = appointment_time
+            appointment.notes = pack_appointment_notes(
+                specialty=sync_field(fields, "specialty", "").strip(),
+                location=sync_field(fields, "location", "").strip(),
+                reminder_enabled=sync_bool(fields, "reminder_enabled"),
+                status=existing_status,
+                notes_text=sync_field(fields, "notes", "").strip(),
+            )
+            appointment.prescription = encrypt_text(sync_field(fields, "prescription", "").strip())
+            appointment.follow_up_date = follow_up_date
+            appointment.client_updated_at = client_updated_at
+            return sync_success(sync_id, "appointment", appointment.id)
+
+        if request_path == "/profile/personal-info":
+            profile = get_or_create_profile(user)
+            age = parse_profile_age(sync_field(fields, "age", ""))
+            diagnosis_date, diagnosis_error = parse_form_date(sync_field(fields, "diagnosis_date"), "Diagnosed date", required=False)
+            if diagnosis_error:
+                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [diagnosis_error]}
+            user.full_name = normalize_full_name(sync_field(fields, "full_name", user.full_name))
+            profile.age = age
+            profile.diagnosis_date = diagnosis_date
+            return sync_success(sync_id, "profile", profile.id)
+
+        if request_path == "/settings":
+            profile = get_or_create_profile(user)
+            user.full_name = normalize_full_name(sync_field(fields, "full_name", user.full_name))
+            profile.dark_mode = sync_field(fields, "dark_mode", "0") == "1"
+            profile.general_notifications = sync_bool(fields, "general_notifications")
+            return sync_success(sync_id, "settings", profile.id)
+
+        return {"client_id": sync_id, "status": "failed", "error": "unsupported_sync_path", "path": request_path}
+
+    @app.post("/api/sync/batch")
+    @api_login_required
+    def api_sync_batch():
+        payload = api_json_body()
+        if payload is None:
+            return api_error("invalid_request", "Expected a JSON request body.", status=415)
+        records = payload.get("records")
+        if not isinstance(records, list):
+            return api_error("validation_error", "The sync request must include a records array.", status=422)
+        if len(records) > 50:
+            return api_error("validation_error", "A sync batch may contain up to 50 records.", status=422)
+
+        user = current_user()
+        results = []
+        for item in records:
+            if not isinstance(item, dict):
+                results.append({"status": "failed", "error": "invalid_record"})
+                continue
+            try:
+                results.append(apply_offline_sync_item(user, item))
+                db.session.flush()
+                db.session.commit()
+            except Exception as error:
+                db.session.rollback()
+                app.logger.exception("Offline sync item failed.")
+                results.append(
+                    {
+                        "client_id": str(item.get("client_id") or item.get("id") or ""),
+                        "status": "failed",
+                        "error": "sync_exception",
+                        "message": str(error),
+                    }
+                )
+        synced_count = sum(1 for result in results if result.get("status") in {"synced", "stale_ignored"})
+        failed_count = sum(1 for result in results if result.get("status") == "failed")
+        return api_success(
+            data={"results": results},
+            message="Offline sync processed.",
+            meta={
+                "received": len(records),
+                "synced": synced_count,
+                "failed": failed_count,
+                "conflict_policy": "latest_client_update_wins; older queued records are ignored when a newer server/client timestamp exists",
+            },
+        )
+
     @app.get("/api/dashboard")
     @api_login_required
     def api_dashboard():
@@ -4720,13 +5218,21 @@ def register_routes(app):
             send_password_recovery_otp(user.username)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
-            reset_code = remember_local_otp_challenge(user.username, "settings_password")
-            remember_otp_request(user.username)
+            if can_use_local_auth_fallback(error):
+                reset_code = remember_local_otp_challenge(user.username, "settings_password")
+                remember_otp_request(user.username)
+                return {
+                    "message": f"{local_auth_status_message()} Local password code: {reset_code}",
+                    "email": user.username,
+                    "local_code": reset_code,
+                }
             return {
-                "message": f"{local_auth_status_message()} Local password code: {reset_code}",
-                "email": user.username,
-                "local_code": reset_code,
-            }
+                "field": "otp",
+                "message": password_reset_error_message(
+                    error,
+                    "We could not send an OTP right now. Please try again later.",
+                ),
+            }, 503 if is_timeout_error(error) or is_network_error(error) else 400
 
         session.pop("local_otp_challenge", None)
         return {"message": "A 6-digit code has been sent to your email.", "email": user.username}
@@ -4749,7 +5255,7 @@ def register_routes(app):
             clear_settings_password_state()
             return {"field": "otp", "message": "Enter the 6-digit code."}, 422
 
-        if session.get("local_otp_challenge") or local_auth_fallback_enabled():
+        if local_auth_fallback_enabled():
             local_verified, local_error = verify_local_otp_challenge(user.username, "settings_password", otp)
             if local_verified is True:
                 remember_local_settings_password_verification(user.username, "local_otp")
@@ -5038,6 +5544,8 @@ def register_routes(app):
                 "active_subscription_count": active_subscription_count,
                 "scheduler_interval_seconds": int(os.getenv("PUSH_SCHEDULER_INTERVAL_SECONDS", "15")),
                 "medication_lead_seconds": int(os.getenv("MEDICATION_PUSH_LEAD_SECONDS", "120")),
+                "medication_followup_delay_seconds": medication_followup_delay_seconds(),
+                "medication_missed_cutoff_time": medication_missed_cutoff_time_string(),
                 "appointment_lead_seconds": int(os.getenv("APPOINTMENT_PUSH_LEAD_SECONDS", "1800")),
             }
         )
@@ -5137,15 +5645,6 @@ def register_routes(app):
     @login_required
     def delete_account():
         user = current_user()
-        WebPushSubscription.query.filter_by(user_id=user.id).delete()
-        PushNotificationLog.query.filter_by(user_id=user.id).delete()
-        MedicationLog.query.filter_by(user_id=user.id).delete()
-        Medication.query.filter_by(user_id=user.id).delete()
-        LifestyleLog.query.filter_by(user_id=user.id).delete()
-        MentalLog.query.filter_by(user_id=user.id).delete()
-        CycleLog.query.filter_by(user_id=user.id).delete()
-        Appointment.query.filter_by(user_id=user.id).delete()
-        UserProfile.query.filter_by(user_id=user.id).delete()
         db.session.delete(user)
         db.session.commit()
         session.clear()
@@ -5228,7 +5727,7 @@ def register_routes(app):
         history_entries = fetch_medication_history(user)
         try:
             medications = Medication.query.filter_by(user_id=user.id).order_by(Medication.time_of_day.asc()).all()
-            normalize_medication_statuses(user, medications)
+            build_medication_daily_summary(user, medications)
         except SQLAlchemyError:
             db.session.rollback()
             app.logger.exception("Medication history confirmation list unavailable while database schema is preparing.")
@@ -5256,19 +5755,12 @@ def register_routes(app):
             flash("Invalid medication status.", "danger")
             return redirect(url_for("medications"))
 
-        day_start, day_end = medication_log_window()
-        MedicationLog.query.filter(
-            MedicationLog.user_id == user.id,
-            MedicationLog.medication_id == medication.id,
-            MedicationLog.taken_at >= day_start,
-            MedicationLog.taken_at < day_end,
-        ).delete(synchronize_session=False)
-
-        if requested_status in {"taken", "skipped", "missed"}:
-            db.session.add(create_medication_log(user, medication, requested_status))
-            medication.status = requested_status
-        else:
-            medication.status = "pending"
+        replace_medication_day_event(
+            user,
+            medication,
+            requested_status if requested_status in MEDICATION_EVENT_STATUSES else None,
+            event_time=app_now(),
+        )
         db.session.commit()
         status_messages = {
             "taken": f"{medication.name} logged as taken.",
@@ -5649,7 +6141,7 @@ def register_routes(app):
                 )
             )
         logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.desc()).all()
-        today = app_today()
+        today = date.today()
         selected_param = request.args.get("selected")
         selected_date = datetime.strptime(selected_param, "%Y-%m-%d").date() if selected_param else today
         view_month_param = request.args.get("view_month")
@@ -5738,8 +6230,6 @@ def register_routes(app):
         latest_cycle_log = logs[0] if logs else None
         if cycle_info["needs_flow_log_prompt"]:
             cycle_prompts.append("Please log your flow to improve accuracy.")
-        if cycle_info.get("forecast_state") == "delayed":
-            cycle_prompts.append("Log a new period start if your cycle has begun.")
         if cycle_info["next_period_earliest"] and 0 <= (cycle_info["next_period_earliest"] - today).days <= 1 and not selected_log:
             cycle_prompts.append("Did your period start today?")
         if not selected_log:

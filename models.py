@@ -18,6 +18,16 @@ class User(db.Model):
     email_verified_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
+    medications = db.relationship("Medication", backref="user", lazy="select", cascade="all, delete-orphan")
+    medication_logs = db.relationship("MedicationLog", backref="user", lazy="select", cascade="all, delete-orphan")
+    lifestyle_logs = db.relationship("LifestyleLog", backref="user", lazy="select", cascade="all, delete-orphan")
+    mental_logs = db.relationship("MentalLog", backref="user", lazy="select", cascade="all, delete-orphan")
+    cycle_logs = db.relationship("CycleLog", backref="user", lazy="select", cascade="all, delete-orphan")
+    appointments = db.relationship("Appointment", backref="user", lazy="select", cascade="all, delete-orphan")
+    push_subscriptions = db.relationship("WebPushSubscription", backref="user", lazy="select", cascade="all, delete-orphan")
+    push_notification_logs = db.relationship("PushNotificationLog", backref="user", lazy="select", cascade="all, delete-orphan")
+    profile = db.relationship("UserProfile", backref="user", uselist=False, lazy="select", cascade="all, delete-orphan")
+
 
 class Medication(db.Model):
     __tablename__ = "medications"
@@ -30,6 +40,8 @@ class Medication(db.Model):
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), default="pending")
     reminder_enabled = db.Column(db.Boolean, default=False)
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
@@ -44,6 +56,8 @@ class MedicationLog(db.Model):
     scheduled_time = db.Column(db.Time)
     notes = db.Column(db.Text)
     status = db.Column(db.String(20), default="taken")
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     taken_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
 
@@ -58,6 +72,8 @@ class LifestyleLog(db.Model):
     diet_quality = db.Column(db.String(50), nullable=False)
     exercise_minutes = db.Column(db.Integer, nullable=False)
     notes = db.Column(db.Text)
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
@@ -70,6 +86,8 @@ class MentalLog(db.Model):
     mood = db.Column(db.String(50), nullable=False)
     stress_level = db.Column(db.Integer, nullable=False)
     wellness_tip = db.Column(db.String(255))
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
@@ -83,6 +101,8 @@ class CycleLog(db.Model):
     cycle_day = db.Column(db.Integer, nullable=False)
     symptoms = db.Column(db.Text)
     flow_level = db.Column(db.String(30))
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 
@@ -97,6 +117,8 @@ class Appointment(db.Model):
     notes = db.Column(db.Text)
     prescription = db.Column(db.Text)
     follow_up_date = db.Column(db.Date)
+    client_sync_id = db.Column(db.String(80), index=True)
+    client_updated_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
 
 

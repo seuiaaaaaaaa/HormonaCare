@@ -51,153 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const authIntroOverlay = document.querySelector("[data-auth-intro-overlay]");
-    if (authIntroOverlay) {
-        const authIntroStorageKey = "hormonacare-auth-intro-shown-v1";
-        const welcomeView = authIntroOverlay.querySelector("[data-auth-intro-welcome]");
-        const tutorialView = authIntroOverlay.querySelector("[data-auth-intro-tutorial]");
-        const startButton = authIntroOverlay.querySelector("[data-auth-intro-start]");
-        const closeButtons = authIntroOverlay.querySelectorAll("[data-auth-intro-close]");
-        const backButton = authIntroOverlay.querySelector("[data-auth-intro-back]");
-        const nextButton = authIntroOverlay.querySelector("[data-auth-intro-next]");
-        const finishButton = authIntroOverlay.querySelector("[data-auth-intro-finish]");
-        const stepTitle = authIntroOverlay.querySelector("[data-auth-intro-step-title]");
-        const stepDescription = authIntroOverlay.querySelector("[data-auth-intro-step-description]");
-        const stepCount = authIntroOverlay.querySelector("[data-auth-intro-count]");
-        const progressNode = authIntroOverlay.querySelector("[data-auth-intro-progress]");
-        const tutorialSteps = [
-            {
-                title: "Cycle Tracking",
-                description: "Track period dates and cycle patterns to help the system build PCOS-aware cycle insights.",
-            },
-            {
-                title: "Symptom Logging",
-                description: "Record symptoms and notes so HormonaCare can connect daily changes with your cycle history.",
-            },
-            {
-                title: "Medication Reminders",
-                description: "Save medication schedules and reminders to support a consistent care routine.",
-            },
-            {
-                title: "Lifestyle Monitoring",
-                description: "Log sleep, hydration, activity, meals, mood, and stress for personalized wellness context.",
-            },
-            {
-                title: "Alerts and Insights",
-                description: "View rule-based alerts and wellness insights that highlight patterns needing attention.",
-            },
-            {
-                title: "Profile and Personal Health Information",
-                description: "Keep profile details and health preferences organized so the app can personalize your experience.",
-            },
-        ];
-        let activeIntroStep = 0;
-
-        const introAlreadyShown = () => {
-            try {
-                return window.sessionStorage.getItem(authIntroStorageKey) === "1";
-            } catch (error) {
-                return false;
-            }
-        };
-
-        const rememberIntroShown = () => {
-            try {
-                window.sessionStorage.setItem(authIntroStorageKey, "1");
-            } catch (error) {
-                // If storage is unavailable, the login page still remains usable.
-            }
-        };
-
-        const closeAuthIntro = () => {
-            authIntroOverlay.hidden = true;
-            document.body.classList.remove("auth-intro-open");
-            const emailInput = document.querySelector("[data-login-form] input[name='email']");
-            if (emailInput) {
-                emailInput.focus({ preventScroll: true });
-            }
-        };
-
-        const updateIntroStep = () => {
-            const step = tutorialSteps[activeIntroStep];
-            if (!step) {
-                return;
-            }
-            if (stepTitle) {
-                stepTitle.textContent = step.title;
-            }
-            if (stepDescription) {
-                stepDescription.textContent = step.description;
-            }
-            if (stepCount) {
-                stepCount.textContent = `Step ${activeIntroStep + 1} of ${tutorialSteps.length}`;
-            }
-            if (backButton) {
-                backButton.hidden = activeIntroStep === 0;
-            }
-            if (nextButton) {
-                nextButton.hidden = activeIntroStep === tutorialSteps.length - 1;
-            }
-            if (finishButton) {
-                finishButton.hidden = activeIntroStep !== tutorialSteps.length - 1;
-            }
-            if (progressNode) {
-                progressNode.querySelectorAll("span").forEach((item, index) => {
-                    item.classList.toggle("is-active", index <= activeIntroStep);
-                });
-            }
-        };
-
-        const showTutorial = () => {
-            activeIntroStep = 0;
-            if (welcomeView) {
-                welcomeView.hidden = true;
-            }
-            if (tutorialView) {
-                tutorialView.hidden = false;
-            }
-            updateIntroStep();
-        };
-
-        if (progressNode && !progressNode.children.length) {
-            tutorialSteps.forEach(() => {
-                progressNode.appendChild(document.createElement("span"));
-            });
-        }
-
-        closeButtons.forEach((button) => {
-            button.addEventListener("click", closeAuthIntro);
-        });
-
-        if (startButton) {
-            startButton.addEventListener("click", showTutorial);
-        }
-
-        if (backButton) {
-            backButton.addEventListener("click", () => {
-                activeIntroStep = Math.max(0, activeIntroStep - 1);
-                updateIntroStep();
-            });
-        }
-
-        if (nextButton) {
-            nextButton.addEventListener("click", () => {
-                activeIntroStep = Math.min(tutorialSteps.length - 1, activeIntroStep + 1);
-                updateIntroStep();
-            });
-        }
-
-        if (finishButton) {
-            finishButton.addEventListener("click", closeAuthIntro);
-        }
-
-        if (!introAlreadyShown()) {
-            authIntroOverlay.hidden = false;
-            document.body.classList.add("auth-intro-open");
-            rememberIntroShown();
-        }
-    }
-
     const readNotificationConfig = () => {
         const configNode = document.getElementById("notification-config");
         if (!configNode) {
@@ -247,9 +100,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const badgeUrl = notificationConfig.badgeUrl || iconUrl;
         const permissionStorageKey = notificationConfig.permissionStorageKey || "hormonacare-notification-permission-v1";
         const dedupeStorageKey = notificationConfig.dedupeStorageKey || "hormonacare-notification-dedupe-v1";
-        const closeAfterMsDefault = Number(notificationConfig.closeAfterMs) || 10000;
+        const closeAfterMsDefault = Number(notificationConfig.closeAfterMs) || 6500;
         const persistentNotifications = notificationConfig.persistentNotifications !== false;
         const medicationReminderLeadMs = Number(notificationConfig.medicationReminderLeadMs) || 120000;
+        const medicationFollowupDelayMs = Number(notificationConfig.medicationFollowupDelayMs) || 900000;
+        const medicationMissedCutoffTime = notificationConfig.medicationMissedCutoffTime || "23:59";
         const pollIntervals = notificationConfig.pollIntervals || {};
         const defaultPollIntervals = {
             alertsMs: 30000,
@@ -392,6 +247,13 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         };
 
+        const medicationMissedCutoffAt = (dateValue) => {
+            const parsed = parseClockTime(medicationMissedCutoffTime) || { hours: 23, minutes: 59 };
+            const cutoffAt = new Date(dateValue);
+            cutoffAt.setHours(parsed.hours, parsed.minutes, 0, 0);
+            return cutoffAt;
+        };
+
         const normalizeMedicationSchedules = (items) =>
             (Array.isArray(items) ? items : [])
                 .map((medication) => ({
@@ -400,12 +262,20 @@ document.addEventListener("DOMContentLoaded", () => {
                     dosage: medication && medication.dosage ? medication.dosage : "",
                     time_of_day: medication && medication.time_of_day ? medication.time_of_day : "",
                     status: medication && medication.status ? medication.status : "pending",
+                    daily_status: medication && medication.daily_status ? medication.daily_status : medication && medication.status ? medication.status : "pending",
+                    event_status: medication && medication.event_status ? medication.event_status : null,
                     reminder_enabled: !!(medication && medication.reminder_enabled),
                 }))
                 .filter((medication) => medication.id > 0 && medication.time_of_day);
 
         const buildMedicationReminderKey = (medication, dateKey) =>
             `medication-${medication.id}-${dateKey}-${String(medication.time_of_day || "").slice(0, 5)}`;
+
+        const buildMedicationEventKey = (eventName, medication, dateKey) =>
+            `medication-${eventName}-${medication.id}-${dateKey}-${String(medication.time_of_day || "").slice(0, 5)}`;
+
+        const medicationHasDailyEvent = (medication) =>
+            ["taken", "skipped", "missed"].includes(String(medication.event_status || medication.status || "").toLowerCase());
 
         const clearMedicationReminderTimers = () => {
             medicationReminderTimers.forEach((timerId) => window.clearTimeout(timerId));
@@ -427,6 +297,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 {
                     name: medication.name,
                     dosage: medication.dosage,
+                    body: `${medication.name}${medication.dosage ? ` (${medication.dosage})` : ""} is scheduled at ${formatClockTime(medication.time_of_day)}.`,
                     url: pages.medications,
                     tag: buildMedicationReminderKey(medication, localDateKey(medicationAt)),
                 },
@@ -437,6 +308,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             );
         };
+
+        const triggerMedicationFollowup = (medication, medicationAt) =>
+            showNotification(
+                "medication_followup",
+                {
+                    name: medication.name,
+                    dosage: medication.dosage,
+                    body: `${medication.name} has not been logged yet. Follow your care instructions or contact your provider if unsure.`,
+                    url: pages.medications,
+                    tag: buildMedicationEventKey("followup", medication, localDateKey(medicationAt)),
+                },
+                {
+                    dedupeKey: buildMedicationEventKey("followup", medication, localDateKey(medicationAt)),
+                    ttlMs: 30 * 60 * 60 * 1000,
+                    autoClose: false,
+                }
+            );
+
+        const triggerMedicationMissed = (medication, medicationAt) =>
+            showNotification(
+                "medication_missed",
+                {
+                    name: medication.name,
+                    dosage: medication.dosage,
+                    body: `${medication.name} was not confirmed by today's cutoff. Please confirm whether it was taken, skipped, or missed.`,
+                    url: pages.medications,
+                    tag: buildMedicationEventKey("missed", medication, localDateKey(medicationAt)),
+                },
+                {
+                    dedupeKey: buildMedicationEventKey("missed", medication, localDateKey(medicationAt)),
+                    ttlMs: 30 * 60 * 60 * 1000,
+                    autoClose: false,
+                }
+            );
 
         const scheduleMedicationReminders = (schedules = activeMedicationSchedules) => {
             activeMedicationSchedules = normalizeMedicationSchedules(schedules);
@@ -450,29 +355,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
             activeMedicationSchedules.forEach((medication) => {
                 const timeParts = parseClockTime(medication.time_of_day);
-                const isPending = medication.status === "pending";
 
-                if (!medication.reminder_enabled || !isPending || !timeParts) {
+                if (!medication.reminder_enabled || medicationHasDailyEvent(medication) || !timeParts) {
                     return;
                 }
 
                 const medicationAt = new Date(now);
                 medicationAt.setHours(timeParts.hours, timeParts.minutes, 0, 0);
+                const missedAt = medicationMissedCutoffAt(now);
+                const followupAt = new Date(medicationAt.getTime() + medicationFollowupDelayMs);
+                const dateKey = localDateKey(medicationAt);
 
-                if (medicationAt.getTime() <= now.getTime()) {
+                if (missedAt.getTime() <= now.getTime() && medicationAt.getTime() <= now.getTime()) {
+                    triggerMedicationMissed(medication, medicationAt);
                     return;
                 }
 
                 const reminderAt = new Date(medicationAt.getTime() - medicationReminderLeadMs);
                 const triggerReminder = () => triggerMedicationReminder(medication, medicationAt);
 
-                if (reminderAt.getTime() <= now.getTime()) {
+                if (reminderAt.getTime() <= now.getTime() && now.getTime() < medicationAt.getTime()) {
                     triggerReminder();
-                    return;
+                } else if (reminderAt.getTime() > now.getTime()) {
+                    const timerId = window.setTimeout(triggerReminder, reminderAt.getTime() - now.getTime());
+                    medicationReminderTimers.set(buildMedicationReminderKey(medication, dateKey), timerId);
                 }
 
-                const timerId = window.setTimeout(triggerReminder, reminderAt.getTime() - now.getTime());
-                medicationReminderTimers.set(buildMedicationReminderKey(medication, localDateKey(medicationAt)), timerId);
+                const triggerFollowup = () => triggerMedicationFollowup(medication, medicationAt);
+                if (followupAt.getTime() <= now.getTime() && now.getTime() < missedAt.getTime()) {
+                    triggerFollowup();
+                } else if (followupAt.getTime() > now.getTime() && followupAt.getTime() < missedAt.getTime()) {
+                    const followupTimerId = window.setTimeout(triggerFollowup, followupAt.getTime() - now.getTime());
+                    medicationReminderTimers.set(buildMedicationEventKey("followup", medication, dateKey), followupTimerId);
+                }
+
+                if (missedAt.getTime() > now.getTime() && missedAt.getTime() >= medicationAt.getTime()) {
+                    const missedTimerId = window.setTimeout(
+                        () => triggerMedicationMissed(medication, medicationAt),
+                        missedAt.getTime() - now.getTime()
+                    );
+                    medicationReminderTimers.set(buildMedicationEventKey("missed", medication, dateKey), missedTimerId);
+                }
             });
 
             const nextRefreshAt = new Date(now);
@@ -508,8 +431,32 @@ document.addEventListener("DOMContentLoaded", () => {
             if (type === "medication_reminder") {
                 return {
                     title: "Medication Reminder",
-                    body: normalizedPayload.body || "Time to take your medication in 2 minutes.",
+                    body: normalizedPayload.body || "A medication is scheduled soon.",
                     tag: normalizedPayload.tag || `medication-${sanitizeKey(normalizedPayload.name || "reminder")}`,
+                    url: normalizedPayload.url || defaultMedicationUrl,
+                    requireInteraction: true,
+                };
+            }
+
+            if (type === "medication_followup") {
+                return {
+                    title: "Medication Check-in",
+                    body:
+                        normalizedPayload.body ||
+                        "This medication has not been logged yet. Follow your care instructions or contact your provider if unsure.",
+                    tag: normalizedPayload.tag || `medication-followup-${sanitizeKey(normalizedPayload.name || "reminder")}`,
+                    url: normalizedPayload.url || defaultMedicationUrl,
+                    requireInteraction: true,
+                };
+            }
+
+            if (type === "medication_missed") {
+                return {
+                    title: "Medication Needs Confirmation",
+                    body:
+                        normalizedPayload.body ||
+                        "This medication was not confirmed by today's cutoff. Please confirm whether it was taken, skipped, or missed.",
+                    tag: normalizedPayload.tag || `medication-missed-${sanitizeKey(normalizedPayload.name || "reminder")}`,
                     url: normalizedPayload.url || defaultMedicationUrl,
                     requireInteraction: true,
                 };
@@ -719,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const requireInteraction =
+                persistentNotifications ||
                 options.requireInteraction === true ||
                 payload.requireInteraction === true ||
                 content.requireInteraction === true;
@@ -730,7 +678,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const closeAfterMs = Number(options.closeAfterMs || payload.closeAfterMs) || closeAfterMsDefault;
             const notificationOptions = buildBrowserNotificationOptions(type, content, dedupeKey, requireInteraction);
 
-            if (options.serviceWorker !== false && requireInteraction) {
+            if (options.serviceWorker !== false) {
                 return showServiceWorkerNotification(content, notificationOptions, dedupeKey).then((shown) => {
                     if (shown) {
                         return shown;
@@ -1119,7 +1067,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         {
                             body: `Upcoming appointment with ${appointment.doctor_name || "your doctor"} at ${formatClockTime(appointment.appointment_time)}.`,
                             url: pages.appointments,
-                            requireInteraction: true,
                         },
                         {
                             dedupeKey: `appointment-${appointment.id}-${appointment.appointment_date}-${appointment.appointment_time}`,
@@ -2530,6 +2477,278 @@ document.addEventListener("DOMContentLoaded", () => {
         syncMoodChoices();
     }
 });
+
+(() => {
+    const queueStorageKey = "hormonacare-offline-sync-queue-v1";
+    const maxBatchSize = 25;
+    const syncEndpoint = "/api/sync/batch";
+    const allowedPaths = [
+        /^\/lifestyle\/(water|sleep|exercise|quick-food)$/,
+        /^\/mental-health$/,
+        /^\/calendar$/,
+        /^\/medications$/,
+        /^\/medications\/\d+\/status$/,
+        /^\/appointments$/,
+        /^\/profile\/personal-info$/,
+        /^\/settings$/,
+    ];
+    const blockedPathParts = ["/delete", "/logout", "/forgot-password", "/reset-password", "/verify", "/auth/", "/login", "/register"];
+    let syncInProgress = false;
+
+    const readQueue = () => {
+        try {
+            const parsed = JSON.parse(window.localStorage.getItem(queueStorageKey) || "[]");
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    };
+
+    const writeQueue = (queue) => {
+        try {
+            window.localStorage.setItem(queueStorageKey, JSON.stringify(queue));
+        } catch (error) {
+            // Local storage may be unavailable in private browsing or strict browser modes.
+        }
+    };
+
+    const makeClientId = () => {
+        if (window.crypto && window.crypto.randomUUID) {
+            return window.crypto.randomUUID();
+        }
+        return `sync-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    };
+
+    const normalizePath = (urlValue) => {
+        try {
+            return new URL(urlValue, window.location.origin).pathname;
+        } catch (error) {
+            return "";
+        }
+    };
+
+    const canQueuePath = (path) =>
+        !!path &&
+        !blockedPathParts.some((part) => path.includes(part)) &&
+        allowedPaths.some((pattern) => pattern.test(path));
+
+    const formFields = (form, submitter) => {
+        const data = submitter ? new FormData(form, submitter) : new FormData(form);
+        if (submitter && submitter.name && !data.has(submitter.name)) {
+            data.append(submitter.name, submitter.value || "");
+        }
+        const fields = {};
+        data.forEach((value, key) => {
+            if (fields[key] === undefined) {
+                fields[key] = value;
+            } else if (Array.isArray(fields[key])) {
+                fields[key].push(value);
+            } else {
+                fields[key] = [fields[key], value];
+            }
+        });
+        return fields;
+    };
+
+    const statusSummary = () => {
+        const queue = readQueue();
+        return queue.reduce(
+            (summary, item) => {
+                summary[item.status] = (summary[item.status] || 0) + 1;
+                return summary;
+            },
+            { pending: 0, syncing: 0, synced: 0, failed: 0 }
+        );
+    };
+
+    const ensureStatusBanner = () => {
+        let banner = document.querySelector("[data-offline-sync-status]");
+        if (banner) {
+            return banner;
+        }
+        banner = document.createElement("div");
+        banner.dataset.offlineSyncStatus = "true";
+        banner.setAttribute("role", "status");
+        banner.style.cssText = [
+            "position:fixed",
+            "left:50%",
+            "bottom:18px",
+            "transform:translateX(-50%)",
+            "z-index:9999",
+            "max-width:min(92vw,520px)",
+            "padding:10px 14px",
+            "border-radius:8px",
+            "background:#1f2937",
+            "color:#fff",
+            "font:600 13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+            "box-shadow:0 10px 24px rgba(15,23,42,.2)",
+            "display:none",
+        ].join(";");
+        document.body.appendChild(banner);
+        return banner;
+    };
+
+    const showStatus = (message, tone = "info") => {
+        const banner = ensureStatusBanner();
+        const colors = {
+            info: "#1f2937",
+            success: "#166534",
+            warning: "#92400e",
+            danger: "#991b1b",
+        };
+        banner.textContent = message;
+        banner.style.background = colors[tone] || colors.info;
+        banner.style.display = "block";
+        window.clearTimeout(showStatus.hideTimer);
+        showStatus.hideTimer = window.setTimeout(() => {
+            banner.style.display = "none";
+        }, tone === "danger" ? 6500 : 4200);
+    };
+
+    const refreshStatus = () => {
+        const summary = statusSummary();
+        const activeCount = summary.pending + summary.syncing + summary.failed;
+        document.documentElement.dataset.offlineSyncPending = activeCount ? "true" : "false";
+        window.HormonaCareOfflineSync = {
+            queue: readQueue,
+            sync: syncQueue,
+            summary: statusSummary,
+        };
+        return summary;
+    };
+
+    const enqueueForm = (form, submitter) => {
+        const action = form.getAttribute("action") || window.location.pathname;
+        const path = normalizePath(action);
+        const item = {
+            client_id: makeClientId(),
+            path,
+            method: "POST",
+            fields: formFields(form, submitter),
+            status: "pending",
+            attempts: 0,
+            queued_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        };
+        const queue = readQueue();
+        queue.push(item);
+        writeQueue(queue);
+        refreshStatus();
+        showStatus("Saved offline. This change will sync automatically when you are online.", "warning");
+    };
+
+    async function syncQueue() {
+        if (syncInProgress || !navigator.onLine) {
+            refreshStatus();
+            return;
+        }
+        let queue = readQueue();
+        const syncable = queue.filter((item) => item.status === "pending" || item.status === "failed").slice(0, maxBatchSize);
+        if (!syncable.length) {
+            refreshStatus();
+            return;
+        }
+
+        syncInProgress = true;
+        const syncIds = new Set(syncable.map((item) => item.client_id));
+        queue = queue.map((item) =>
+            syncIds.has(item.client_id)
+                ? { ...item, status: "syncing", attempts: Number(item.attempts || 0) + 1, last_attempt_at: new Date().toISOString() }
+                : item
+        );
+        writeQueue(queue);
+        refreshStatus();
+
+        try {
+            const response = await fetch(syncEndpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-HormonaCare-Sync": "offline-queue-v1",
+                },
+                credentials: "same-origin",
+                body: JSON.stringify({ records: syncable }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.message || "Sync failed.");
+            }
+
+            const results = Array.isArray(payload.data && payload.data.results) ? payload.data.results : [];
+            const resultById = new Map(results.map((result) => [result.client_id, result]));
+            queue = readQueue()
+                .map((item) => {
+                    if (!syncIds.has(item.client_id)) {
+                        return item;
+                    }
+                    const result = resultById.get(item.client_id);
+                    if (result && (result.status === "synced" || result.status === "stale_ignored")) {
+                        return { ...item, status: "synced", synced_at: new Date().toISOString(), server_id: result.server_id || null };
+                    }
+                    return {
+                        ...item,
+                        status: "failed",
+                        last_error: result ? result.error || result.message || "Sync failed." : "No sync result returned.",
+                    };
+                })
+                .filter((item) => item.status !== "synced");
+            writeQueue(queue);
+            const failedCount = queue.filter((item) => item.status === "failed").length;
+            showStatus(
+                failedCount ? `Sync completed with ${failedCount} item(s) needing review.` : "Offline changes synced successfully.",
+                failedCount ? "warning" : "success"
+            );
+        } catch (error) {
+            queue = readQueue().map((item) =>
+                syncIds.has(item.client_id)
+                    ? { ...item, status: "failed", last_error: error.message || "Sync failed." }
+                    : item
+            );
+            writeQueue(queue);
+            showStatus("Offline changes are still saved locally. Sync will retry when the connection is stable.", "danger");
+        } finally {
+            syncInProgress = false;
+            refreshStatus();
+        }
+    }
+
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+        const method = (form.getAttribute("method") || "GET").toUpperCase();
+        const path = normalizePath(form.getAttribute("action") || window.location.pathname);
+        if (method !== "POST" || !canQueuePath(path) || navigator.onLine) {
+            return;
+        }
+        if (form.dataset.offlineQueue === "false" || form.matches("[data-confirm-action], [data-no-offline-sync]")) {
+            return;
+        }
+        if (typeof form.reportValidity === "function" && !form.reportValidity()) {
+            return;
+        }
+        event.preventDefault();
+        enqueueForm(form, event.submitter || null);
+    }, true);
+
+    window.addEventListener("online", () => {
+        showStatus("Connection restored. Syncing offline changes...", "info");
+        syncQueue();
+    });
+    window.addEventListener("focus", syncQueue);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            syncQueue();
+        }
+    });
+    window.setInterval(syncQueue, 30000);
+    refreshStatus();
+    if (navigator.onLine) {
+        window.setTimeout(syncQueue, 1500);
+    }
+})();
 
 if ("serviceWorker" in navigator) {
     const registerHormonaCareServiceWorker = () => {

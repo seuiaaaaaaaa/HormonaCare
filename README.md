@@ -8,16 +8,20 @@ HormonaCare now follows a single-backend approach where Python is the core servi
 
 - `Core Service`: Flask + SQLAlchemy + machine learning helpers in Python
 - `Web Client`: current server-rendered UI/PWA-ready frontend
-- `API Layer`: JSON endpoints for future mobile/web consumers
+- `Application API Gateway`: Flask `before_request` entrypoint that centralizes API route metadata, protected-route checks, and API identity headers
+- `API Layer`: JSON endpoints for future mobile/web consumers under `/api/*`
 - `Mobile Compatibility`: a future Kivy, BeeWare, React Native, or Flutter client can consume the same Python API
 
 This supports the final-project requirement of using one backend language while allowing multiple client interfaces.
+
+HormonaCare does not use a separate managed API Gateway service such as AWS API Gateway. The gateway requirement is implemented at the application level inside Flask, where the same Python core service receives web and API requests, enforces session/email-verification checks for protected API routes, and communicates with Supabase PostgreSQL.
 
 ## Features
 
 - Secure registration and login with bcrypt password hashing
 - Session-based authentication
 - JSON API layer for shared core-service access
+- Application-level offline synchronization endpoint for queued PWA changes
 - Basic PWA support with a manifest and service worker
 - Dashboard with daily summary, cycle phase, reminders, and quick stats
 - Rule-based alerts page using predefined thresholds and user input
@@ -30,7 +34,7 @@ This supports the final-project requirement of using one backend language while 
 ## Project Structure
 
 - `app.py` Flask application and routes
-- `app.py` also exposes `/api/*` endpoints for shared core-service integration
+- `app.py` also exposes the application-level API gateway entrypoint and `/api/*` endpoints for shared core-service integration
 - `models.py` database schema and relationships
 - `ml_model.py` machine learning helper
 - `ml_service.py` service wrapper that exposes ML results to the app and API layer
@@ -41,6 +45,7 @@ This supports the final-project requirement of using one backend language while 
 - `static/js/app.js` frontend interactions
 - `static/manifest.json` PWA manifest
 - `static/service-worker.js` offline shell caching
+- Browser local offline queue in `static/js/app.js` with `pending`, `syncing`, `synced`, and `failed` sync states
 
 ## Run Locally
 
@@ -92,6 +97,7 @@ DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_DB_PASSWORD@aws-0-REGION.poo
 All API routes are served by the same Python backend and currently use the same authenticated session as the web app.
 
 - `GET /api/docs`
+- `GET /api/gateway`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
@@ -106,6 +112,7 @@ All API routes are served by the same Python backend and currently use the same 
 - `GET /api/mental-health`
 - `GET /api/appointments`
 - `GET /api/ml/health-assessment`
+- `POST /api/sync/batch`
 
 Example:
 
@@ -114,6 +121,20 @@ curl http://127.0.0.1:5000/api/health
 ```
 
 Protected API routes require an active authenticated session.
+
+### Application-Level API Gateway
+
+The Flask backend includes an application-level API gateway entrypoint for `/api/*` requests. It provides a centralized API catalog, applies authentication and email-verification checks for protected endpoints, attaches API identity headers, and routes requests to the same Python core service used by the web interface.
+
+This is intentionally not a separate AWS API Gateway deployment. For the current capstone scope, Amazon EC2 hosts the Flask core service directly, while Render can be used as a backup/testing deployment.
+
+### Offline-First Synchronization
+
+HormonaCare supports offline-first PWA behavior for selected user data-entry forms. When the browser is offline, supported POST actions for lifestyle logs, mood and stress entries, cycle logs, medications, appointments, profile information, and settings are saved in a browser local queue instead of being discarded. Each queued item receives a client-generated sync ID, timestamp, retry count, and status value: `pending`, `syncing`, `synced`, or `failed`.
+
+When the browser comes back online, `static/js/app.js` automatically sends queued records to `POST /api/sync/batch`. The Flask core service validates the authenticated session, applies the queued changes to the SQLAlchemy models, and stores sync metadata in the database. For simple conflicts, the system uses a latest-update-wins rule: older queued records are ignored when a newer synchronized timestamp already exists. Destructive actions and account-security actions are intentionally not queued offline.
+
+Internet access is still required for account creation, OTP verification, server-side authentication, cloud synchronization, and cloud backup. The offline queue improves continuity of use, but it should not be described as a separate mobile backend or as clinical real-time medical monitoring.
 
 ### Mobile-Ready API Notes
 
