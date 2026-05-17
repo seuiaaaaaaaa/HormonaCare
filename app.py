@@ -3134,7 +3134,15 @@ def register_routes(app):
             else ""
         )
         pattern_label = "Delayed cycle" if forecast_is_delayed else "Irregular pattern" if model["irregular"] else "Regular pattern" if model["prediction_ready"] else "Learning pattern"
-        confidence_level = "Building" if model["limited_data"] else "Pattern-based" if forecast_is_delayed else "Improving" if model["prediction_ready"] else "Not enough data"
+        confidence_level = (
+            "Limited"
+            if forecast_is_delayed or model["irregular"]
+            else "Building"
+            if model["limited_data"]
+            else "Moderate"
+            if model["prediction_ready"]
+            else "Not enough data"
+        )
         return {
             "phase": phase,
             "phase_visual": visual_phase,
