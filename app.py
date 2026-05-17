@@ -2400,6 +2400,12 @@ def register_routes(app):
             "reminder_enabled": bool(meta.get("reminder_enabled")),
         }
 
+    def safe_appointment_display_text(value):
+        text_value = (value or "").strip()
+        if text_value.startswith("__ENC__"):
+            return ""
+        return text_value
+
     def empty_appointment_form_values():
         return {
             "appointment_id": "",
@@ -2449,10 +2455,13 @@ def register_routes(app):
         for appointment in all_appointments:
             appointment.prescription = decrypt_text(appointment.prescription)
             meta = unpack_appointment_notes(appointment.notes)
+            prescription_text = safe_appointment_display_text(appointment.prescription)
+            notes_text = safe_appointment_display_text(meta.get("notes_text", ""))
             decorated.append(
                 {
                     "appointment": appointment,
-                    "meta": meta,
+                    "meta": {**meta, "notes_text": notes_text},
+                    "prescription_text": prescription_text,
                     "status": appointment_status_meta(appointment, meta),
                     "editor": build_appointment_editor_payload(appointment, meta),
                 }

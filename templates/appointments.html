@@ -12,7 +12,7 @@
     {% set appointment = item.appointment %}
     {% set meta = item.meta %}
     {% set status = item.status if item.status is defined else {'tone': 'muted' if meta.status == 'completed' else 'warning' if meta.status in ['missed', 'cancelled'] else 'success', 'label': 'Done' if meta.status == 'completed' else meta.status|title if meta.status else 'Upcoming'} %}
-    {% set notes_display = appointment.prescription or meta.notes_text or 'No prescription or notes recorded.' %}
+    {% set notes_display = item.prescription_text or meta.notes_text or 'No prescription or notes recorded.' %}
     {% set appointment_date_label = appointment.appointment_date.strftime('%b %d, %Y') if appointment.appointment_date else 'Date not set' %}
     {% set appointment_time_label = appointment.appointment_time.strftime('%I:%M %p') if appointment.appointment_time else 'Time not set' %}
     <article class="appt-card appointment-record-card appointment-record-card-{{ card_kind }}">
