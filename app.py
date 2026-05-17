@@ -3120,7 +3120,7 @@ def register_routes(app):
             forecast_status_label = f"{cycle_pattern_state} estimate" if prediction["next_period"] else "Learning pattern"
             forecast_headline = prediction["prediction_text"] if prediction["next_period"] else "More cycle logs needed"
 
-        next_period_metric_label = "Expected window" if forecast_is_delayed else "Next period"
+        next_period_metric_label = "Past expected window" if delayed_by_prediction else "Delayed since" if forecast_is_delayed else "Next period"
         next_period_label = prediction["prediction_range_text"] if prediction["next_period"] else "Not available yet"
         average_cycle_label = f"{model['cycle_length']} days" if model["cycle_length"] else "Add another period start"
         cycle_range_label = (
