@@ -2584,7 +2584,7 @@ def register_routes(app):
             return False
         if bool(getattr(log, "period_start", False)):
             return True
-        return bool(log.cycle_day == 1 and not is_explicit_no_flow(log.flow_level))
+        return bool(log.cycle_day == 1 and has_logged_flow(log.flow_level))
 
     def observed_period_lengths(sorted_logs, period_starts):
         if not period_starts:

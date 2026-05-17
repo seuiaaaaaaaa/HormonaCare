@@ -92,9 +92,12 @@
         grid-template-columns: 1fr;
     }
 
-    .cycle-day-detail-grid,
-    .cycle-insights-meta {
+    .cycle-day-detail-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cycle-insights-meta {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 
     .cycle-insights-grid {
@@ -108,7 +111,7 @@
 
 @media (max-width: 720px) {
     .cycle-insights-meta {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     }
 
     .cycle-metric-chip,
@@ -6499,7 +6502,7 @@ select {
 
 .cycle-insights-grid {
     display: grid;
-    grid-template-columns: minmax(180px, 0.68fr) minmax(0, 1.32fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     align-items: start;
 }
@@ -6572,7 +6575,7 @@ select {
 .prediction-box strong {
     display: block;
     margin-top: 0;
-    max-width: 24ch;
+    max-width: none;
     font-size: clamp(0.9rem, 1vw, 1rem);
     line-height: 1.18;
     letter-spacing: 0;
@@ -6588,7 +6591,7 @@ select {
 
 .cycle-insights-meta {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 7px;
     align-content: start;
 }
@@ -6610,6 +6613,7 @@ select {
     font-size: 0.82rem;
     color: var(--ink);
     line-height: 1.28;
+    overflow-wrap: anywhere;
 }
 
 .insight-support {
