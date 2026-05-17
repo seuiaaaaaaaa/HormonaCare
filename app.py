@@ -3090,6 +3090,24 @@ def register_routes(app):
             if prediction["next_period"]
             else tracking_message
         )
+        forecast_state = "ready" if prediction["next_period"] else "learning"
+        forecast_status_label = "Adaptive estimate" if prediction["next_period"] else "Learning pattern"
+        forecast_headline = prediction["prediction_text"] if prediction["next_period"] else "More cycle logs needed"
+        next_period_metric_label = "Next period"
+        next_period_label = prediction["prediction_range_text"] if prediction["next_period"] else "Not available yet"
+        average_cycle_label = f"{model['cycle_length']} days" if model["cycle_length"] else "Add another period start"
+        cycle_range_label = (
+            f"Recent range {model['cycle_low']}-{model['cycle_high']} days"
+            if model["cycle_low"] and model["cycle_high"] and model["cycle_length"]
+            else ""
+        )
+        period_length_range_label = (
+            f"Observed range {model['period_length_low']}-{model['period_length_high']} days"
+            if model["period_length_low"] and model["period_length_high"] and model["period_length_low"] != model["period_length_high"]
+            else ""
+        )
+        pattern_label = "Irregular pattern" if model["irregular"] else "Learning pattern" if model["limited_data"] else "Pattern available"
+        confidence_level = "Building" if model["limited_data"] else "Improving" if model["prediction_ready"] else "Not enough data"
         return {
             "phase": phase,
             "phase_visual": visual_phase,
@@ -3138,6 +3156,16 @@ def register_routes(app):
             "limited_data": model["limited_data"],
             "insight_summary": insight_summary,
             "irregular": model["irregular"],
+            "forecast_state": forecast_state,
+            "forecast_status_label": forecast_status_label,
+            "forecast_headline": forecast_headline,
+            "next_period_metric_label": next_period_metric_label,
+            "next_period_label": next_period_label,
+            "average_cycle_label": average_cycle_label,
+            "cycle_range_label": cycle_range_label,
+            "period_length_range_label": period_length_range_label,
+            "pattern_label": pattern_label,
+            "confidence_level": confidence_level,
         }
 
     def build_mental_tip(mood, stress_level):
