@@ -3090,10 +3090,28 @@ def register_routes(app):
             if prediction["next_period"]
             else tracking_message
         )
-        forecast_state = "ready" if prediction["next_period"] else "learning"
-        forecast_status_label = "Adaptive estimate" if prediction["next_period"] else "Learning pattern"
-        forecast_headline = prediction["prediction_text"] if prediction["next_period"] else "More cycle logs needed"
-        next_period_metric_label = "Next period"
+        today_for_forecast = date.today()
+        delayed_by_prediction = bool(prediction["next_period_latest"] and today_for_forecast > prediction["next_period_latest"])
+        delayed_by_gap = bool(not prediction["next_period_latest"] and model["days_since_last_period"] and model["days_since_last_period"] >= 45)
+        forecast_is_delayed = bool(model["has_cycle_history"] and (delayed_by_prediction or delayed_by_gap))
+        cycle_pattern_state = "Irregular" if model["irregular"] else "Regular" if model["prediction_ready"] else "Learning"
+
+        if forecast_is_delayed:
+            forecast_state = "delayed"
+            forecast_status_label = "Delayed"
+            forecast_headline = "Period appears delayed"
+            prediction_basis = (
+                f"Your last logged period started {model['days_since_last_period']} days ago, which is past the expected cycle window based on your logged pattern."
+                if delayed_by_prediction
+                else f"Your last logged period started {model['days_since_last_period']} days ago. Add your next period start when it begins so the estimate can update."
+            )
+            insight_summary = "Your period appears delayed based on your logged cycle history. This is a tracking reminder, not a diagnosis."
+        else:
+            forecast_state = "ready" if prediction["next_period"] else "learning"
+            forecast_status_label = f"{cycle_pattern_state} estimate" if prediction["next_period"] else "Learning pattern"
+            forecast_headline = prediction["prediction_text"] if prediction["next_period"] else "More cycle logs needed"
+
+        next_period_metric_label = "Expected window" if forecast_is_delayed else "Next period"
         next_period_label = prediction["prediction_range_text"] if prediction["next_period"] else "Not available yet"
         average_cycle_label = f"{model['cycle_length']} days" if model["cycle_length"] else "Add another period start"
         cycle_range_label = (
@@ -3106,8 +3124,8 @@ def register_routes(app):
             if model["period_length_low"] and model["period_length_high"] and model["period_length_low"] != model["period_length_high"]
             else ""
         )
-        pattern_label = "Irregular pattern" if model["irregular"] else "Learning pattern" if model["limited_data"] else "Pattern available"
-        confidence_level = "Building" if model["limited_data"] else "Improving" if model["prediction_ready"] else "Not enough data"
+        pattern_label = "Delayed cycle" if forecast_is_delayed else "Irregular pattern" if model["irregular"] else "Regular pattern" if model["prediction_ready"] else "Learning pattern"
+        confidence_level = "Building" if model["limited_data"] else "Pattern-based" if forecast_is_delayed else "Improving" if model["prediction_ready"] else "Not enough data"
         return {
             "phase": phase,
             "phase_visual": visual_phase,
