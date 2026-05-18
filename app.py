@@ -5029,6 +5029,13 @@ def register_routes(app):
             return cleaned
         return f"{cleaned[:limit - 3]}..."
 
+    def admin_actor_name(record):
+        admin_id = getattr(record, "admin_id", None)
+        if not admin_id:
+            return "Admin"
+        admin = db.session.get(User, admin_id)
+        return admin.full_name if admin else "Admin"
+
     def admin_user_directory_query(limit=None):
         search = normalize_email(request.args.get("q"))
         query = User.query
@@ -5119,7 +5126,7 @@ def register_routes(app):
             "alerts_reviewed": count_records(PushNotificationLog),
             "reports_viewed": count_records(AdminAuditLog, AdminAuditLog.admin_id == admin.id, AdminAuditLog.action == "view_report"),
         }
-        recent_logs = AdminAuditLog.query.filter_by(admin_id=admin.id).order_by(AdminAuditLog.created_at.desc()).limit(8).all()
+        recent_logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).limit(12).all()
         admin_notes = AdminNote.query.order_by(AdminNote.updated_at.desc()).limit(30).all()
         note_users = User.query.filter(User.role != "admin", User.archived_at.is_(None)).order_by(User.full_name.asc()).all()
         return render_template(
@@ -5130,6 +5137,7 @@ def register_routes(app):
             note_users=note_users,
             settings=admin_settings_state(admin),
             display_date_label=display_date_label,
+            admin_actor_name=admin_actor_name,
         )
 
     @app.route("/admin/settings", methods=["GET", "POST"])
@@ -5194,6 +5202,7 @@ def register_routes(app):
             audit_search=audit_search,
             audit_action=audit_action,
             display_date_label=display_date_label,
+            admin_actor_name=admin_actor_name,
         )
 
     @app.post("/admin/notes")
@@ -5261,6 +5270,7 @@ def register_routes(app):
             admin_notes=admin_notes_for_user(viewed_user),
             trends=admin_user_trends(viewed_user),
             display_date_label=display_date_label,
+            admin_actor_name=admin_actor_name,
         )
 
     @app.post("/admin/users/<int:user_id>/verify")

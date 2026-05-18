@@ -95,12 +95,12 @@
     </form>
     <div class="table-wrap admin-audit-wrap">
         <table class="admin-table">
-            <thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead>
+            <thead><tr><th>Admin</th><th>Action</th><th>Details</th><th>Date</th></tr></thead>
             <tbody>
                 {% for log in audit_logs %}
-                <tr><td>{{ log.action.replace('_', ' ').title() }}</td><td>{{ log.details }}</td><td>{{ display_date_label(log.created_at) }}</td></tr>
+                <tr><td>{{ admin_actor_name(log) }}</td><td>{{ log.action.replace('_', ' ').title() }}</td><td>{{ log.details }}</td><td>{{ display_date_label(log.created_at) }}</td></tr>
                 {% else %}
-                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No audit logs found</strong></div></td></tr>
+                <tr><td colspan="4"><div class="admin-empty-state inline"><strong>No audit logs found</strong></div></td></tr>
                 {% endfor %}
             </tbody>
         </table>

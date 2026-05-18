@@ -57,7 +57,7 @@
                 <form method="post" action="{{ url_for('admin_update_note', note_id=note.id) }}">
                     <textarea name="note" rows="2">{{ note.note }}</textarea>
                     <div class="admin-note-actions">
-                        <small>{{ display_date_label(note.updated_at) }}</small>
+                        <small>Posted by {{ admin_actor_name(note) }} &middot; {{ display_date_label(note.updated_at) }}</small>
                         <button class="admin-small-button" type="submit">Update</button>
                     </div>
                 </form>

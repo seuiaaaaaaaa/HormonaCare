@@ -78,7 +78,7 @@
                     <input type="hidden" name="next" value="{{ request.full_path }}">
                     <div class="admin-note-meta">
                         <strong>{{ note.user.full_name if note.user else 'User' }}</strong>
-                        <small>{{ display_date_label(note.updated_at) }}</small>
+                        <small>Posted by {{ admin_actor_name(note) }} &middot; {{ display_date_label(note.updated_at) }}</small>
                     </div>
                     <textarea name="note" rows="3">{{ note.note }}</textarea>
                     <div class="admin-note-actions">
@@ -109,7 +109,8 @@
                 {% for log in recent_logs %}
                 <div class="admin-list-row">
                     <strong>{{ log.action.replace('_', ' ').title() }}</strong>
-                    <span>{{ log.details or 'Recorded admin action' }} &middot; {{ display_date_label(log.created_at) }}</span>
+                    <span>{{ log.details or 'Recorded admin action' }}</span>
+                    <em>By {{ admin_actor_name(log) }} &middot; {{ display_date_label(log.created_at) }}</em>
                 </div>
                 {% else %}
                 <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>

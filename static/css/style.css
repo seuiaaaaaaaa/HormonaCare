@@ -8347,6 +8347,15 @@ td {
     color: #9fb2d2;
 }
 
+.admin-list-row em {
+    display: block;
+    margin-top: 4px;
+    color: #8ea4c9;
+    font-size: 0.78rem;
+    font-style: normal;
+    font-weight: 700;
+}
+
 .admin-feed-item {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -8821,6 +8830,7 @@ html[data-theme="light"] .admin-card-copy,
 html[data-theme="light"] .admin-table td,
 html[data-theme="light"] .admin-user-row small,
 html[data-theme="light"] .admin-list-row span,
+html[data-theme="light"] .admin-list-row em,
 html[data-theme="light"] .admin-feed-item p,
 html[data-theme="light"] .admin-profile-hero p,
 html[data-theme="light"] .admin-theme-preview p,
