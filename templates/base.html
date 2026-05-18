@@ -80,7 +80,7 @@
                 <a href="{{ url_for('mental_health') }}" class="{% if request.endpoint == 'mental_health' %}active{% endif %}"><span class="nav-icon nav-mood"></span><span>Mood</span></a>
                 <a href="{{ url_for('calendar') }}" class="{% if request.endpoint == 'calendar' %}active{% endif %}"><span class="nav-icon nav-calendar"></span><span>Cycle</span></a>
                 <a href="{{ url_for('appointments') }}" class="{% if request.endpoint == 'appointments' %}active{% endif %}"><span class="nav-icon nav-clock"></span><span>Doctors</span></a>
-                {% if current_user.role == 'admin' %}
+                {% if current_is_admin %}
                 <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
                 {% endif %}
                 <div class="nav-divider"></div>
@@ -134,7 +134,7 @@
                         <span class="nav-icon nav-clock"></span>
                         <span>Doctors</span>
                     </a>
-                    {% if current_user.role == 'admin' %}
+                    {% if current_is_admin %}
                     <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}">
                         <span class="nav-icon nav-grid"></span>
                         <span>Admin</span>
@@ -233,7 +233,7 @@
         <a href="{{ url_for('mental_health') }}" class="{% if request.endpoint == 'mental_health' %}active{% endif %}"><span class="nav-icon nav-mood"></span><span>Mood</span></a>
         <a href="{{ url_for('calendar') }}" class="{% if request.endpoint == 'calendar' %}active{% endif %}"><span class="nav-icon nav-calendar"></span><span>Cycle</span></a>
         <a href="{{ url_for('appointments') }}" class="{% if request.endpoint == 'appointments' %}active{% endif %}"><span class="nav-icon nav-clock"></span><span>Doctors</span></a>
-        {% if current_user.role == 'admin' %}
+        {% if current_is_admin %}
         <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
         {% endif %}
     </nav>

@@ -35,7 +35,7 @@
                 <tr>
                     <td>{{ item.user.full_name }}</td>
                     <td>{{ item.user.username }}</td>
-                    <td>{{ item.user.role }}</td>
+                    <td>{{ item.user.role or 'user' }}</td>
                     <td>{{ 'Verified' if item.user.email_verified else 'Unverified' }}</td>
                     <td>{{ item.medication_count }}</td>
                     <td>{{ item.lifestyle_count }}</td>

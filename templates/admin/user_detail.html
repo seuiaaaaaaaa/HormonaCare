@@ -4,7 +4,7 @@
 <section class="page-head with-action">
     <div>
         <h1>{{ viewed_user.full_name }}</h1>
-        <p>{{ viewed_user.username }} &middot; {{ 'Verified' if viewed_user.email_verified else 'Unverified' }} &middot; {{ viewed_user.role }}</p>
+        <p>{{ viewed_user.username }} &middot; {{ 'Verified' if viewed_user.email_verified else 'Unverified' }} &middot; {{ viewed_user.role or 'user' }}</p>
     </div>
     <a class="history-button" href="{{ url_for('admin_users') }}">Back to users</a>
 </section>

@@ -1131,6 +1131,9 @@ def register_routes(app):
     def owned_record_or_404(model, user, record_id):
         return user_records(model, user).filter_by(id=record_id).first_or_404()
 
+    def is_admin_user(user):
+        return (getattr(user, "role", "") or "").strip().lower() == "admin"
+
     def request_medication_summary(user):
         cache = getattr(g, "medication_summary_cache", None) if has_request_context() else None
         if cache and cache.get("user_id") == user.id:
@@ -1210,7 +1213,7 @@ def register_routes(app):
             if not user:
                 flash("Please log in to continue.", "warning")
                 return redirect(url_for("login"))
-            if user.role != "admin":
+            if not is_admin_user(user):
                 flash("Admin access only.", "error")
                 return redirect(url_for("dashboard"))
             return view(*args, **kwargs)
@@ -1313,6 +1316,7 @@ def register_routes(app):
                 }
         return {
             "current_user": user,
+            "current_is_admin": is_admin_user(user),
             "today_date": date.today(),
             "unread_reminders": unread_reminders,
             "dark_mode_enabled": dark_mode_enabled,

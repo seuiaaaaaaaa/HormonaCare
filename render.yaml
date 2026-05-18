@@ -21,6 +21,8 @@ services:
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       - key: PUBLIC_BASE_URL
         sync: false
       - key: FIELD_ENCRYPTION_KEY
