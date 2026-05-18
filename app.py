@@ -5167,7 +5167,6 @@ def register_routes(app):
         activity = {
             "users_monitored": count_records(User),
             "appointments_reviewed": count_records(Appointment),
-            "alerts_reviewed": count_records(PushNotificationLog),
             "recent_updates": count_records(AdminAuditLog),
         }
         recent_logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).limit(12).all()
