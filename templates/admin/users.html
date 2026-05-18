@@ -1,15 +1,16 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="page-head with-action">
+<section class="admin-hero compact">
     <div>
+        <span class="admin-kicker">Directory</span>
         <h1>Users</h1>
-        <p>Search and view HormonaCare accounts without changing their data.</p>
+        <p>Compact read-only account and feature activity monitoring.</p>
     </div>
-    <a class="history-button" href="{{ url_for('admin_dashboard') }}">Overview</a>
+    <a class="admin-action" href="{{ url_for('admin_dashboard') }}">Overview</a>
 </section>
 
-<section class="panel-card admin-panel">
+<section class="admin-glass-card admin-table-card">
     <form class="admin-search" method="get" action="{{ url_for('admin_users') }}">
         <input type="search" name="q" value="{{ search }}" placeholder="Search name or email">
         <button type="submit">Search</button>
@@ -33,10 +34,15 @@
             <tbody>
                 {% for item in summaries %}
                 <tr>
-                    <td>{{ item.user.full_name }}</td>
+                    <td>
+                        <div class="admin-table-user">
+                            <span class="admin-avatar small">{{ item.user.full_name[:1] }}{{ item.user.username[:1] }}</span>
+                            <strong>{{ item.user.full_name }}</strong>
+                        </div>
+                    </td>
                     <td>{{ item.user.username }}</td>
-                    <td>{{ item.user.role or 'user' }}</td>
-                    <td>{{ 'Verified' if item.user.email_verified else 'Unverified' }}</td>
+                    <td><span class="admin-role-chip">{{ item.user.role or 'user' }}</span></td>
+                    <td><span class="admin-badge {{ 'verified' if item.user.email_verified else 'pending' }}">{{ 'Verified' if item.user.email_verified else 'Pending' }}</span></td>
                     <td>{{ item.medication_count }}</td>
                     <td>{{ item.lifestyle_count }}</td>
                     <td>{{ item.mental_count }}</td>
@@ -46,7 +52,12 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10">No matching users.</td>
+                    <td colspan="10">
+                        <div class="admin-empty-state inline">
+                            <span class="nav-icon nav-user"></span>
+                            <strong>No matching users</strong>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
