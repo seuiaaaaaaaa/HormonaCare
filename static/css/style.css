@@ -8420,7 +8420,33 @@ td {
     gap: 12px;
 }
 
+.admin-note-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.admin-note-item {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(143, 183, 255, 0.15);
+    border-radius: 14px;
+    background: rgba(9, 18, 38, 0.42);
+}
+
+.admin-note-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+}
+
 .admin-note-form textarea,
+.admin-note-item textarea,
 .admin-settings-form input,
 .admin-search input,
 .admin-search select,

@@ -44,13 +44,31 @@
         <div class="admin-card-head">
             <div>
                 <span>Admin Notes</span>
-                <h3>Internal note</h3>
+                <h3>User-facing notes</h3>
             </div>
         </div>
         <form class="admin-note-form" method="post" action="{{ url_for('admin_save_note', user_id=viewed_user.id) }}">
-            <textarea name="note" rows="4" placeholder="Create or update an admin-only note">{{ admin_note.note if admin_note else '' }}</textarea>
-            <button class="admin-small-button" type="submit">Save note</button>
+            <textarea name="note" rows="3" placeholder="Add a note that will flash on the user's interface"></textarea>
+            <button class="admin-small-button" type="submit">Add note</button>
         </form>
+        <div class="admin-note-list">
+            {% for note in admin_notes %}
+            <div class="admin-note-item">
+                <form method="post" action="{{ url_for('admin_update_note', note_id=note.id) }}">
+                    <textarea name="note" rows="2">{{ note.note }}</textarea>
+                    <div class="admin-note-actions">
+                        <small>{{ display_date_label(note.updated_at) }}</small>
+                        <button class="admin-small-button" type="submit">Update</button>
+                    </div>
+                </form>
+                <form method="post" action="{{ url_for('admin_delete_note', note_id=note.id) }}" data-confirm-message="Delete this admin note?">
+                    <button class="admin-small-button warning" type="submit">Delete</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="admin-empty-state inline"><strong>No admin notes yet</strong></div>
+            {% endfor %}
+        </div>
     </article>
 </section>
 

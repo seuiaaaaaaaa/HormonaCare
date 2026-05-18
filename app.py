@@ -1248,6 +1248,8 @@ def register_routes(app):
                 "admin_verify_user",
                 "admin_archive_user",
                 "admin_save_note",
+                "admin_update_note",
+                "admin_delete_note",
                 "admin_update_appointment_status",
                 "settings_password_verify_current",
                 "settings_password_send_otp",
@@ -1256,6 +1258,8 @@ def register_routes(app):
             }
             if is_admin_user(user) and request.endpoint not in admin_endpoints:
                 return redirect(url_for("admin_dashboard"))
+            if not is_admin_user(user):
+                flash_unseen_admin_notes(user)
             return view(*args, **kwargs)
 
         return wrapped_view
@@ -4983,6 +4987,22 @@ def register_routes(app):
     def admin_note_for_user(user):
         return AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).first()
 
+    def admin_notes_for_user(user):
+        return AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).all()
+
+    def flash_unseen_admin_notes(user):
+        seen_note_keys = set(session.get("seen_admin_note_keys") or [])
+        notes = AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).limit(5).all()
+        new_note_keys = []
+        for note in notes:
+            note_key = f"{note.id}:{note.updated_at.isoformat() if note.updated_at else ''}"
+            if note_key in seen_note_keys:
+                continue
+            flash(f"Admin note: {note.note}", "info")
+            new_note_keys.append(note_key)
+        if new_note_keys:
+            session["seen_admin_note_keys"] = sorted(seen_note_keys.union(new_note_keys))[-50:]
+
     def admin_settings_state(user):
         return {
             "login_alerts": True,
@@ -5167,7 +5187,7 @@ def register_routes(app):
             summary=summary,
             records=records,
             appointment_items=appointment_items,
-            admin_note=admin_note_for_user(viewed_user),
+            admin_notes=admin_notes_for_user(viewed_user),
             trends=admin_user_trends(viewed_user),
             display_date_label=display_date_label,
         )
@@ -5215,20 +5235,48 @@ def register_routes(app):
         if not note_text:
             flash("Admin note cannot be empty.", "danger")
             return redirect(url_for("admin_user_detail", user_id=user.id))
-        note = admin_note_for_user(user)
-        if not note:
-            note = AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text)
-            db.session.add(note)
-            action = "create_admin_note"
-        else:
-            note.note = note_text
-            note.admin_id = current_user().id
-            note.updated_at = datetime.utcnow()
-            action = "update_admin_note"
-        log_admin_action(action, user, f"Saved admin note for {user.username}")
+        note = AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text)
+        db.session.add(note)
+        log_admin_action("create_admin_note", user, f"Created admin note for {user.username}")
         db.session.commit()
-        flash("Admin note saved.", "success")
+        flash("Admin note added.", "success")
         return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    @app.post("/admin/notes/<int:note_id>/update")
+    @login_required
+    @admin_required
+    def admin_update_note(note_id):
+        note = db.session.get(AdminNote, note_id)
+        if not note:
+            flash("Admin note not found.", "danger")
+            return redirect(url_for("admin_users"))
+        note_text = (request.form.get("note") or "").strip()
+        if not note_text:
+            flash("Admin note cannot be empty.", "danger")
+            return redirect(url_for("admin_user_detail", user_id=note.user_id))
+        note.note = note_text
+        note.admin_id = current_user().id
+        note.updated_at = datetime.utcnow()
+        log_admin_action("update_admin_note", note.user, f"Updated admin note for {note.user.username if note.user else note.user_id}")
+        db.session.commit()
+        flash("Admin note updated.", "success")
+        return redirect(url_for("admin_user_detail", user_id=note.user_id))
+
+    @app.post("/admin/notes/<int:note_id>/delete")
+    @login_required
+    @admin_required
+    def admin_delete_note(note_id):
+        note = db.session.get(AdminNote, note_id)
+        if not note:
+            flash("Admin note not found.", "danger")
+            return redirect(url_for("admin_users"))
+        user_id = note.user_id
+        target_user = note.user
+        log_admin_action("delete_admin_note", target_user, f"Deleted admin note for {target_user.username if target_user else user_id}")
+        db.session.delete(note)
+        db.session.commit()
+        flash("Admin note deleted.", "success")
+        return redirect(url_for("admin_user_detail", user_id=user_id))
 
     @app.post("/admin/appointments/<int:appointment_id>/status")
     @login_required
