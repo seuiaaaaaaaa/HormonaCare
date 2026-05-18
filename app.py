@@ -5210,7 +5210,7 @@ def register_routes(app):
     @admin_required
     def admin_create_note():
         note_text = (request.form.get("note") or "").strip()
-        target_user_id = (request.form.get("target_user_id") or "").strip()
+        target_user_id = (request.form.get("target_user_id") or "all").strip()
         if not note_text:
             flash("Admin note cannot be empty.", "danger")
             return admin_notes_redirect()

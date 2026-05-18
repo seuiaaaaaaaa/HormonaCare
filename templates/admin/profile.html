@@ -52,14 +52,7 @@
         </div>
         <form class="admin-note-form" method="post" action="{{ url_for('admin_create_note') }}">
             <input type="hidden" name="next" value="{{ request.full_path }}">
-            <label>Send to
-                <select name="target_user_id" required>
-                    <option value="all">All active users</option>
-                    {% for user in note_users %}
-                    <option value="{{ user.id }}">{{ user.full_name }} &middot; {{ user.username }}</option>
-                    {% endfor %}
-                </select>
-            </label>
+            <input type="hidden" name="target_user_id" value="all">
             <label>Note content
                 <textarea name="note" rows="4" placeholder="System maintenance scheduled tomorrow."></textarea>
             </label>
