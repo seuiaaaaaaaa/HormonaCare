@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1>{{ viewed_user.full_name }}</h1>
+        <p>{{ viewed_user.username }} &middot; {{ 'Verified' if viewed_user.email_verified else 'Unverified' }} &middot; {{ viewed_user.role }}</p>
+    </div>
+    <a class="history-button" href="{{ url_for('admin_users') }}">Back to users</a>
+</section>
+
+<section class="admin-stat-grid">
+    <article class="feature-card"><h3>{{ summary.medication_count }}</h3><p>Active medication records</p></article>
+    <article class="feature-card"><h3>{{ summary.medication_log_count }}</h3><p>Medication history logs</p></article>
+    <article class="feature-card"><h3>{{ summary.lifestyle_count }}</h3><p>Lifestyle logs</p></article>
+    <article class="feature-card"><h3>{{ summary.mental_count }}</h3><p>Mood and stress logs</p></article>
+    <article class="feature-card"><h3>{{ summary.cycle_count }}</h3><p>Cycle logs</p></article>
+    <article class="feature-card"><h3>{{ summary.appointment_count }}</h3><p>Appointments</p></article>
+</section>
+
+<section class="admin-detail-grid">
+    <article class="panel-card admin-panel">
+        <h3>Medications</h3>
+        <div class="admin-list">
+            {% for medication in records.medications %}
+            <div class="admin-list-row">
+                <strong>{{ medication.name }}</strong>
+                <span>{{ medication.dosage }} &middot; {{ medication.time_of_day.strftime('%I:%M %p') if medication.time_of_day else 'No time' }} &middot; {{ medication.status }}</span>
+            </div>
+            {% else %}
+            <p>No medications recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel-card admin-panel">
+        <h3>Recent Appointments</h3>
+        <div class="admin-list">
+            {% for appointment in records.appointments %}
+            <div class="admin-list-row">
+                <strong>{{ appointment.doctor_name }}</strong>
+                <span>{{ display_date_label(appointment.appointment_date) }} &middot; {{ appointment.appointment_time.strftime('%I:%M %p') if appointment.appointment_time else 'No time' }}</span>
+            </div>
+            {% else %}
+            <p>No appointments recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel-card admin-panel">
+        <h3>Recent Lifestyle Logs</h3>
+        <div class="admin-list">
+            {% for log in records.lifestyle_logs %}
+            <div class="admin-list-row">
+                <strong>{{ display_date_label(log.log_date) }}</strong>
+                <span>Sleep {{ log.sleep_hours }}h &middot; Water {{ log.water_intake_liters }}L &middot; Exercise {{ log.exercise_minutes }}m</span>
+            </div>
+            {% else %}
+            <p>No lifestyle logs recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel-card admin-panel">
+        <h3>Recent Mood Logs</h3>
+        <div class="admin-list">
+            {% for log in records.mental_logs %}
+            <div class="admin-list-row">
+                <strong>{{ display_date_label(log.log_date) }}</strong>
+                <span>{{ log.mood }} &middot; Stress {{ log.stress_level }}/10</span>
+            </div>
+            {% else %}
+            <p>No mood logs recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel-card admin-panel">
+        <h3>Recent Cycle Logs</h3>
+        <div class="admin-list">
+            {% for log in records.cycle_logs %}
+            <div class="admin-list-row">
+                <strong>{{ display_date_label(log.log_date) }}</strong>
+                <span>Day {{ log.cycle_day }}{% if log.flow_level %} &middot; {{ log.flow_level }} flow{% endif %}</span>
+            </div>
+            {% else %}
+            <p>No cycle logs recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="panel-card admin-panel">
+        <h3>Medication History</h3>
+        <div class="admin-list">
+            {% for log in records.medication_logs %}
+            <div class="admin-list-row">
+                <strong>{{ log.medication_name }}</strong>
+                <span>{{ log.status }} &middot; {{ display_date_label(log.taken_at) }}</span>
+            </div>
+            {% else %}
+            <p>No medication history recorded.</p>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+{% endblock %}

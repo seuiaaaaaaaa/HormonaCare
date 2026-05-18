@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1>Users</h1>
+        <p>Search and view HormonaCare accounts without changing their data.</p>
+    </div>
+    <a class="history-button" href="{{ url_for('admin_dashboard') }}">Overview</a>
+</section>
+
+<section class="panel-card admin-panel">
+    <form class="admin-search" method="get" action="{{ url_for('admin_users') }}">
+        <input type="search" name="q" value="{{ search }}" placeholder="Search name or email">
+        <button type="submit">Search</button>
+    </form>
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Medications</th>
+                    <th>Lifestyle</th>
+                    <th>Mood</th>
+                    <th>Cycle</th>
+                    <th>Appointments</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in summaries %}
+                <tr>
+                    <td>{{ item.user.full_name }}</td>
+                    <td>{{ item.user.username }}</td>
+                    <td>{{ item.user.role }}</td>
+                    <td>{{ 'Verified' if item.user.email_verified else 'Unverified' }}</td>
+                    <td>{{ item.medication_count }}</td>
+                    <td>{{ item.lifestyle_count }}</td>
+                    <td>{{ item.mental_count }}</td>
+                    <td>{{ item.cycle_count }}</td>
+                    <td>{{ item.appointment_count }}</td>
+                    <td><a class="admin-table-link" href="{{ url_for('admin_user_detail', user_id=item.user.id) }}">View</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10">No matching users.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

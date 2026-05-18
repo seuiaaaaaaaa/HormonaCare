@@ -7780,6 +7780,78 @@ td {
     text-align: left;
 }
 
+.admin-stat-grid,
+.admin-detail-grid {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 22px;
+}
+
+.admin-stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.admin-detail-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.admin-panel {
+    padding: 22px;
+}
+
+.admin-table th {
+    color: var(--ink);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+}
+
+.admin-table-link {
+    color: var(--pink);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.admin-search {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.admin-search input {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-search button {
+    width: auto;
+    padding-inline: 20px;
+}
+
+.admin-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.admin-list-row {
+    display: grid;
+    gap: 4px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.admin-list-row:last-child {
+    border-bottom: 0;
+}
+
+.admin-list-row strong {
+    color: var(--ink);
+}
+
+.admin-list-row span {
+    color: var(--muted);
+}
+
 .auth-page {
     min-height: 100vh;
     min-height: 100svh;

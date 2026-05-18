@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-head with-action">
+    <div>
+        <h1>Admin Overview</h1>
+        <p>Read-only monitoring for HormonaCare accounts and health activity.</p>
+    </div>
+    <a class="history-button" href="{{ url_for('admin_users') }}">View users</a>
+</section>
+
+<section class="admin-stat-grid">
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon blue"><span class="nav-icon nav-user"></span></span>
+            <span class="mini-tag">{{ stats.verified_users }} verified</span>
+        </div>
+        <h3>{{ stats.users }}</h3>
+        <p>Registered users</p>
+    </article>
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon green"><span class="nav-icon nav-pill"></span></span>
+            <span class="mini-tag">{{ stats.medication_logs }} logs</span>
+        </div>
+        <h3>{{ stats.medications }}</h3>
+        <p>Medication records</p>
+    </article>
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon purple"><span class="nav-icon nav-mood"></span></span>
+            <span class="mini-tag">{{ stats.mental_logs }} mood logs</span>
+        </div>
+        <h3>{{ stats.lifestyle_logs }}</h3>
+        <p>Lifestyle records</p>
+    </article>
+    <article class="feature-card">
+        <div class="feature-card-top">
+            <span class="feature-icon teal"><span class="nav-icon nav-clock"></span></span>
+            <span class="mini-tag">{{ stats.cycle_logs }} cycle logs</span>
+        </div>
+        <h3>{{ stats.appointments }}</h3>
+        <p>Appointments</p>
+    </article>
+</section>
+
+<section class="panel-card admin-panel">
+    <div class="panel-head">
+        <h3>Latest Users</h3>
+        <a href="{{ url_for('admin_users') }}">See all</a>
+    </div>
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Records</th>
+                    <th>Latest activity</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in summaries %}
+                <tr>
+                    <td>{{ item.user.full_name }}</td>
+                    <td>{{ item.user.username }}</td>
+                    <td>{{ 'Verified' if item.user.email_verified else 'Unverified' }}</td>
+                    <td>{{ item.medication_count + item.lifestyle_count + item.mental_count + item.cycle_count + item.appointment_count }}</td>
+                    <td>{{ item.latest_activity_label }}</td>
+                    <td><a class="admin-table-link" href="{{ url_for('admin_user_detail', user_id=item.user.id) }}">View</a></td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No users yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

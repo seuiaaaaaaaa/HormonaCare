@@ -13,6 +13,7 @@ class User(db.Model):
     full_name = db.Column(db.String(120), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default="user")
     supabase_user_id = db.Column(db.String(80), unique=True)
     email_verified = db.Column(db.Boolean, default=False)
     email_verified_at = db.Column(db.DateTime)

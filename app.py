@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, g, has_request_context, jsonify, redirect, render_template, request, session, url_for
 import httpx
-from sqlalchemy import func, inspect, text
+from sqlalchemy import func, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.pool import NullPool
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -823,6 +823,18 @@ def ensure_runtime_schema():
             if "email_verified_at" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMP"))
                 columns.add("email_verified_at")
+            if "role" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20)"))
+                columns.add("role")
+            connection.execute(text("UPDATE users SET role = COALESCE(NULLIF(role, ''), 'user')"))
+            if "email" in columns:
+                connection.execute(
+                    text(
+                        "UPDATE users "
+                        "SET username = lower(email) "
+                        "WHERE (username IS NULL OR username = '') AND email IS NOT NULL AND email != ''"
+                    )
+                )
             connection.execute(
                 text(
                     "UPDATE users "
@@ -830,6 +842,16 @@ def ensure_runtime_schema():
                     "WHERE username IS NULL OR username = ''"
                 )
             )
+            admin_emails = [
+                admin_email.strip().lower()
+                for admin_email in (os.getenv("ADMIN_EMAILS") or "").split(",")
+                if admin_email.strip()
+            ]
+            for admin_email in admin_emails:
+                connection.execute(
+                    text("UPDATE users SET role = 'admin' WHERE lower(username) = :admin_email"),
+                    {"admin_email": admin_email},
+                )
             connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)"))
             connection.execute(
                 text(
@@ -843,6 +865,7 @@ def ensure_runtime_schema():
                 "full_name",
                 "username",
                 "password_hash",
+                "role",
                 "supabase_user_id",
                 "email_verified",
                 "email_verified_at",
@@ -1176,6 +1199,20 @@ def register_routes(app):
                 remember_pending_verification(user.username)
                 flash("Please verify your email before continuing.", "warning")
                 return redirect(url_for("verify_email"))
+            return view(*args, **kwargs)
+
+        return wrapped_view
+
+    def admin_required(view):
+        @wraps(view)
+        def wrapped_view(*args, **kwargs):
+            user = current_user()
+            if not user:
+                flash("Please log in to continue.", "warning")
+                return redirect(url_for("login"))
+            if user.role != "admin":
+                flash("Admin access only.", "error")
+                return redirect(url_for("dashboard"))
             return view(*args, **kwargs)
 
         return wrapped_view
@@ -1588,12 +1625,19 @@ def register_routes(app):
         resolved_full_name = normalize_full_name(full_name) or auth_user_full_name(auth_user, normalized_email)
         resolved_verified_at = supabase_user_verified_at(auth_user)
         resolved_supabase_user_id = (getattr(auth_user, "id", "") or "").strip() if auth_user else ""
+        admin_emails = {
+            normalize_email(admin_email)
+            for admin_email in (os.getenv("ADMIN_EMAILS") or "").split(",")
+            if normalize_email(admin_email)
+        }
+        resolved_role = "admin" if normalized_email in admin_emails else "user"
 
         if not user:
             user = User(
                 full_name=resolved_full_name or fallback_full_name(normalized_email),
                 username=normalized_email,
                 password_hash=hash_password(password or os.urandom(16).hex()),
+                role=resolved_role,
                 supabase_user_id=resolved_supabase_user_id or None,
                 email_verified=bool(resolved_verified_at),
                 email_verified_at=resolved_verified_at,
@@ -1608,6 +1652,12 @@ def register_routes(app):
             changed = True
         if resolved_supabase_user_id and user.supabase_user_id != resolved_supabase_user_id:
             user.supabase_user_id = resolved_supabase_user_id
+            changed = True
+        if normalized_email in admin_emails and user.role != "admin":
+            user.role = "admin"
+            changed = True
+        elif normalized_email not in admin_emails and not user.role:
+            user.role = "user"
             changed = True
         if auth_user is not None:
             resolved_verified = bool(resolved_verified_at)
@@ -4649,6 +4699,110 @@ def register_routes(app):
             "dashboard.html",
             metrics=dashboard_metrics(current_user()),
             is_new_account=bool(session.pop("new_account", False)),
+        )
+
+    def count_records(model, *criteria):
+        query = db.session.query(func.count(model.id))
+        if criteria:
+            query = query.filter(*criteria)
+        return query.scalar() or 0
+
+    def latest_record_date(*values):
+        present_values = []
+        for value in values:
+            if isinstance(value, datetime):
+                present_values.append(value)
+            elif isinstance(value, date):
+                present_values.append(datetime.combine(value, datetime.min.time()))
+        return max(present_values) if present_values else None
+
+    def build_admin_user_summary(user):
+        latest_medication = Medication.query.filter_by(user_id=user.id).order_by(Medication.created_at.desc()).first()
+        latest_medication_log = MedicationLog.query.filter_by(user_id=user.id).order_by(MedicationLog.taken_at.desc()).first()
+        latest_lifestyle = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).first()
+        latest_mental = MentalLog.query.filter_by(user_id=user.id).order_by(MentalLog.log_date.desc()).first()
+        latest_cycle = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.desc()).first()
+        latest_appointment = Appointment.query.filter_by(user_id=user.id).order_by(Appointment.appointment_date.desc()).first()
+        latest_activity = latest_record_date(
+            latest_medication.created_at if latest_medication else None,
+            latest_medication_log.taken_at if latest_medication_log else None,
+            latest_lifestyle.log_date if latest_lifestyle else None,
+            latest_mental.log_date if latest_mental else None,
+            latest_cycle.log_date if latest_cycle else None,
+            latest_appointment.appointment_date if latest_appointment else None,
+        )
+        return {
+            "user": user,
+            "medication_count": count_records(Medication, Medication.user_id == user.id),
+            "medication_log_count": count_records(MedicationLog, MedicationLog.user_id == user.id),
+            "lifestyle_count": count_records(LifestyleLog, LifestyleLog.user_id == user.id),
+            "mental_count": count_records(MentalLog, MentalLog.user_id == user.id),
+            "cycle_count": count_records(CycleLog, CycleLog.user_id == user.id),
+            "appointment_count": count_records(Appointment, Appointment.user_id == user.id),
+            "latest_activity_label": display_date_label(latest_activity, "No activity yet"),
+        }
+
+    @app.route("/admin")
+    @login_required
+    @admin_required
+    def admin_dashboard():
+        users = User.query.order_by(User.created_at.desc()).limit(12).all()
+        summaries = [build_admin_user_summary(user) for user in users]
+        stats = {
+            "users": count_records(User),
+            "verified_users": count_records(User, User.email_verified.is_(True)),
+            "medications": count_records(Medication),
+            "medication_logs": count_records(MedicationLog),
+            "lifestyle_logs": count_records(LifestyleLog),
+            "mental_logs": count_records(MentalLog),
+            "cycle_logs": count_records(CycleLog),
+            "appointments": count_records(Appointment),
+        }
+        return render_template("admin/dashboard.html", stats=stats, summaries=summaries)
+
+    @app.route("/admin/users")
+    @login_required
+    @admin_required
+    def admin_users():
+        search = normalize_email(request.args.get("q"))
+        query = User.query
+        if search:
+            query = query.filter(
+                or_(
+                    func.lower(User.full_name).contains(search),
+                    func.lower(User.username).contains(search),
+                )
+            )
+        users = query.order_by(User.created_at.desc()).all()
+        return render_template(
+            "admin/users.html",
+            summaries=[build_admin_user_summary(user) for user in users],
+            search=search,
+        )
+
+    @app.route("/admin/users/<int:user_id>")
+    @login_required
+    @admin_required
+    def admin_user_detail(user_id):
+        viewed_user = db.session.get(User, user_id)
+        if not viewed_user:
+            flash("User not found.", "error")
+            return redirect(url_for("admin_users"))
+        summary = build_admin_user_summary(viewed_user)
+        records = {
+            "medications": Medication.query.filter_by(user_id=user_id).order_by(Medication.time_of_day.asc()).all(),
+            "medication_logs": MedicationLog.query.filter_by(user_id=user_id).order_by(MedicationLog.taken_at.desc()).limit(10).all(),
+            "lifestyle_logs": LifestyleLog.query.filter_by(user_id=user_id).order_by(LifestyleLog.log_date.desc()).limit(10).all(),
+            "mental_logs": MentalLog.query.filter_by(user_id=user_id).order_by(MentalLog.log_date.desc()).limit(10).all(),
+            "cycle_logs": CycleLog.query.filter_by(user_id=user_id).order_by(CycleLog.log_date.desc()).limit(10).all(),
+            "appointments": Appointment.query.filter_by(user_id=user_id).order_by(Appointment.appointment_date.desc()).limit(10).all(),
+        }
+        return render_template(
+            "admin/user_detail.html",
+            viewed_user=viewed_user,
+            summary=summary,
+            records=records,
+            display_date_label=display_date_label,
         )
 
     @app.get("/api/health")
