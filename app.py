@@ -1371,9 +1371,8 @@ def register_routes(app):
                     "appointments": True,
                     "alerts": True,
                 }
-            if not is_admin_user(user) and not session.get("admin_notes_modal_shown"):
+            if not is_admin_user(user):
                 admin_note_modal_notes = AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).limit(5).all()
-                session["admin_notes_modal_shown"] = True
         return {
             "current_user": user,
             "current_is_admin": is_admin_user(user),
@@ -1536,7 +1535,7 @@ def register_routes(app):
         return normalize_email(session.get("pending_verification_email") or session.get("otp_email"))
 
     def clear_authenticated_session():
-        for key in ("user_id", "login_at", "new_account", "settings_password_verified", "admin_notes_modal_shown"):
+        for key in ("user_id", "login_at", "new_account", "settings_password_verified"):
             session.pop(key, None)
 
     def start_authenticated_session(user, *, new_account=False):
@@ -5014,36 +5013,74 @@ def register_routes(app):
             },
         }
 
+    def admin_notes_redirect(default_user_id=None):
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/admin"):
+            return redirect(next_url)
+        if default_user_id:
+            return redirect(url_for("admin_user_detail", user_id=default_user_id))
+        return redirect(url_for("admin_profile"))
+
+    def admin_user_directory_query(limit=None):
+        search = normalize_email(request.args.get("q"))
+        query = User.query
+        if search:
+            query = query.filter(
+                or_(
+                    func.lower(User.full_name).contains(search),
+                    func.lower(User.username).contains(search),
+                )
+            )
+        query = query.order_by(User.created_at.desc())
+        return (query.limit(limit).all() if limit else query.all()), search
+
     @app.route("/admin")
     @login_required
     @admin_required
     def admin_dashboard():
-        users = User.query.order_by(User.created_at.desc()).limit(6).all()
+        users, search = admin_user_directory_query(limit=60)
         summaries = build_admin_user_summaries(users)
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
         stats = {
             "users": count_records(User),
             "verified_users": count_records(User, User.email_verified.is_(True)),
-            "medications": 0,
-            "medication_logs": 0,
-            "lifestyle_logs": sum(item["lifestyle_count"] for item in summaries),
-            "mental_logs": sum(item["mental_count"] for item in summaries),
-            "cycle_logs": sum(item["cycle_count"] for item in summaries),
-            "appointments": sum(item["appointment_count"] for item in summaries),
+            "archived_users": count_records(User, User.archived_at.isnot(None)),
+            "medications": count_records(Medication),
+            "medication_logs": count_records(MedicationLog),
+            "lifestyle_logs": count_records(LifestyleLog),
+            "mental_logs": count_records(MentalLog),
+            "cycle_logs": count_records(CycleLog),
+            "appointments": count_records(Appointment),
         }
         recent_counts = {
-            "users": count_records(User, User.created_at >= datetime.combine(date.today() - timedelta(days=6), datetime.min.time())),
-            "lifestyle_logs": stats["lifestyle_logs"],
-            "mental_logs": stats["mental_logs"],
-            "appointments": stats["appointments"],
+            "users": count_records(User, User.created_at >= datetime.combine(week_start, datetime.min.time())),
+            "lifestyle_logs": count_records(LifestyleLog, LifestyleLog.log_date >= week_start),
+            "mental_logs": count_records(MentalLog, MentalLog.log_date >= week_start),
+            "cycle_logs": count_records(CycleLog, CycleLog.log_date >= week_start),
+            "appointments": count_records(Appointment, Appointment.appointment_date >= week_start, Appointment.appointment_date <= week_end),
         }
+        active_features = [
+            ("Lifestyle records", stats["lifestyle_logs"]),
+            ("Mood records", stats["mental_logs"]),
+            ("Cycle records", stats["cycle_logs"]),
+            ("Appointments", stats["appointments"]),
+            ("Medications", stats["medications"]),
+        ]
+        most_active_feature = max(active_features, key=lambda item: item[1])[0] if any(count for _, count in active_features) else "No activity yet"
+        verification_rate = round((stats["verified_users"] / stats["users"]) * 100) if stats["users"] else 0
         return render_template(
             "admin/dashboard.html",
             stats=stats,
             summaries=summaries,
+            search=search,
             recent_counts=recent_counts,
             daily_activity=[],
             feature_usage=admin_feature_usage(stats),
             platform_insights=admin_platform_insights(stats, recent_counts),
+            most_active_feature=most_active_feature,
+            verification_rate=verification_rate,
             activity_feed=[
                 {"kind": "user", "title": item["user"].full_name, "detail": "Recent account", "date": item["user"].created_at}
                 for item in summaries[:4]
@@ -5056,16 +5093,7 @@ def register_routes(app):
     @login_required
     @admin_required
     def admin_users():
-        search = normalize_email(request.args.get("q"))
-        query = User.query
-        if search:
-            query = query.filter(
-                or_(
-                    func.lower(User.full_name).contains(search),
-                    func.lower(User.username).contains(search),
-                )
-            )
-        users = query.order_by(User.created_at.desc()).limit(40).all()
+        users, search = admin_user_directory_query(limit=80)
         return render_template(
             "admin/users.html",
             summaries=build_admin_user_summaries(users),
@@ -5084,7 +5112,17 @@ def register_routes(app):
             "reports_viewed": count_records(AdminAuditLog, AdminAuditLog.admin_id == admin.id, AdminAuditLog.action == "view_report"),
         }
         recent_logs = AdminAuditLog.query.filter_by(admin_id=admin.id).order_by(AdminAuditLog.created_at.desc()).limit(8).all()
-        return render_template("admin/profile.html", activity=activity, recent_logs=recent_logs, display_date_label=display_date_label)
+        admin_notes = AdminNote.query.order_by(AdminNote.updated_at.desc()).limit(30).all()
+        note_users = User.query.filter(User.role != "admin", User.archived_at.is_(None)).order_by(User.full_name.asc()).all()
+        return render_template(
+            "admin/profile.html",
+            activity=activity,
+            recent_logs=recent_logs,
+            admin_notes=admin_notes,
+            note_users=note_users,
+            settings=admin_settings_state(admin),
+            display_date_label=display_date_label,
+        )
 
     @app.route("/admin/settings", methods=["GET", "POST"])
     @login_required
@@ -5149,6 +5187,38 @@ def register_routes(app):
             audit_action=audit_action,
             display_date_label=display_date_label,
         )
+
+    @app.post("/admin/notes")
+    @login_required
+    @admin_required
+    def admin_create_note():
+        note_text = (request.form.get("note") or "").strip()
+        target_user_id = (request.form.get("target_user_id") or "").strip()
+        if not note_text:
+            flash("Admin note cannot be empty.", "danger")
+            return admin_notes_redirect()
+        if target_user_id == "all":
+            users = User.query.filter(User.role != "admin", User.archived_at.is_(None)).all()
+            for user in users:
+                db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
+            log_admin_action("create_admin_note", None, f"Created platform notice for {len(users)} users")
+            db.session.commit()
+            flash("Platform note posted to active users.", "success")
+            return admin_notes_redirect()
+        try:
+            user_id = int(target_user_id)
+        except (TypeError, ValueError):
+            flash("Choose a user for this admin note.", "danger")
+            return admin_notes_redirect()
+        user = db.session.get(User, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return admin_notes_redirect()
+        db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
+        log_admin_action("create_admin_note", user, f"Created admin note for {user.username}")
+        db.session.commit()
+        flash("Admin note posted.", "success")
+        return admin_notes_redirect(user.id)
 
     @app.route("/admin/users/<int:user_id>")
     @login_required
@@ -5230,7 +5300,7 @@ def register_routes(app):
         log_admin_action("create_admin_note", user, f"Created admin note for {user.username}")
         db.session.commit()
         flash("Admin note added.", "success")
-        return redirect(url_for("admin_user_detail", user_id=user.id))
+        return admin_notes_redirect(user.id)
 
     @app.post("/admin/notes/<int:note_id>/update")
     @login_required
@@ -5250,7 +5320,7 @@ def register_routes(app):
         log_admin_action("update_admin_note", note.user, f"Updated admin note for {note.user.username if note.user else note.user_id}")
         db.session.commit()
         flash("Admin note updated.", "success")
-        return redirect(url_for("admin_user_detail", user_id=note.user_id))
+        return admin_notes_redirect(note.user_id)
 
     @app.post("/admin/notes/<int:note_id>/delete")
     @login_required
@@ -5266,7 +5336,7 @@ def register_routes(app):
         db.session.delete(note)
         db.session.commit()
         flash("Admin note deleted.", "success")
-        return redirect(url_for("admin_user_detail", user_id=user_id))
+        return admin_notes_redirect(user_id)
 
     @app.post("/admin/appointments/<int:appointment_id>/status")
     @login_required

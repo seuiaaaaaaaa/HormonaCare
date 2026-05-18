@@ -1578,6 +1578,37 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
+    const adminNoteModal = document.querySelector("[data-admin-note-modal]");
+    if (adminNoteModal) {
+        const noteStorageKey = "hormonacare-dismissed-admin-notes";
+        const signatures = Array.from(adminNoteModal.querySelectorAll("[data-admin-note-signature]"))
+            .map((item) => item.getAttribute("data-admin-note-signature"))
+            .filter(Boolean)
+            .join("|");
+        let dismissedSignature = "";
+        try {
+            dismissedSignature = window.localStorage.getItem(noteStorageKey) || "";
+        } catch (error) {
+            dismissedSignature = "";
+        }
+
+        if (signatures && dismissedSignature === signatures) {
+            adminNoteModal.hidden = true;
+        } else {
+            adminNoteModal.hidden = false;
+        }
+
+        adminNoteModal.querySelectorAll("[data-admin-note-dismiss]").forEach((button) => {
+            button.addEventListener("click", () => {
+                try {
+                    window.localStorage.setItem(noteStorageKey, signatures);
+                } catch (error) {
+                    // Keep the modal dismissible even when local storage is unavailable.
+                }
+            });
+        });
+    }
+
     document.querySelectorAll(".modal-backdrop").forEach((modal) => {
         modal.addEventListener("click", (event) => {
             if (event.target === modal) {

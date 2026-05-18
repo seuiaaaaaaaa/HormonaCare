@@ -7892,7 +7892,9 @@ td {
 
 .content-shell-admin-dashboard,
 .content-shell-admin-users,
-.content-shell-admin-user-detail {
+.content-shell-admin-user-detail,
+.content-shell-admin-profile,
+.content-shell-admin-settings {
     color: #e9f2ff;
 }
 
@@ -7949,6 +7951,20 @@ td {
     box-shadow: 0 12px 26px rgba(255, 79, 122, 0.2);
 }
 
+.admin-action.secondary {
+    background: rgba(143, 183, 255, 0.14);
+    color: #dce8ff;
+    box-shadow: none;
+}
+
+.admin-hero-actions,
+.admin-profile-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
 .admin-stat-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -7968,10 +7984,23 @@ td {
 }
 
 .admin-metric-card {
-    min-height: 138px;
+    min-height: 150px;
     padding: 16px;
     display: grid;
     gap: 7px;
+}
+
+.admin-overview-card {
+    height: 158px;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-overview-card:hover,
+.admin-glass-card:hover,
+.admin-insight-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(143, 183, 255, 0.34);
+    box-shadow: 0 18px 42px rgba(9, 19, 42, 0.22);
 }
 
 .admin-metric-card.mini {
@@ -8040,6 +8069,16 @@ td {
 .admin-badge.pending {
     background: rgba(245, 158, 11, 0.16);
     color: #ffd28a;
+}
+
+.admin-badge.active {
+    background: rgba(34, 197, 94, 0.14);
+    color: #7ee5a5;
+}
+
+.admin-badge.archived {
+    background: rgba(148, 163, 184, 0.18);
+    color: #cbd5e1;
 }
 
 .admin-role-chip {
@@ -8231,6 +8270,7 @@ td {
 }
 
 .admin-insight-card.green .admin-insight-dot { background: #22c55e; }
+.admin-insight-card.blue .admin-insight-dot { background: #327bf6; }
 .admin-insight-card.purple .admin-insight-dot { background: #8b5cf6; }
 .admin-insight-card.teal .admin-insight-dot { background: #14b8a6; }
 
@@ -8321,6 +8361,24 @@ td {
 
 .admin-table-card {
     margin-top: 18px;
+}
+
+.admin-directory-wrap {
+    max-height: 560px;
+    overflow: auto;
+    scrollbar-color: rgba(143, 183, 255, 0.38) transparent;
+}
+
+.admin-directory-table {
+    min-width: 1060px;
+}
+
+.admin-directory-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: rgba(16, 31, 63, 0.98);
+    backdrop-filter: blur(12px);
 }
 
 .admin-top-card {
@@ -8484,8 +8542,10 @@ td {
 }
 
 .admin-note-form textarea,
+.admin-note-form select,
 .admin-note-item textarea,
 .admin-settings-form input,
+.admin-settings-form select,
 .admin-search input,
 .admin-search select,
 .admin-inline-form select {
@@ -8502,6 +8562,92 @@ td {
     gap: 7px;
     color: #b9c9e6;
     font-weight: 700;
+}
+
+.admin-note-form label {
+    display: grid;
+    gap: 7px;
+    color: #b9c9e6;
+    font-weight: 700;
+}
+
+.admin-note-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.admin-note-meta strong {
+    color: #ffffff;
+}
+
+.admin-note-meta small {
+    color: #8ea4c9;
+}
+
+.admin-note-list-large {
+    max-height: 520px;
+}
+
+.admin-profile-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.admin-profile-hero h1 {
+    margin: 4px 0 4px;
+    color: #ffffff;
+    font-size: 1.9rem;
+}
+
+.admin-profile-hero p,
+.admin-theme-preview p {
+    margin: 0;
+    color: #9fb2d2;
+}
+
+.admin-profile-side {
+    display: grid;
+    gap: 18px;
+}
+
+.admin-security-summary {
+    min-height: 180px;
+}
+
+.admin-settings-card {
+    min-height: 260px;
+}
+
+.admin-theme-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid rgba(143, 183, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(9, 18, 38, 0.28);
+}
+
+.admin-theme-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: #ff6d98;
+    box-shadow: 0 0 0 6px rgba(255, 109, 152, 0.12);
+}
+
+.admin-audit-wrap {
+    max-height: 360px;
+    overflow: auto;
+}
+
+.admin-theme-form .theme-helper {
+    margin: -2px 0 2px;
 }
 
 .admin-inline-form {
@@ -8570,6 +8716,114 @@ td {
     height: 86px;
     border-radius: 24px;
     font-size: 1.4rem;
+}
+
+.admin-note-modal-card {
+    display: grid;
+    gap: 14px;
+}
+
+.admin-note-modal-list article strong {
+    color: #ffffff;
+    font-size: 0.92rem;
+}
+
+.admin-note-modal-list small {
+    color: #8ea4c9;
+    font-size: 0.78rem;
+}
+
+.admin-note-dismiss {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(255, 79, 122, 0.92);
+    color: #ffffff;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+html[data-theme="light"] .content-shell-admin-dashboard,
+html[data-theme="light"] .content-shell-admin-users,
+html[data-theme="light"] .content-shell-admin-user-detail,
+html[data-theme="light"] .content-shell-admin-profile,
+html[data-theme="light"] .content-shell-admin-settings {
+    color: #102246;
+}
+
+html[data-theme="light"] .admin-hero,
+html[data-theme="light"] .admin-metric-card,
+html[data-theme="light"] .admin-glass-card,
+html[data-theme="light"] .admin-chart-card,
+html[data-theme="light"] .admin-insight-card {
+    border-color: rgba(202, 216, 235, 0.92);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.98));
+    box-shadow: 0 16px 32px rgba(43, 70, 112, 0.09);
+}
+
+html[data-theme="light"] .admin-hero {
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.98)),
+        radial-gradient(circle at 86% 18%, rgba(255, 79, 122, 0.14), transparent 32%);
+}
+
+html[data-theme="light"] .admin-hero h1,
+html[data-theme="light"] .admin-metric-card strong,
+html[data-theme="light"] .admin-card-head h3,
+html[data-theme="light"] .admin-insight-card strong,
+html[data-theme="light"] .admin-insight-card p,
+html[data-theme="light"] .admin-user-row strong,
+html[data-theme="light"] .admin-table-user strong,
+html[data-theme="light"] .admin-list-row strong,
+html[data-theme="light"] .admin-feed-item strong,
+html[data-theme="light"] .admin-empty-state strong,
+html[data-theme="light"] .admin-note-meta strong,
+html[data-theme="light"] .admin-profile-hero h1 {
+    color: #102246;
+}
+
+html[data-theme="light"] .admin-hero p,
+html[data-theme="light"] .admin-metric-card span,
+html[data-theme="light"] .admin-table td,
+html[data-theme="light"] .admin-user-row small,
+html[data-theme="light"] .admin-list-row span,
+html[data-theme="light"] .admin-feed-item p,
+html[data-theme="light"] .admin-profile-hero p,
+html[data-theme="light"] .admin-theme-preview p,
+html[data-theme="light"] .admin-note-form label,
+html[data-theme="light"] .admin-settings-form label,
+html[data-theme="light"] .admin-toggle-list label {
+    color: #506684;
+}
+
+html[data-theme="light"] .admin-card-head.sticky,
+html[data-theme="light"] .admin-directory-table thead th {
+    background: rgba(255, 255, 255, 0.96);
+}
+
+html[data-theme="light"] .admin-note-form textarea,
+html[data-theme="light"] .admin-note-form select,
+html[data-theme="light"] .admin-note-item textarea,
+html[data-theme="light"] .admin-settings-form input,
+html[data-theme="light"] .admin-settings-form select,
+html[data-theme="light"] .admin-search input,
+html[data-theme="light"] .admin-search select,
+html[data-theme="light"] .admin-inline-form select {
+    border-color: #dbe5f2;
+    background: #ffffff;
+    color: #102246;
+}
+
+html[data-theme="light"] .admin-note-item,
+html[data-theme="light"] .admin-theme-preview {
+    border-color: #dbe5f2;
+    background: #f7faff;
+}
+
+html[data-theme="light"] .admin-action.secondary {
+    background: #eef5ff;
+    color: #327bf6;
 }
 
 @media (max-width: 1180px) {

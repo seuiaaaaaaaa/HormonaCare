@@ -4,26 +4,96 @@
 <section class="admin-hero compact">
     <div>
         <span class="admin-kicker">Admin Settings</span>
-        <h1>Safe admin controls</h1>
-        <p>Account, security, notifications, user management, and read-only audit logs.</p>
+        <h1>Account, security, and display controls</h1>
+        <p>Manage administrator identity, password protection, theme preference, and safe session settings.</p>
     </div>
+    <a class="admin-action" href="{{ url_for('admin_profile') }}">Profile</a>
 </section>
 
-<section class="admin-glass-card admin-table-card admin-top-card">
+<section class="admin-settings-grid admin-settings-modern">
+    <article class="admin-glass-card admin-settings-card">
+        <div class="admin-card-head">
+            <div><span>Account</span><h3>Account Settings</h3></div>
+        </div>
+        <form class="admin-settings-form" method="post">
+            <input type="hidden" name="action" value="account">
+            <label>Admin name
+                <input name="full_name" value="{{ current_user.full_name }}">
+            </label>
+            <label>Email
+                <input name="email" value="{{ current_user.username }}">
+            </label>
+            <button class="admin-small-button" type="submit">Save account</button>
+        </form>
+    </article>
+
+    <article class="admin-glass-card admin-settings-card">
+        <div class="admin-card-head">
+            <div><span>Password</span><h3>Password Settings</h3></div>
+        </div>
+        <div class="settings-mini-block settings-password-card admin-password-card">
+            <div class="settings-password-card-copy">
+                <span class="status-line">Secure Change</span>
+                <h4>Change Password</h4>
+                <p>Verify with your current password or send a one-time code to your admin email.</p>
+            </div>
+            <button type="button" class="outline-button" data-modal-open="settings-password-modal" data-settings-password-open>
+                Change Password
+            </button>
+        </div>
+    </article>
+
+    <article class="admin-glass-card admin-settings-card">
+        <div class="admin-card-head">
+            <div><span>Display</span><h3>Theme Settings</h3></div>
+        </div>
+        <form class="admin-settings-form admin-theme-form" method="post">
+            <input type="hidden" name="action" value="theme">
+            <label>Theme
+                <select name="dark_mode" id="admin-theme-select" data-theme-select>
+                    <option value="0" {% if not dark_mode_enabled %}selected{% endif %}>Light</option>
+                    <option value="1" {% if dark_mode_enabled %}selected{% endif %}>Dark</option>
+                </select>
+            </label>
+            <div class="admin-theme-preview">
+                <span class="admin-theme-dot"></span>
+                <p class="theme-helper admin-theme-helper" data-theme-status>
+                    {% if dark_mode_enabled %}Dark mode preview is on.{% else %}Light mode preview is on.{% endif %}
+                </p>
+            </div>
+            <button class="admin-small-button" type="submit">Save theme</button>
+        </form>
+    </article>
+
+    <article class="admin-glass-card admin-settings-card">
+        <div class="admin-card-head">
+            <div><span>Security</span><h3>Security Settings</h3></div>
+        </div>
+        <div class="admin-toggle-list admin-security-list">
+            <label><span>Login alerts</span><em>{{ 'Enabled' if settings.login_alerts else 'Disabled' }}</em></label>
+            <label><span>Session timeout</span><em>{{ settings.session_timeout }}</em></label>
+            {% for session_item in settings.recent_sessions %}
+            <label><span>{{ session_item.label }}</span><em>{{ session_item.detail }}</em></label>
+            {% endfor %}
+        </div>
+    </article>
+</section>
+
+<section class="admin-glass-card admin-table-card">
     <div class="admin-card-head">
-        <div><span>User Management</span><h3>Audit Logs</h3></div>
+        <div><span>Audit Logs</span><h3>Recent admin activity</h3></div>
     </div>
     <form class="admin-search" method="get">
         <input name="q" value="{{ audit_search }}" placeholder="Search audit details">
         <select name="action">
             <option value="">All actions</option>
-            {% for action in ['verify_user', 'archive_user', 'update_appointment_status', 'create_admin_note', 'update_admin_note', 'update_admin_account'] %}
+            {% for action in ['verify_user', 'archive_user', 'update_appointment_status', 'create_admin_note', 'update_admin_note', 'delete_admin_note', 'update_admin_account', 'update_admin_theme'] %}
             <option value="{{ action }}" {% if audit_action == action %}selected{% endif %}>{{ action.replace('_', ' ').title() }}</option>
             {% endfor %}
         </select>
         <button type="submit">Filter</button>
     </form>
-    <div class="table-wrap">
+    <div class="table-wrap admin-audit-wrap">
         <table class="admin-table">
             <thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead>
             <tbody>
@@ -35,71 +105,6 @@
             </tbody>
         </table>
     </div>
-</section>
-
-<section class="admin-glass-card admin-table-card">
-    <div class="admin-card-head">
-        <div><span>Admin Notes</span><h3>User-facing notes</h3></div>
-    </div>
-    <div class="table-wrap">
-        <table class="admin-table">
-            <thead><tr><th>User</th><th>Note</th><th>Updated</th></tr></thead>
-            <tbody>
-                {% for note in admin_notes %}
-                <tr>
-                    <td>{{ note.user.full_name if note.user else 'User' }}</td>
-                    <td>{{ note.note }}</td>
-                    <td>{{ display_date_label(note.updated_at) }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No admin notes yet</strong></div></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<section class="admin-settings-grid">
-    <article class="admin-glass-card">
-        <div class="admin-card-head"><div><span>Account</span><h3>Account Settings</h3></div></div>
-        <form class="admin-settings-form" method="post">
-            <input type="hidden" name="action" value="account">
-            <label>Admin name<input name="full_name" value="{{ current_user.full_name }}"></label>
-            <label>Email<input name="email" value="{{ current_user.username }}"></label>
-            <button class="admin-small-button" type="submit">Save account</button>
-        </form>
-        <div class="settings-mini-block settings-password-card admin-password-card">
-            <div class="settings-password-card-copy">
-                <span class="status-line">Password</span>
-                <h4>Change Password</h4>
-                <p>Verify with your current password or send a one-time code to your admin email.</p>
-            </div>
-            <button type="button" class="outline-button" data-modal-open="settings-password-modal" data-settings-password-open>
-                Change Password
-            </button>
-        </div>
-    </article>
-
-    <article class="admin-glass-card">
-        <div class="admin-card-head"><div><span>Notifications</span><h3>Notification Settings</h3></div></div>
-        <form class="admin-toggle-list" method="post">
-            <input type="hidden" name="action" value="preferences">
-            <label><span>New user alerts</span><input type="checkbox" name="new_users" checked></label>
-            <label><span>Appointment alerts</span><input type="checkbox" name="appointments" checked></label>
-            <label><span>High stress alerts</span><input type="checkbox" name="high_stress" checked></label>
-            <label><span>Missed medication alerts</span><input type="checkbox" name="missed_medications" checked></label>
-            <button class="admin-small-button" type="submit">Save preferences</button>
-        </form>
-    </article>
-
-    <article class="admin-glass-card">
-        <div class="admin-card-head"><div><span>Display</span><h3>Theme</h3></div></div>
-        <form class="admin-toggle-list" method="post">
-            <input type="hidden" name="action" value="theme">
-            <label><span>Dark mode</span><input type="checkbox" name="dark_mode" value="1" {% if dark_mode_enabled %}checked{% endif %}></label>
-            <button class="admin-small-button" type="submit">Save theme</button>
-        </form>
-    </article>
 </section>
 
 <div
@@ -140,9 +145,7 @@
             </section>
 
             <section class="settings-password-panel" data-settings-password-panel="current">
-                <div class="auth-step-context">
-                    Confirm your current password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
-                </div>
+                <div class="auth-step-context">Confirm your current password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</div>
                 <label>Current Password
                     <div class="auth-input-wrap">
                         <span class="auth-input-icon lock"></span>
@@ -160,9 +163,7 @@
             </section>
 
             <section class="settings-password-panel" data-settings-password-panel="otp">
-                <div class="auth-step-context">
-                    We will send the code to <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
-                </div>
+                <div class="auth-step-context">We will send the code to <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</div>
                 <label>OTP Code
                     <div class="auth-input-wrap">
                         <span class="auth-input-icon shield"></span>
@@ -178,9 +179,7 @@
             </section>
 
             <section class="settings-password-panel" data-settings-password-panel="new">
-                <div class="auth-step-context">
-                    Verification complete. Create a new password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
-                </div>
+                <div class="auth-step-context">Verification complete. Create a new password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</div>
                 <label>New Password
                     <div class="auth-input-wrap">
                         <span class="auth-input-icon lock"></span>

@@ -1,188 +1,110 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="admin-hero">
+<section class="admin-hero admin-monitor-hero">
     <div>
         <span class="admin-kicker">HormonaCare Admin</span>
-        <h1>Platform Health Monitor</h1>
-        <p>Compact read-only analytics for users, PCOS tracking activity, and care signals.</p>
+        <h1>Platform Monitoring Overview</h1>
+        <p>Track account health, user activity, care schedules, and PCOS wellness records from one clean admin console.</p>
     </div>
-    <a class="admin-action" href="{{ url_for('admin_users') }}">Users</a>
+    <div class="admin-hero-actions">
+        <a class="admin-action" href="{{ url_for('admin_profile') }}">Admin Profile</a>
+        <a class="admin-action secondary" href="{{ url_for('admin_settings') }}">Settings</a>
+    </div>
 </section>
 
-<section class="admin-stat-grid">
-    <article class="admin-metric-card">
+<section class="admin-stat-grid admin-overview-grid">
+    <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
             <span class="admin-icon blue"><span class="nav-icon nav-user"></span></span>
-            <span class="admin-trend up">+{{ recent_counts.users }} week</span>
+            <span class="admin-trend up">+{{ recent_counts.users }} this week</span>
         </div>
         <strong>{{ stats.users }}</strong>
         <span>Registered Users</span>
-        <small>{{ stats.verified_users }} verified accounts</small>
+        <small>{{ stats.verified_users }} verified accounts · {{ verification_rate }}% verified</small>
     </article>
-    <article class="admin-metric-card">
+    <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
             <span class="admin-icon green"><span class="nav-icon nav-wave"></span></span>
-            <span class="admin-trend up">+{{ recent_counts.lifestyle_logs }} week</span>
+            <span class="admin-trend up">{{ recent_counts.lifestyle_logs }} this week</span>
         </div>
         <strong>{{ stats.lifestyle_logs }}</strong>
-        <span>Lifestyle Logs</span>
-        <small>Sleep, water, diet, exercise</small>
+        <span>Lifestyle Activity</span>
+        <small>Most active feature: {{ most_active_feature }}</small>
     </article>
-    <article class="admin-metric-card">
+    <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
             <span class="admin-icon purple"><span class="nav-icon nav-mood"></span></span>
-            <span class="admin-trend calm">{{ recent_counts.mental_logs }} week</span>
+            <span class="admin-trend calm">{{ recent_counts.mental_logs }} this week</span>
         </div>
         <strong>{{ stats.mental_logs }}</strong>
-        <span>Mood Tracking</span>
-        <small>Stress and wellness activity</small>
+        <span>Mood Monitoring</span>
+        <small>{{ recent_counts.cycle_logs }} cycle records this week</small>
     </article>
-    <article class="admin-metric-card">
+    <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
             <span class="admin-icon teal"><span class="nav-icon nav-clock"></span></span>
-            <span class="admin-trend up">{{ recent_counts.appointments }} week</span>
+            <span class="admin-trend up">{{ recent_counts.appointments }} this week</span>
         </div>
         <strong>{{ stats.appointments }}</strong>
-        <span>Appointments</span>
-        <small>{{ stats.cycle_logs }} cycle logs tracked</small>
+        <span>Upcoming Care Schedule</span>
+        <small>{{ stats.medications }} medications being monitored</small>
     </article>
 </section>
 
-<section class="admin-analytics-grid single">
-    <article class="admin-chart-card">
-        <div class="admin-card-head">
-            <div>
-                <span>Feature Usage</span>
-                <h3>Tracking mix</h3>
-            </div>
-        </div>
-        <div class="admin-donut" style="background: conic-gradient(#22c55e 0 {{ feature_usage[0].percent }}%, #8b5cf6 {{ feature_usage[0].percent }}% {{ feature_usage[0].percent + feature_usage[1].percent }}%, #327bf6 {{ feature_usage[0].percent + feature_usage[1].percent }}% {{ feature_usage[0].percent + feature_usage[1].percent + feature_usage[2].percent }}%, #14b8a6 {{ feature_usage[0].percent + feature_usage[1].percent + feature_usage[2].percent }}% 100%);">
-            <strong>{{ stats.lifestyle_logs + stats.mental_logs + stats.cycle_logs + stats.appointments + stats.medications }}</strong>
-            <span>records</span>
-        </div>
-        <div class="admin-legend">
-            {% for item in feature_usage[:4] %}
-            <span><i class="{{ item.class }}"></i>{{ item.label }} {{ item.percent }}%</span>
-            {% endfor %}
-        </div>
-    </article>
-</section>
-
-<section class="admin-insight-grid">
-    {% for insight in platform_insights %}
-    <article class="admin-insight-card {{ insight.tone }}">
+<section class="admin-insight-grid admin-monitor-strip">
+    <article class="admin-insight-card blue">
         <span class="admin-insight-dot"></span>
-        <strong>{{ insight.value }}</strong>
-        <p>{{ insight.title }}</p>
-        <small>{{ insight.detail }}</small>
+        <strong>{{ stats.verified_users }}</strong>
+        <p>Verified Users</p>
+        <small>{{ stats.users - stats.verified_users }} accounts pending verification</small>
     </article>
-    {% endfor %}
-</section>
-
-<section class="admin-dashboard-grid">
-    <article class="admin-glass-card admin-users-card">
-        <div class="admin-card-head">
-            <div>
-                <span>Latest Users</span>
-                <h3>Account monitoring</h3>
-            </div>
-            <a href="{{ url_for('admin_users') }}">All</a>
-        </div>
-        <div class="admin-user-list">
-            {% for item in summaries[:6] %}
-            <a class="admin-user-row" href="{{ url_for('admin_user_detail', user_id=item.user.id) }}">
-                <span class="admin-avatar">{{ item.user.full_name[:1] }}{{ item.user.username[:1] }}</span>
-                <span>
-                    <strong>{{ item.user.full_name }}</strong>
-                    <small>{{ item.user.username }}</small>
-                </span>
-                <em class="admin-badge {{ 'verified' if item.user.email_verified else 'pending' }}">{{ 'Verified' if item.user.email_verified else 'Pending' }}</em>
-            </a>
-            {% else %}
-            <div class="admin-empty-state">
-                <span class="nav-icon nav-user"></span>
-                <strong>No users yet</strong>
-                <p>New registrations will appear here.</p>
-            </div>
-            {% endfor %}
-        </div>
+    <article class="admin-insight-card green">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ stats.lifestyle_logs + stats.mental_logs + stats.cycle_logs }}</strong>
+        <p>Wellness Records</p>
+        <small>Lifestyle, mood, and cycle tracking combined</small>
     </article>
-
-    <article class="admin-glass-card admin-feed-card">
-        <div class="admin-card-head sticky">
-            <div>
-                <span>Live Feed</span>
-                <h3>Recent activity</h3>
-            </div>
-        </div>
-        <div class="admin-feed-scroll">
-            {% for event in activity_feed %}
-            <div class="admin-feed-item {{ event.kind }}">
-                <span class="admin-feed-icon"></span>
-                <div>
-                    <strong>{{ event.title }}</strong>
-                    <p>{{ event.detail }}</p>
-                </div>
-                <small>{{ display_date_label(event.date) }}</small>
-            </div>
-            {% else %}
-            <div class="admin-empty-state">
-                <span class="nav-icon nav-bell"></span>
-                <strong>No activity yet</strong>
-                <p>Platform events will show here.</p>
-            </div>
-            {% endfor %}
-        </div>
+    <article class="admin-insight-card purple">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ stats.medication_logs }}</strong>
+        <p>Medication History</p>
+        <small>Medication confirmations and missed logs</small>
+    </article>
+    <article class="admin-insight-card teal">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ stats.archived_users }}</strong>
+        <p>Archived Accounts</p>
+        <small>Retained for audit-safe monitoring</small>
     </article>
 </section>
 
-<section class="admin-dashboard-grid">
-    <article class="admin-glass-card admin-feed-card">
-        <div class="admin-card-head sticky">
-            <div>
-                <span>Alerts</span>
-                <h3>Recent system alerts</h3>
-            </div>
-        </div>
-        <div class="admin-feed-scroll">
-            {% for alert in recent_alerts %}
-            <div class="admin-feed-item">
-                <span class="admin-feed-icon"></span>
-                <div>
-                    <strong>{{ alert.notification_type.replace('_', ' ').title() }}</strong>
-                    <p>{{ alert.notification_key }}</p>
-                </div>
-                <small>{{ display_date_label(alert.sent_at) }}</small>
-            </div>
-            {% else %}
-            <div class="admin-empty-state">
-                <span class="nav-icon nav-bell"></span>
-                <strong>No alerts yet</strong>
-                <p>System alerts will appear here.</p>
-            </div>
-            {% endfor %}
-        </div>
-    </article>
-</section>
-
-<section class="admin-glass-card admin-table-card">
+<section class="admin-glass-card admin-table-card admin-directory-card">
     <div class="admin-card-head">
         <div>
-            <span>Directory</span>
-            <h3>Latest Users</h3>
+            <span>User Directory</span>
+            <h3>Account and activity monitoring</h3>
         </div>
-        <a href="{{ url_for('admin_users') }}">See all</a>
+        <a href="{{ url_for('admin_users') }}">Open full users page</a>
     </div>
-    <div class="table-wrap">
-        <table class="admin-table">
+    <form class="admin-search" method="get" action="{{ url_for('admin_dashboard') }}">
+        <input type="search" name="q" value="{{ search }}" placeholder="Search users by name or email">
+        <button type="submit">Search</button>
+    </form>
+    <div class="table-wrap admin-directory-wrap">
+        <table class="admin-table admin-directory-table">
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th>User</th>
                     <th>Email</th>
-                    <th>Status</th>
-                    <th>Records</th>
-                    <th>Latest activity</th>
+                    <th>Role</th>
+                    <th>Verification</th>
+                    <th>Archive</th>
+                    <th>Medications</th>
+                    <th>Lifestyle</th>
+                    <th>Mood</th>
+                    <th>Cycle</th>
+                    <th>Appointments</th>
                     <th></th>
                 </tr>
             </thead>
@@ -196,17 +118,22 @@
                         </div>
                     </td>
                     <td>{{ item.user.username }}</td>
+                    <td><span class="admin-role-chip">{{ item.user.role or 'user' }}</span></td>
                     <td><span class="admin-badge {{ 'verified' if item.user.email_verified else 'pending' }}">{{ 'Verified' if item.user.email_verified else 'Pending' }}</span></td>
-                    <td>{{ item.medication_count + item.lifestyle_count + item.mental_count + item.cycle_count + item.appointment_count }}</td>
-                    <td>{{ item.latest_activity_label }}</td>
+                    <td><span class="admin-badge {{ 'archived' if item.user.archived_at else 'active' }}">{{ 'Archived' if item.user.archived_at else 'Active' }}</span></td>
+                    <td>{{ item.medication_count }}</td>
+                    <td>{{ item.lifestyle_count }}</td>
+                    <td>{{ item.mental_count }}</td>
+                    <td>{{ item.cycle_count }}</td>
+                    <td>{{ item.appointment_count }}</td>
                     <td><a class="admin-table-link" href="{{ url_for('admin_user_detail', user_id=item.user.id) }}">View</a></td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6">
+                    <td colspan="11">
                         <div class="admin-empty-state inline">
                             <span class="nav-icon nav-user"></span>
-                            <strong>No users yet</strong>
+                            <strong>No matching users</strong>
                         </div>
                     </td>
                 </tr>

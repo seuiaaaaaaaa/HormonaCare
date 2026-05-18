@@ -1,26 +1,125 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="admin-hero compact">
-    <div>
-        <span class="admin-kicker">Administrator</span>
-        <h1>{{ current_user.full_name }}</h1>
-        <p>{{ current_user.username }} &middot; Verified administrator</p>
-    </div>
+<section class="admin-profile-hero admin-glass-card">
     <span class="admin-avatar profile">{{ current_user.full_name[:1] }}{{ current_user.username[:1] }}</span>
+    <div>
+        <span class="admin-kicker">Administrator Profile</span>
+        <h1>{{ current_user.full_name }}</h1>
+        <p>{{ current_user.username }}</p>
+        <div class="admin-profile-badges">
+            <span class="admin-role-chip">Admin</span>
+            <span class="admin-badge verified">Verified Administrator</span>
+        </div>
+    </div>
 </section>
 
-<section class="admin-glass-card admin-log-card">
-    <div class="admin-card-head sticky"><div><span>Recent Activity</span><h3>Admin audit trail</h3></div></div>
-    <div class="admin-scroll-list">
-        {% for log in recent_logs %}
-        <div class="admin-list-row">
-            <strong>{{ log.action.replace('_', ' ').title() }}</strong>
-            <span>{{ log.details or 'Recorded admin action' }} &middot; {{ display_date_label(log.created_at) }}</span>
+<section class="admin-insight-grid admin-profile-summary">
+    <article class="admin-insight-card blue">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ activity.users_monitored }}</strong>
+        <p>Users Monitored</p>
+        <small>Registered accounts in the platform</small>
+    </article>
+    <article class="admin-insight-card teal">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ activity.appointments_reviewed }}</strong>
+        <p>Appointments</p>
+        <small>Care schedules available for review</small>
+    </article>
+    <article class="admin-insight-card purple">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ activity.alerts_reviewed }}</strong>
+        <p>Alerts Logged</p>
+        <small>Browser notification events tracked</small>
+    </article>
+    <article class="admin-insight-card green">
+        <span class="admin-insight-dot"></span>
+        <strong>{{ activity.reports_viewed }}</strong>
+        <p>Reports Viewed</p>
+        <small>Read-only admin review actions</small>
+    </article>
+</section>
+
+<section class="admin-dashboard-grid">
+    <article class="admin-glass-card admin-notes-workspace">
+        <div class="admin-card-head">
+            <div>
+                <span>Admin Notes</span>
+                <h3>Platform notices and user reminders</h3>
+            </div>
         </div>
-        {% else %}
-        <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>
-        {% endfor %}
+        <form class="admin-note-form" method="post" action="{{ url_for('admin_create_note') }}">
+            <input type="hidden" name="next" value="{{ request.full_path }}">
+            <label>Send to
+                <select name="target_user_id" required>
+                    <option value="all">All active users</option>
+                    {% for user in note_users %}
+                    <option value="{{ user.id }}">{{ user.full_name }} · {{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Note content
+                <textarea name="note" rows="4" placeholder="Example: Remember to log hydration daily."></textarea>
+            </label>
+            <button class="admin-small-button" type="submit">Post note</button>
+        </form>
+        <div class="admin-note-list admin-note-list-large">
+            {% for note in admin_notes %}
+            <article class="admin-note-item">
+                <form method="post" action="{{ url_for('admin_update_note', note_id=note.id) }}">
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <div class="admin-note-meta">
+                        <strong>{{ note.user.full_name if note.user else 'User' }}</strong>
+                        <small>{{ display_date_label(note.updated_at) }}</small>
+                    </div>
+                    <textarea name="note" rows="3">{{ note.note }}</textarea>
+                    <div class="admin-note-actions">
+                        <button class="admin-small-button" type="submit">Update</button>
+                    </div>
+                </form>
+                <form method="post" action="{{ url_for('admin_delete_note', note_id=note.id) }}" data-confirm-message="Delete this admin note?">
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="admin-small-button warning" type="submit">Archive/Delete</button>
+                </form>
+            </article>
+            {% else %}
+            <div class="admin-empty-state inline">
+                <span class="nav-icon nav-bell"></span>
+                <strong>No admin notes yet</strong>
+                <p>Post healthcare reminders or platform notices here.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </article>
+
+    <div class="admin-profile-side">
+        <article class="admin-glass-card admin-log-card">
+            <div class="admin-card-head sticky">
+                <div><span>Recent Activity</span><h3>Admin audit trail</h3></div>
+            </div>
+            <div class="admin-scroll-list">
+                {% for log in recent_logs %}
+                <div class="admin-list-row">
+                    <strong>{{ log.action.replace('_', ' ').title() }}</strong>
+                    <span>{{ log.details or 'Recorded admin action' }} · {{ display_date_label(log.created_at) }}</span>
+                </div>
+                {% else %}
+                <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="admin-glass-card admin-security-summary">
+            <div class="admin-card-head">
+                <div><span>Security</span><h3>Login and session summary</h3></div>
+            </div>
+            <div class="admin-permission-list allowed">
+                <span>Login alerts {{ 'enabled' if settings.login_alerts else 'disabled' }}</span>
+                <span>{{ settings.session_timeout }} session timeout</span>
+                <span>Verified admin identity</span>
+            </div>
+        </article>
     </div>
 </section>
 {% endblock %}
