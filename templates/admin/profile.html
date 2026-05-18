@@ -10,13 +10,6 @@
     <span class="admin-avatar profile">{{ current_user.full_name[:1] }}{{ current_user.username[:1] }}</span>
 </section>
 
-<section class="admin-stat-grid compact">
-    <article class="admin-metric-card mini"><strong>{{ activity.users_monitored }}</strong><span>Users monitored</span><small>Read-only visibility</small></article>
-    <article class="admin-metric-card mini"><strong>{{ activity.appointments_reviewed }}</strong><span>Appointments</span><small>Status updates only</small></article>
-    <article class="admin-metric-card mini"><strong>{{ activity.alerts_reviewed }}</strong><span>Alerts</span><small>Notification logs</small></article>
-    <article class="admin-metric-card mini"><strong>{{ activity.reports_viewed }}</strong><span>Reports viewed</span><small>Audit tracked</small></article>
-</section>
-
 <section class="admin-glass-card admin-log-card">
     <div class="admin-card-head sticky"><div><span>Recent Activity</span><h3>Admin audit trail</h3></div></div>
     <div class="admin-scroll-list">

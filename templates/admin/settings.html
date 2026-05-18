@@ -9,6 +9,56 @@
     </div>
 </section>
 
+<section class="admin-glass-card admin-table-card admin-top-card">
+    <div class="admin-card-head">
+        <div><span>User Management</span><h3>Audit Logs</h3></div>
+    </div>
+    <form class="admin-search" method="get">
+        <input name="q" value="{{ audit_search }}" placeholder="Search audit details">
+        <select name="action">
+            <option value="">All actions</option>
+            {% for action in ['verify_user', 'archive_user', 'update_appointment_status', 'create_admin_note', 'update_admin_note', 'update_admin_account'] %}
+            <option value="{{ action }}" {% if audit_action == action %}selected{% endif %}>{{ action.replace('_', ' ').title() }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filter</button>
+    </form>
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for log in audit_logs %}
+                <tr><td>{{ log.action.replace('_', ' ').title() }}</td><td>{{ log.details }}</td><td>{{ display_date_label(log.created_at) }}</td></tr>
+                {% else %}
+                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No audit logs found</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="admin-glass-card admin-table-card">
+    <div class="admin-card-head">
+        <div><span>Admin Notes</span><h3>Internal notes</h3></div>
+    </div>
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead><tr><th>User</th><th>Note</th><th>Updated</th></tr></thead>
+            <tbody>
+                {% for note in admin_notes %}
+                <tr>
+                    <td>{{ note.user.full_name if note.user else 'User' }}</td>
+                    <td>{{ note.note }}</td>
+                    <td>{{ display_date_label(note.updated_at) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No admin notes yet</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
 <section class="admin-settings-grid">
     <article class="admin-glass-card">
         <div class="admin-card-head"><div><span>Account</span><h3>Account Settings</h3></div></div>
@@ -50,34 +100,6 @@
             <button class="admin-small-button" type="submit">Save theme</button>
         </form>
     </article>
-</section>
-
-<section class="admin-glass-card admin-table-card">
-    <div class="admin-card-head">
-        <div><span>User Management</span><h3>Audit Logs</h3></div>
-    </div>
-    <form class="admin-search" method="get">
-        <input name="q" value="{{ audit_search }}" placeholder="Search audit details">
-        <select name="action">
-            <option value="">All actions</option>
-            {% for action in ['verify_user', 'archive_user', 'update_appointment_status', 'create_admin_note', 'update_admin_note', 'update_admin_account'] %}
-            <option value="{{ action }}" {% if audit_action == action %}selected{% endif %}>{{ action.replace('_', ' ').title() }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit">Filter</button>
-    </form>
-    <div class="table-wrap">
-        <table class="admin-table">
-            <thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead>
-            <tbody>
-                {% for log in audit_logs %}
-                <tr><td>{{ log.action.replace('_', ' ').title() }}</td><td>{{ log.details }}</td><td>{{ display_date_label(log.created_at) }}</td></tr>
-                {% else %}
-                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No audit logs found</strong></div></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
 </section>
 
 <div

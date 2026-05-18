@@ -8285,6 +8285,11 @@ td {
     margin-top: 18px;
 }
 
+.admin-top-card {
+    margin-top: 0;
+    margin-bottom: 18px;
+}
+
 .admin-table th,
 .admin-table td {
     border-color: rgba(143, 183, 255, 0.14);

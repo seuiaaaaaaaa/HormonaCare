@@ -5129,10 +5129,12 @@ def register_routes(app):
                 flash("Theme preference saved.", "success")
                 return redirect(url_for("admin_settings"))
         audit_logs, audit_search, audit_action = admin_audit_query()
+        admin_notes = AdminNote.query.order_by(AdminNote.updated_at.desc()).limit(20).all()
         return render_template(
             "admin/settings.html",
             settings=admin_settings_state(admin),
             audit_logs=audit_logs,
+            admin_notes=admin_notes,
             audit_search=audit_search,
             audit_action=audit_action,
             display_date_label=display_date_label,
