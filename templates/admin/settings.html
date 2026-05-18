@@ -18,13 +18,16 @@
             <label>Email<input name="email" value="{{ current_user.username }}"></label>
             <button class="admin-small-button" type="submit">Save account</button>
         </form>
-        <form class="admin-settings-form" method="post">
-            <input type="hidden" name="action" value="password">
-            <label>Current password<input type="password" name="current_password"></label>
-            <label>New password<input type="password" name="new_password"></label>
-            <label>Confirm password<input type="password" name="confirm_password"></label>
-            <button class="admin-small-button" type="submit">Change password</button>
-        </form>
+        <div class="settings-mini-block settings-password-card admin-password-card">
+            <div class="settings-password-card-copy">
+                <span class="status-line">Password</span>
+                <h4>Change Password</h4>
+                <p>Verify with your current password or send a one-time code to your admin email.</p>
+            </div>
+            <button type="button" class="outline-button" data-modal-open="settings-password-modal" data-settings-password-open>
+                Change Password
+            </button>
+        </div>
     </article>
 
     <article class="admin-glass-card">
@@ -76,4 +79,112 @@
         </table>
     </div>
 </section>
+
+<div
+    class="modal-backdrop"
+    id="settings-password-modal"
+    hidden
+    data-settings-password-modal
+    data-verify-current-url="{{ url_for('settings_password_verify_current') }}"
+    data-send-otp-url="{{ url_for('settings_password_send_otp') }}"
+    data-verify-otp-url="{{ url_for('settings_password_verify_otp') }}"
+    data-update-password-url="{{ url_for('settings_password_update') }}"
+    data-user-email="{{ current_user.username }}"
+>
+    <div class="modal-card settings-password-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-password-modal-title">
+        <button type="button" class="modal-close" data-modal-close="settings-password-modal" aria-label="Close password change modal">&times;</button>
+        <div class="settings-password-modal-head">
+            <span class="status-line">Account Security</span>
+            <h2 id="settings-password-modal-title">Change Password</h2>
+            <p>Choose how you want to verify this change for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</p>
+        </div>
+
+        <div class="auth-inline-status hidden-error" data-settings-password-status></div>
+
+        <form class="settings-password-flow" data-settings-password-flow novalidate>
+            <section class="settings-password-panel is-active" data-settings-password-panel="method">
+                <div class="settings-password-method-grid">
+                    <button type="button" class="settings-password-method" data-settings-password-method="current">
+                        <span class="settings-password-method-icon lock" aria-hidden="true"></span>
+                        <strong>Enter Current Password</strong>
+                        <span>Use your existing password to unlock the reset form.</span>
+                    </button>
+                    <button type="button" class="settings-password-method" data-settings-password-method="otp">
+                        <span class="settings-password-method-icon mail" aria-hidden="true"></span>
+                        <strong>Send OTP to Email</strong>
+                        <span>Receive a 6-digit code at your registered email address.</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="settings-password-panel" data-settings-password-panel="current">
+                <div class="auth-step-context">
+                    Confirm your current password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
+                </div>
+                <label>Current Password
+                    <div class="auth-input-wrap">
+                        <span class="auth-input-icon lock"></span>
+                        <input type="password" placeholder="Enter your current password" autocomplete="current-password" data-settings-current-password data-password-field>
+                        <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                            <span class="auth-password-eye" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <p class="field-error hidden-error" data-settings-current-password-error></p>
+                </label>
+                <div class="settings-password-actions">
+                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="submit" class="auth-gradient-button">Verify Current Password</button>
+                </div>
+            </section>
+
+            <section class="settings-password-panel" data-settings-password-panel="otp">
+                <div class="auth-step-context">
+                    We will send the code to <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
+                </div>
+                <label>OTP Code
+                    <div class="auth-input-wrap">
+                        <span class="auth-input-icon shield"></span>
+                        <input type="text" placeholder="Enter the 6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" data-settings-otp-input>
+                    </div>
+                    <p class="field-error hidden-error" data-settings-otp-error></p>
+                </label>
+                <div class="settings-password-actions settings-password-actions-stack">
+                    <button type="submit" class="auth-gradient-button">Verify OTP</button>
+                    <button type="button" class="auth-secondary-button" data-settings-resend-otp>Resend OTP</button>
+                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                </div>
+            </section>
+
+            <section class="settings-password-panel" data-settings-password-panel="new">
+                <div class="auth-step-context">
+                    Verification complete. Create a new password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
+                </div>
+                <label>New Password
+                    <div class="auth-input-wrap">
+                        <span class="auth-input-icon lock"></span>
+                        <input type="password" placeholder="Create a strong password" autocomplete="new-password" data-settings-new-password data-password-field>
+                        <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                            <span class="auth-password-eye" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <p class="field-error hidden-error" data-settings-new-password-error></p>
+                </label>
+                <label>Confirm New Password
+                    <div class="auth-input-wrap">
+                        <span class="auth-input-icon lock"></span>
+                        <input type="password" placeholder="Repeat your new password" autocomplete="new-password" data-settings-confirm-password data-password-field>
+                        <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                            <span class="auth-password-eye" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <p class="field-error hidden-error" data-settings-confirm-password-error></p>
+                </label>
+                <div class="settings-password-actions">
+                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="submit" class="auth-gradient-button">Save New Password</button>
+                </div>
+            </section>
+        </form>
+    </div>
+</div>
 {% endblock %}

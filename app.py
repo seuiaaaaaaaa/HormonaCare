@@ -1249,6 +1249,10 @@ def register_routes(app):
                 "admin_archive_user",
                 "admin_save_note",
                 "admin_update_appointment_status",
+                "settings_password_verify_current",
+                "settings_password_send_otp",
+                "settings_password_verify_otp",
+                "settings_password_update",
             }
             if is_admin_user(user) and request.endpoint not in admin_endpoints:
                 return redirect(url_for("admin_dashboard"))
