@@ -4796,6 +4796,39 @@ def register_routes(app):
             "latest_activity_label": display_date_label(latest_activity, "No activity yet"),
         }
 
+    def grouped_counts(model, user_ids):
+        if not user_ids:
+            return {}
+        return {
+            user_id: count
+            for user_id, count in db.session.query(model.user_id, func.count(model.id))
+            .filter(model.user_id.in_(user_ids))
+            .group_by(model.user_id)
+            .all()
+        }
+
+    def build_admin_user_summaries(users):
+        user_ids = [user.id for user in users]
+        medication_counts = grouped_counts(Medication, user_ids)
+        medication_log_counts = grouped_counts(MedicationLog, user_ids)
+        lifestyle_counts = grouped_counts(LifestyleLog, user_ids)
+        mental_counts = grouped_counts(MentalLog, user_ids)
+        cycle_counts = grouped_counts(CycleLog, user_ids)
+        appointment_counts = grouped_counts(Appointment, user_ids)
+        return [
+            {
+                "user": user,
+                "medication_count": medication_counts.get(user.id, 0),
+                "medication_log_count": medication_log_counts.get(user.id, 0),
+                "lifestyle_count": lifestyle_counts.get(user.id, 0),
+                "mental_count": mental_counts.get(user.id, 0),
+                "cycle_count": cycle_counts.get(user.id, 0),
+                "appointment_count": appointment_counts.get(user.id, 0),
+                "latest_activity_label": display_date_label(user.created_at, "No activity yet"),
+            }
+            for user in users
+        ]
+
     def admin_recent_count(model, date_column, days=7):
         since = date.today() - timedelta(days=days - 1)
         return count_records(model, date_column >= since)
@@ -4971,34 +5004,37 @@ def register_routes(app):
     @login_required
     @admin_required
     def admin_dashboard():
-        users = User.query.order_by(User.created_at.desc()).limit(12).all()
-        summaries = [build_admin_user_summary(user) for user in users]
+        users = User.query.order_by(User.created_at.desc()).limit(6).all()
+        summaries = build_admin_user_summaries(users)
         stats = {
             "users": count_records(User),
             "verified_users": count_records(User, User.email_verified.is_(True)),
-            "medications": count_records(Medication),
-            "medication_logs": count_records(MedicationLog),
-            "lifestyle_logs": count_records(LifestyleLog),
-            "mental_logs": count_records(MentalLog),
-            "cycle_logs": count_records(CycleLog),
-            "appointments": count_records(Appointment),
+            "medications": 0,
+            "medication_logs": 0,
+            "lifestyle_logs": sum(item["lifestyle_count"] for item in summaries),
+            "mental_logs": sum(item["mental_count"] for item in summaries),
+            "cycle_logs": sum(item["cycle_count"] for item in summaries),
+            "appointments": sum(item["appointment_count"] for item in summaries),
         }
         recent_counts = {
             "users": count_records(User, User.created_at >= datetime.combine(date.today() - timedelta(days=6), datetime.min.time())),
-            "lifestyle_logs": admin_recent_count(LifestyleLog, LifestyleLog.log_date),
-            "mental_logs": admin_recent_count(MentalLog, MentalLog.log_date),
-            "appointments": admin_recent_count(Appointment, Appointment.appointment_date),
+            "lifestyle_logs": stats["lifestyle_logs"],
+            "mental_logs": stats["mental_logs"],
+            "appointments": stats["appointments"],
         }
         return render_template(
             "admin/dashboard.html",
             stats=stats,
             summaries=summaries,
             recent_counts=recent_counts,
-            daily_activity=admin_daily_activity(),
+            daily_activity=[],
             feature_usage=admin_feature_usage(stats),
             platform_insights=admin_platform_insights(stats, recent_counts),
-            activity_feed=admin_activity_feed(),
-            recent_alerts=PushNotificationLog.query.order_by(PushNotificationLog.sent_at.desc()).limit(6).all(),
+            activity_feed=[
+                {"kind": "user", "title": item["user"].full_name, "detail": "Recent account", "date": item["user"].created_at}
+                for item in summaries[:4]
+            ],
+            recent_alerts=[],
             display_date_label=display_date_label,
         )
 
@@ -5015,10 +5051,10 @@ def register_routes(app):
                     func.lower(User.username).contains(search),
                 )
             )
-        users = query.order_by(User.created_at.desc()).all()
+        users = query.order_by(User.created_at.desc()).limit(40).all()
         return render_template(
             "admin/users.html",
-            summaries=[build_admin_user_summary(user) for user in users],
+            summaries=build_admin_user_summaries(users),
             search=search,
         )
 

@@ -49,25 +49,7 @@
     </article>
 </section>
 
-<section class="admin-analytics-grid">
-    <article class="admin-chart-card wide">
-        <div class="admin-card-head">
-            <div>
-                <span>7-day Activity</span>
-                <h3>Daily platform activity</h3>
-            </div>
-        </div>
-        <div class="admin-line-chart">
-            {% for point in daily_activity %}
-            <div class="admin-line-point">
-                <span class="admin-line-bar" style="height: {{ point.height }}%;"></span>
-                <em>{{ point.total }}</em>
-                <small>{{ point.label }}</small>
-            </div>
-            {% endfor %}
-        </div>
-    </article>
-
+<section class="admin-analytics-grid single">
     <article class="admin-chart-card">
         <div class="admin-card-head">
             <div>
