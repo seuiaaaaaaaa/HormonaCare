@@ -1247,6 +1247,7 @@ def register_routes(app):
                 "admin_settings",
                 "admin_verify_user",
                 "admin_archive_user",
+                "admin_create_note",
                 "admin_save_note",
                 "admin_update_note",
                 "admin_delete_note",
@@ -1386,6 +1387,7 @@ def register_routes(app):
             "notification_medication_missed_cutoff_time": medication_missed_cutoff_time_string(),
             "admin_note_modal_notes": admin_note_modal_notes,
             "static_asset_version": STATIC_ASSET_VERSION,
+            "display_date_label": display_date_label,
         }
 
     def parse_float(value, default=0):
