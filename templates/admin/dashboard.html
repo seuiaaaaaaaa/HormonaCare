@@ -30,7 +30,7 @@
         </div>
         <strong>{{ stats.lifestyle_logs }}</strong>
         <span>Lifestyle Activity</span>
-        <small>Most active feature: {{ most_active_feature }}</small>
+        <small>Sleep, hydration, diet, and exercise logs</small>
     </article>
     <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
@@ -39,16 +39,16 @@
         </div>
         <strong>{{ stats.mental_logs }}</strong>
         <span>Mood Monitoring</span>
-        <small>{{ recent_counts.cycle_logs }} cycle records this week</small>
+        <small>{{ recent_counts.mental_logs }} mood and stress logs this week</small>
     </article>
     <article class="admin-metric-card admin-overview-card">
         <div class="admin-metric-top">
             <span class="admin-icon teal"><span class="nav-icon nav-clock"></span></span>
             <span class="admin-trend up">{{ recent_counts.appointments }} this week</span>
         </div>
-        <strong>{{ stats.appointments }}</strong>
+        <strong>{{ recent_counts.appointments }}</strong>
         <span>Upcoming Care Schedule</span>
-        <small>{{ stats.medications }} medications being monitored</small>
+        <small>{{ stats.appointments }} total appointments recorded</small>
     </article>
 </section>
 

@@ -4845,107 +4845,6 @@ def register_routes(app):
         since = date.today() - timedelta(days=days - 1)
         return count_records(model, date_column >= since)
 
-    def admin_daily_activity(days=7):
-        start_day = date.today() - timedelta(days=days - 1)
-        day_map = {
-            (start_day + timedelta(days=offset)): {
-                "label": (start_day + timedelta(days=offset)).strftime("%a"),
-                "registrations": 0,
-                "lifestyle": 0,
-                "mood": 0,
-                "appointments": 0,
-                "total": 0,
-            }
-            for offset in range(days)
-        }
-        for created_at, count in db.session.query(func.date(User.created_at), func.count(User.id)).filter(User.created_at >= start_day).group_by(func.date(User.created_at)):
-            day = date.fromisoformat(str(created_at))
-            if day in day_map:
-                day_map[day]["registrations"] = count
-        for log_date, count in db.session.query(LifestyleLog.log_date, func.count(LifestyleLog.id)).filter(LifestyleLog.log_date >= start_day).group_by(LifestyleLog.log_date):
-            if log_date in day_map:
-                day_map[log_date]["lifestyle"] = count
-        for log_date, count in db.session.query(MentalLog.log_date, func.count(MentalLog.id)).filter(MentalLog.log_date >= start_day).group_by(MentalLog.log_date):
-            if log_date in day_map:
-                day_map[log_date]["mood"] = count
-        for appointment_date, count in db.session.query(Appointment.appointment_date, func.count(Appointment.id)).filter(Appointment.appointment_date >= start_day).group_by(Appointment.appointment_date):
-            if appointment_date in day_map:
-                day_map[appointment_date]["appointments"] = count
-        points = list(day_map.values())
-        max_total = 1
-        for point in points:
-            point["total"] = point["registrations"] + point["lifestyle"] + point["mood"] + point["appointments"]
-            max_total = max(max_total, point["total"])
-        for point in points:
-            point["height"] = max(8, round((point["total"] / max_total) * 100)) if point["total"] else 8
-        return points
-
-    def admin_feature_usage(stats):
-        items = [
-            {"label": "Lifestyle", "count": stats["lifestyle_logs"], "class": "green"},
-            {"label": "Mood", "count": stats["mental_logs"], "class": "purple"},
-            {"label": "Cycle", "count": stats["cycle_logs"], "class": "blue"},
-            {"label": "Appointments", "count": stats["appointments"], "class": "teal"},
-            {"label": "Medications", "count": stats["medications"], "class": "pink"},
-        ]
-        total = sum(item["count"] for item in items) or 1
-        running = 0
-        for item in items:
-            item["percent"] = round((item["count"] / total) * 100)
-            item["offset"] = running
-            running += item["percent"]
-        return items
-
-    def admin_platform_insights(stats, recent_counts):
-        strongest_feature = max(
-            [
-                ("Lifestyle logging", stats["lifestyle_logs"]),
-                ("Mood tracking", stats["mental_logs"]),
-                ("Cycle tracking", stats["cycle_logs"]),
-                ("Appointments", stats["appointments"]),
-            ],
-            key=lambda item: item[1],
-        )
-        verification_rate = round((stats["verified_users"] / stats["users"]) * 100) if stats["users"] else 0
-        return [
-            {
-                "tone": "green",
-                "title": "Most active area",
-                "value": strongest_feature[0],
-                "detail": f"{strongest_feature[1]} total records",
-            },
-            {
-                "tone": "blue",
-                "title": "Verification",
-                "value": f"{verification_rate}%",
-                "detail": f"{stats['verified_users']} of {stats['users']} users verified",
-            },
-            {
-                "tone": "purple",
-                "title": "Mood activity",
-                "value": f"{recent_counts['mental_logs']} this week",
-                "detail": "Stress and mood monitoring signals",
-            },
-            {
-                "tone": "teal",
-                "title": "Care schedule",
-                "value": f"{recent_counts['appointments']} upcoming",
-                "detail": "Appointments dated this week onward",
-            },
-        ]
-
-    def admin_activity_feed(limit=10):
-        events = []
-        for user in User.query.order_by(User.created_at.desc()).limit(limit).all():
-            events.append({"kind": "user", "title": user.full_name, "detail": "Registered account", "date": user.created_at})
-        for appointment in Appointment.query.order_by(Appointment.appointment_date.desc()).limit(limit).all():
-            events.append({"kind": "appointment", "title": appointment.doctor_name, "detail": appointment.user.full_name if appointment.user else "Appointment", "date": appointment.appointment_date})
-        for log in MentalLog.query.order_by(MentalLog.log_date.desc()).limit(limit).all():
-            events.append({"kind": "mood", "title": log.mood, "detail": f"Stress {log.stress_level}/10", "date": log.log_date})
-        for log in LifestyleLog.query.order_by(LifestyleLog.log_date.desc()).limit(limit).all():
-            events.append({"kind": "lifestyle", "title": "Lifestyle update", "detail": f"Sleep {log.sleep_hours}h | Water {log.water_intake_liters}L", "date": log.log_date})
-        return sorted(events, key=lambda event: latest_record_date(event["date"]) or datetime.min, reverse=True)[:limit]
-
     def admin_user_trends(user):
         lifestyle_logs = LifestyleLog.query.filter_by(user_id=user.id).order_by(LifestyleLog.log_date.desc()).limit(7).all()
         mental_logs = MentalLog.query.filter_by(user_id=user.id).order_by(MentalLog.log_date.desc()).limit(7).all()
@@ -5077,7 +4976,7 @@ def register_routes(app):
 
     def admin_user_directory_query(limit=None):
         search = normalize_email(request.args.get("q"))
-        query = User.query
+        query = User.query.filter(User.role != "admin")
         if search:
             query = query.filter(
                 or_(
@@ -5098,9 +4997,9 @@ def register_routes(app):
         week_start = today - timedelta(days=today.weekday())
         week_end = week_start + timedelta(days=6)
         stats = {
-            "users": count_records(User),
-            "verified_users": count_records(User, User.email_verified.is_(True)),
-            "archived_users": count_records(User, User.archived_at.isnot(None)),
+            "users": count_records(User, User.role != "admin"),
+            "verified_users": count_records(User, User.role != "admin", User.email_verified.is_(True)),
+            "archived_users": count_records(User, User.role != "admin", User.archived_at.isnot(None)),
             "medications": count_records(Medication),
             "medication_logs": count_records(MedicationLog),
             "lifestyle_logs": count_records(LifestyleLog),
@@ -5109,20 +5008,12 @@ def register_routes(app):
             "appointments": count_records(Appointment),
         }
         recent_counts = {
-            "users": count_records(User, User.created_at >= datetime.combine(week_start, datetime.min.time())),
+            "users": count_records(User, User.role != "admin", User.created_at >= datetime.combine(week_start, datetime.min.time())),
             "lifestyle_logs": count_records(LifestyleLog, LifestyleLog.log_date >= week_start),
             "mental_logs": count_records(MentalLog, MentalLog.log_date >= week_start),
             "cycle_logs": count_records(CycleLog, CycleLog.log_date >= week_start),
             "appointments": count_records(Appointment, Appointment.appointment_date >= week_start, Appointment.appointment_date <= week_end),
         }
-        active_features = [
-            ("Lifestyle records", stats["lifestyle_logs"]),
-            ("Mood records", stats["mental_logs"]),
-            ("Cycle records", stats["cycle_logs"]),
-            ("Appointments", stats["appointments"]),
-            ("Medications", stats["medications"]),
-        ]
-        most_active_feature = max(active_features, key=lambda item: item[1])[0] if any(count for _, count in active_features) else "No activity yet"
         verification_rate = round((stats["verified_users"] / stats["users"]) * 100) if stats["users"] else 0
         return render_template(
             "admin/dashboard.html",
@@ -5130,17 +5021,7 @@ def register_routes(app):
             summaries=summaries,
             search=search,
             recent_counts=recent_counts,
-            daily_activity=[],
-            feature_usage=admin_feature_usage(stats),
-            platform_insights=admin_platform_insights(stats, recent_counts),
-            most_active_feature=most_active_feature,
             verification_rate=verification_rate,
-            activity_feed=[
-                {"kind": "user", "title": item["user"].full_name, "detail": "Recent account", "date": item["user"].created_at}
-                for item in summaries[:4]
-            ],
-            recent_alerts=[],
-            display_date_label=display_date_label,
         )
 
     @app.route("/admin/users")
