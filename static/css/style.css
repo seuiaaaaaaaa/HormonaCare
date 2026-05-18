@@ -8133,6 +8133,14 @@ td {
     font-size: 1rem;
 }
 
+.admin-card-copy {
+    margin: 7px 0 0;
+    color: #9fb2d2;
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-transform: none;
+}
+
 .admin-card-head a {
     color: #ff91ad;
     font-weight: 800;
@@ -8590,6 +8598,30 @@ td {
     max-height: 520px;
 }
 
+.admin-note-examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-note-examples span,
+.admin-note-list-title {
+    width: max-content;
+    max-width: 100%;
+    border-radius: 999px;
+    padding: 7px 10px;
+    background: rgba(143, 183, 255, 0.12);
+    color: #b7cdf5;
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.admin-note-list-title {
+    border-radius: 12px;
+    color: #8fb7ff;
+    text-transform: uppercase;
+}
+
 .admin-profile-hero {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -8785,6 +8817,7 @@ html[data-theme="light"] .admin-profile-hero h1 {
 
 html[data-theme="light"] .admin-hero p,
 html[data-theme="light"] .admin-metric-card span,
+html[data-theme="light"] .admin-card-copy,
 html[data-theme="light"] .admin-table td,
 html[data-theme="light"] .admin-user-row small,
 html[data-theme="light"] .admin-list-row span,
@@ -8819,6 +8852,12 @@ html[data-theme="light"] .admin-note-item,
 html[data-theme="light"] .admin-theme-preview {
     border-color: #dbe5f2;
     background: #f7faff;
+}
+
+html[data-theme="light"] .admin-note-examples span,
+html[data-theme="light"] .admin-note-list-title {
+    background: #eef5ff;
+    color: #327bf6;
 }
 
 html[data-theme="light"] .admin-action.secondary {

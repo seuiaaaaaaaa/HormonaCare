@@ -47,6 +47,7 @@
             <div>
                 <span>Admin Notes</span>
                 <h3>Platform notices and user reminders</h3>
+                <p class="admin-card-copy">Posted notes appear below and show as a modal after the selected user logs in.</p>
             </div>
         </div>
         <form class="admin-note-form" method="post" action="{{ url_for('admin_create_note') }}">
@@ -55,16 +56,22 @@
                 <select name="target_user_id" required>
                     <option value="all">All active users</option>
                     {% for user in note_users %}
-                    <option value="{{ user.id }}">{{ user.full_name }} · {{ user.username }}</option>
+                    <option value="{{ user.id }}">{{ user.full_name }} &middot; {{ user.username }}</option>
                     {% endfor %}
                 </select>
             </label>
             <label>Note content
-                <textarea name="note" rows="4" placeholder="Example: Remember to log hydration daily."></textarea>
+                <textarea name="note" rows="4" placeholder="System maintenance scheduled tomorrow."></textarea>
             </label>
+            <div class="admin-note-examples">
+                <span>System maintenance scheduled tomorrow.</span>
+                <span>Track appointments consistently.</span>
+                <span>Remember to log hydration daily.</span>
+            </div>
             <button class="admin-small-button" type="submit">Post note</button>
         </form>
         <div class="admin-note-list admin-note-list-large">
+            <div class="admin-note-list-title">Posted notes</div>
             {% for note in admin_notes %}
             <article class="admin-note-item">
                 <form method="post" action="{{ url_for('admin_update_note', note_id=note.id) }}">
@@ -102,7 +109,7 @@
                 {% for log in recent_logs %}
                 <div class="admin-list-row">
                     <strong>{{ log.action.replace('_', ' ').title() }}</strong>
-                    <span>{{ log.details or 'Recorded admin action' }} · {{ display_date_label(log.created_at) }}</span>
+                    <span>{{ log.details or 'Recorded admin action' }} &middot; {{ display_date_label(log.created_at) }}</span>
                 </div>
                 {% else %}
                 <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>

@@ -5021,6 +5021,12 @@ def register_routes(app):
             return redirect(url_for("admin_user_detail", user_id=default_user_id))
         return redirect(url_for("admin_profile"))
 
+    def admin_note_excerpt(note_text, limit=72):
+        cleaned = " ".join((note_text or "").split())
+        if len(cleaned) <= limit:
+            return cleaned
+        return f"{cleaned[:limit - 3]}..."
+
     def admin_user_directory_query(limit=None):
         search = normalize_email(request.args.get("q"))
         query = User.query
@@ -5199,9 +5205,12 @@ def register_routes(app):
             return admin_notes_redirect()
         if target_user_id == "all":
             users = User.query.filter(User.role != "admin", User.archived_at.is_(None)).all()
+            if not users:
+                flash("No active users are available for this note.", "danger")
+                return admin_notes_redirect()
             for user in users:
                 db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
-            log_admin_action("create_admin_note", None, f"Created platform notice for {len(users)} users")
+            log_admin_action("create_admin_note", None, f"Posted platform notice to {len(users)} users: {admin_note_excerpt(note_text)}")
             db.session.commit()
             flash("Platform note posted to active users.", "success")
             return admin_notes_redirect()
@@ -5215,7 +5224,7 @@ def register_routes(app):
             flash("User not found.", "danger")
             return admin_notes_redirect()
         db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
-        log_admin_action("create_admin_note", user, f"Created admin note for {user.username}")
+        log_admin_action("create_admin_note", user, f"Posted note to {user.username}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note posted.", "success")
         return admin_notes_redirect(user.id)
@@ -5297,7 +5306,7 @@ def register_routes(app):
             return redirect(url_for("admin_user_detail", user_id=user.id))
         note = AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text)
         db.session.add(note)
-        log_admin_action("create_admin_note", user, f"Created admin note for {user.username}")
+        log_admin_action("create_admin_note", user, f"Posted note to {user.username}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note added.", "success")
         return admin_notes_redirect(user.id)
@@ -5317,7 +5326,7 @@ def register_routes(app):
         note.note = note_text
         note.admin_id = current_user().id
         note.updated_at = datetime.utcnow()
-        log_admin_action("update_admin_note", note.user, f"Updated admin note for {note.user.username if note.user else note.user_id}")
+        log_admin_action("update_admin_note", note.user, f"Updated note for {note.user.username if note.user else note.user_id}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note updated.", "success")
         return admin_notes_redirect(note.user_id)
