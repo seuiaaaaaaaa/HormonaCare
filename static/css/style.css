@@ -7587,6 +7587,44 @@ body.theme-dark .cycle-phases-source a {
     z-index: 3;
 }
 
+.admin-note-login-modal {
+    z-index: 90;
+}
+
+.admin-note-modal-card {
+    width: min(520px, 92vw);
+    border: 1px solid rgba(143, 183, 255, 0.26);
+    background: linear-gradient(180deg, rgba(16, 31, 63, 0.98), rgba(11, 21, 45, 0.98));
+    color: #e9f2ff;
+    box-shadow: 0 22px 52px rgba(5, 12, 28, 0.42);
+}
+
+.admin-note-modal-card h2 {
+    margin: 8px 32px 14px 0;
+    color: #ffffff;
+}
+
+.admin-note-modal-list {
+    display: grid;
+    gap: 10px;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.admin-note-modal-list article {
+    border: 1px solid rgba(143, 183, 255, 0.18);
+    border-radius: 14px;
+    padding: 13px 14px;
+    background: rgba(143, 183, 255, 0.08);
+}
+
+.admin-note-modal-list p {
+    margin: 0;
+    color: #dce8ff;
+    line-height: 1.5;
+}
+
 .symptom-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

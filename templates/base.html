@@ -244,6 +244,22 @@
             </div>
         </div>
     </div>
+    {% if admin_note_modal_notes %}
+    <div class="modal-backdrop admin-note-login-modal" id="admin-note-login-modal">
+        <div class="modal-card admin-note-modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-note-modal-title">
+            <button class="modal-close" type="button" aria-label="Close admin notes" data-modal-close="admin-note-login-modal">&times;</button>
+            <span class="status-line">Admin Notes</span>
+            <h2 id="admin-note-modal-title">Message from admin</h2>
+            <div class="admin-note-modal-list">
+                {% for note in admin_note_modal_notes %}
+                <article>
+                    <p>{{ note.note }}</p>
+                </article>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
     <nav class="bottom-nav">
         {% if current_is_admin %}
         <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>

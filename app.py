@@ -1258,8 +1258,6 @@ def register_routes(app):
             }
             if is_admin_user(user) and request.endpoint not in admin_endpoints:
                 return redirect(url_for("admin_dashboard"))
-            if not is_admin_user(user):
-                flash_unseen_admin_notes(user)
             return view(*args, **kwargs)
 
         return wrapped_view
@@ -1347,6 +1345,7 @@ def register_routes(app):
         unread_reminders = 0
         dark_mode_enabled = False
         notification_medication_schedules = []
+        admin_note_modal_notes = []
 
         def notification_opt_in(value, default=True):
             return default if value is None else bool(value)
@@ -1372,6 +1371,9 @@ def register_routes(app):
                     "appointments": True,
                     "alerts": True,
                 }
+            if not is_admin_user(user) and not session.get("admin_notes_modal_shown"):
+                admin_note_modal_notes = AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).limit(5).all()
+                session["admin_notes_modal_shown"] = True
         return {
             "current_user": user,
             "current_is_admin": is_admin_user(user),
@@ -1383,6 +1385,7 @@ def register_routes(app):
             "notification_medication_schedules": notification_medication_schedules,
             "notification_medication_followup_delay_ms": medication_followup_delay_seconds() * 1000,
             "notification_medication_missed_cutoff_time": medication_missed_cutoff_time_string(),
+            "admin_note_modal_notes": admin_note_modal_notes,
             "static_asset_version": STATIC_ASSET_VERSION,
         }
 
@@ -1533,7 +1536,7 @@ def register_routes(app):
         return normalize_email(session.get("pending_verification_email") or session.get("otp_email"))
 
     def clear_authenticated_session():
-        for key in ("user_id", "login_at", "new_account", "settings_password_verified"):
+        for key in ("user_id", "login_at", "new_account", "settings_password_verified", "admin_notes_modal_shown"):
             session.pop(key, None)
 
     def start_authenticated_session(user, *, new_account=False):
@@ -4989,19 +4992,6 @@ def register_routes(app):
 
     def admin_notes_for_user(user):
         return AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).all()
-
-    def flash_unseen_admin_notes(user):
-        seen_note_keys = set(session.get("seen_admin_note_keys") or [])
-        notes = AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).limit(5).all()
-        new_note_keys = []
-        for note in notes:
-            note_key = f"{note.id}:{note.updated_at.isoformat() if note.updated_at else ''}"
-            if note_key in seen_note_keys:
-                continue
-            flash(f"Admin note: {note.note}", "info")
-            new_note_keys.append(note_key)
-        if new_note_keys:
-            session["seen_admin_note_keys"] = sorted(seen_note_keys.union(new_note_keys))[-50:]
 
     def admin_settings_state(user):
         return {
