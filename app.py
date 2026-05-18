@@ -5117,6 +5117,13 @@ def register_routes(app):
                 db.session.commit()
                 flash("Admin preferences saved.", "success")
                 return redirect(url_for("admin_settings"))
+            elif action == "theme":
+                profile = get_or_create_profile(admin)
+                profile.dark_mode = request.form.get("dark_mode") == "1"
+                log_admin_action("update_admin_theme", admin, "Updated admin dark mode preference")
+                db.session.commit()
+                flash("Theme preference saved.", "success")
+                return redirect(url_for("admin_settings"))
         audit_logs, audit_search, audit_action = admin_audit_query()
         return render_template(
             "admin/settings.html",
