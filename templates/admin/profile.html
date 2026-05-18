@@ -47,7 +47,7 @@
             <div>
                 <span>Admin Notes</span>
                 <h3>Platform notices and user reminders</h3>
-                <p class="admin-card-copy">Posted notes appear below and show as a modal after the selected user logs in.</p>
+                <p class="admin-card-copy">Posted notes are automatically sent to all active users and show as a modal after login.</p>
             </div>
         </div>
         <form class="admin-note-form" method="post" action="{{ url_for('admin_create_note') }}">
@@ -70,8 +70,8 @@
                 <form method="post" action="{{ url_for('admin_update_note', note_id=note.id) }}">
                     <input type="hidden" name="next" value="{{ request.full_path }}">
                     <div class="admin-note-meta">
-                        <strong>{{ note.user.full_name if note.user else 'User' }}</strong>
-                        <small>Posted by {{ admin_actor_name(note) }} &middot; {{ display_date_label(note.updated_at) }}</small>
+                        <strong>{{ note.admin_name }}</strong>
+                        <small>Posted note to {{ note.recipient_count }} users &middot; {{ display_date_label(note.updated_at) }}</small>
                     </div>
                     <textarea name="note" rows="3">{{ note.note }}</textarea>
                     <div class="admin-note-actions">
@@ -80,7 +80,7 @@
                 </form>
                 <form method="post" action="{{ url_for('admin_delete_note', note_id=note.id) }}" data-confirm-message="Delete this admin note?">
                     <input type="hidden" name="next" value="{{ request.full_path }}">
-                    <button class="admin-small-button warning" type="submit">Archive/Delete</button>
+                    <button class="admin-small-button warning" type="submit">Delete</button>
                 </form>
             </article>
             {% else %}
@@ -101,9 +101,9 @@
             <div class="admin-scroll-list">
                 {% for log in recent_logs %}
                 <div class="admin-list-row">
-                    <strong>{{ log.action.replace('_', ' ').title() }}</strong>
+                    <strong>{{ admin_action_sentence(log) }}</strong>
                     <span>{{ log.details or 'Recorded admin action' }}</span>
-                    <em>By {{ admin_actor_name(log) }} &middot; {{ display_date_label(log.created_at) }}</em>
+                    <em>{{ display_date_label(log.created_at) }}</em>
                 </div>
                 {% else %}
                 <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>

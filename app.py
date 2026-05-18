@@ -1020,6 +1020,7 @@ def ensure_runtime_schema():
         required_columns = {
             "user_id": "ALTER TABLE admin_notes ADD COLUMN user_id INTEGER",
             "admin_id": "ALTER TABLE admin_notes ADD COLUMN admin_id INTEGER",
+            "group_key": "ALTER TABLE admin_notes ADD COLUMN group_key VARCHAR(80)",
             "note": "ALTER TABLE admin_notes ADD COLUMN note TEXT",
             "updated_at": "ALTER TABLE admin_notes ADD COLUMN updated_at TIMESTAMP",
             "created_at": "ALTER TABLE admin_notes ADD COLUMN created_at TIMESTAMP",
@@ -1029,6 +1030,7 @@ def ensure_runtime_schema():
                 if name not in columns:
                     connection.execute(text(ddl))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_notes_user_id ON admin_notes(user_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_notes_group_key ON admin_notes(group_key)"))
     if "admin_audit_logs" in tables:
         columns = {column["name"] for column in inspector.get_columns("admin_audit_logs")}
         required_columns = {
@@ -5036,6 +5038,48 @@ def register_routes(app):
         admin = db.session.get(User, admin_id)
         return admin.full_name if admin else "Admin"
 
+    def admin_action_sentence(log):
+        actor = admin_actor_name(log)
+        action = (getattr(log, "action", "") or "").strip()
+        labels = {
+            "create_admin_note": "posted notes",
+            "update_admin_note": "updated notes",
+            "delete_admin_note": "deleted notes",
+            "verify_user": "verified a user",
+            "archive_user": "archived a user",
+            "update_appointment_status": "updated an appointment",
+            "update_admin_account": "updated settings",
+            "update_admin_theme": "updated theme settings",
+            "change_admin_password": "changed password settings",
+        }
+        return f"{actor} {labels.get(action, action.replace('_', ' ') or 'recorded activity')}"
+
+    def grouped_admin_notes(limit=30):
+        notes = AdminNote.query.order_by(AdminNote.updated_at.desc()).limit(200).all()
+        grouped = []
+        seen = set()
+        for note in notes:
+            key = note.group_key or f"legacy-{note.admin_id}-{admin_note_excerpt(note.note, 120)}"
+            if key in seen:
+                continue
+            seen.add(key)
+            if note.group_key:
+                recipient_count = count_records(AdminNote, AdminNote.group_key == note.group_key)
+            else:
+                recipient_count = count_records(AdminNote, AdminNote.group_key.is_(None), AdminNote.admin_id == note.admin_id, AdminNote.note == note.note)
+            grouped.append(
+                {
+                    "id": note.id,
+                    "note": note.note,
+                    "admin_name": admin_actor_name(note),
+                    "updated_at": note.updated_at,
+                    "recipient_count": recipient_count,
+                }
+            )
+            if len(grouped) >= limit:
+                break
+        return grouped
+
     def admin_user_directory_query(limit=None):
         search = normalize_email(request.args.get("q"))
         query = User.query
@@ -5127,17 +5171,16 @@ def register_routes(app):
             "reports_viewed": count_records(AdminAuditLog, AdminAuditLog.admin_id == admin.id, AdminAuditLog.action == "view_report"),
         }
         recent_logs = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc()).limit(12).all()
-        admin_notes = AdminNote.query.order_by(AdminNote.updated_at.desc()).limit(30).all()
-        note_users = User.query.filter(User.role != "admin", User.archived_at.is_(None)).order_by(User.full_name.asc()).all()
+        admin_notes = grouped_admin_notes()
         return render_template(
             "admin/profile.html",
             activity=activity,
             recent_logs=recent_logs,
             admin_notes=admin_notes,
-            note_users=note_users,
             settings=admin_settings_state(admin),
             display_date_label=display_date_label,
             admin_actor_name=admin_actor_name,
+            admin_action_sentence=admin_action_sentence,
         )
 
     @app.route("/admin/settings", methods=["GET", "POST"])
@@ -5219,8 +5262,9 @@ def register_routes(app):
             if not users:
                 flash("No active users are available for this note.", "danger")
                 return admin_notes_redirect()
+            group_key = secrets.token_urlsafe(16)
             for user in users:
-                db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
+                db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, group_key=group_key, note=note_text))
             log_admin_action("create_admin_note", None, f"Posted platform notice to {len(users)} users: {admin_note_excerpt(note_text)}")
             db.session.commit()
             flash("Platform note posted to active users.", "success")
@@ -5234,7 +5278,7 @@ def register_routes(app):
         if not user:
             flash("User not found.", "danger")
             return admin_notes_redirect()
-        db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text))
+        db.session.add(AdminNote(user_id=user.id, admin_id=current_user().id, group_key=secrets.token_urlsafe(16), note=note_text))
         log_admin_action("create_admin_note", user, f"Posted note to {user.username}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note posted.", "success")
@@ -5316,7 +5360,7 @@ def register_routes(app):
         if not note_text:
             flash("Admin note cannot be empty.", "danger")
             return redirect(url_for("admin_user_detail", user_id=user.id))
-        note = AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text)
+        note = AdminNote(user_id=user.id, admin_id=current_user().id, group_key=secrets.token_urlsafe(16), note=note_text)
         db.session.add(note)
         log_admin_action("create_admin_note", user, f"Posted note to {user.username}: {admin_note_excerpt(note_text)}")
         db.session.commit()
@@ -5335,10 +5379,20 @@ def register_routes(app):
         if not note_text:
             flash("Admin note cannot be empty.", "danger")
             return redirect(url_for("admin_user_detail", user_id=note.user_id))
-        note.note = note_text
-        note.admin_id = current_user().id
-        note.updated_at = datetime.utcnow()
-        log_admin_action("update_admin_note", note.user, f"Updated note for {note.user.username if note.user else note.user_id}: {admin_note_excerpt(note_text)}")
+        group_key = note.group_key
+        target_notes = (
+            AdminNote.query.filter_by(group_key=group_key).all()
+            if group_key
+            else AdminNote.query.filter(AdminNote.group_key.is_(None), AdminNote.admin_id == note.admin_id, AdminNote.note == note.note).all()
+        )
+        now = datetime.utcnow()
+        for target_note in target_notes:
+            target_note.note = note_text
+            target_note.admin_id = current_user().id
+            target_note.updated_at = now
+        target_user = None if group_key else note.user
+        target_label = f"{len(target_notes)} users" if group_key else (note.user.username if note.user else note.user_id)
+        log_admin_action("update_admin_note", target_user, f"Updated platform note for {target_label}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note updated.", "success")
         return admin_notes_redirect(note.user_id)
@@ -5353,8 +5407,16 @@ def register_routes(app):
             return redirect(url_for("admin_users"))
         user_id = note.user_id
         target_user = note.user
-        log_admin_action("delete_admin_note", target_user, f"Deleted admin note for {target_user.username if target_user else user_id}")
-        db.session.delete(note)
+        group_key = note.group_key
+        target_notes = (
+            AdminNote.query.filter_by(group_key=group_key).all()
+            if group_key
+            else AdminNote.query.filter(AdminNote.group_key.is_(None), AdminNote.admin_id == note.admin_id, AdminNote.note == note.note).all()
+        )
+        target_label = f"{len(target_notes)} users" if group_key else (target_user.username if target_user else user_id)
+        log_admin_action("delete_admin_note", None if group_key else target_user, f"Deleted platform note for {target_label}: {admin_note_excerpt(note.note)}")
+        for target_note in target_notes:
+            db.session.delete(target_note)
         db.session.commit()
         flash("Admin note deleted.", "success")
         return admin_notes_redirect(user_id)

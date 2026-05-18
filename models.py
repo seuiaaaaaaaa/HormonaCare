@@ -178,6 +178,7 @@ class AdminNote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    group_key = db.Column(db.String(80), index=True)
     note = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_at = db.Column(db.DateTime, server_default=db.func.now())
