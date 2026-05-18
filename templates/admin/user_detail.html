@@ -18,6 +18,42 @@
     <article class="admin-metric-card mini"><strong>{{ summary.appointment_count }}</strong><span>Doctors</span><small>Appointments</small></article>
 </section>
 
+<section class="admin-dashboard-grid">
+    <article class="admin-glass-card">
+        <div class="admin-card-head">
+            <div>
+                <span>Safe Admin Actions</span>
+                <h3>Account controls</h3>
+            </div>
+        </div>
+        <div class="admin-action-grid">
+            <form method="post" action="{{ url_for('admin_verify_user', user_id=viewed_user.id) }}">
+                <button class="admin-small-button" type="submit" {% if viewed_user.email_verified %}disabled{% endif %}>Verify user</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_archive_user', user_id=viewed_user.id) }}" data-confirm-message="Archive this account? No health records will be deleted.">
+                <input type="hidden" name="archive_reason" value="Inactive or duplicate account">
+                <button class="admin-small-button warning" type="submit" {% if viewed_user.archived_at %}disabled{% endif %}>Archive account</button>
+            </form>
+        </div>
+        <div class="admin-permission-note">
+            <strong>Restricted:</strong> Admin cannot edit health records, delete logs, diagnose users, or modify medical recommendations.
+        </div>
+    </article>
+
+    <article class="admin-glass-card">
+        <div class="admin-card-head">
+            <div>
+                <span>Admin Notes</span>
+                <h3>Internal note</h3>
+            </div>
+        </div>
+        <form class="admin-note-form" method="post" action="{{ url_for('admin_save_note', user_id=viewed_user.id) }}">
+            <textarea name="note" rows="4" placeholder="Create or update an admin-only note">{{ admin_note.note if admin_note else '' }}</textarea>
+            <button class="admin-small-button" type="submit">Save note</button>
+        </form>
+    </article>
+</section>
+
 <section class="admin-analytics-grid user-trends">
     {% for key, label in {'sleep': 'Sleep', 'hydration': 'Hydration', 'stress': 'Stress', 'cycle': 'Cycle Day'}.items() %}
     <article class="admin-chart-card mini-chart">
@@ -59,10 +95,19 @@
     <article class="admin-glass-card admin-log-card">
         <div class="admin-card-head sticky"><div><span>Care</span><h3>Recent Appointments</h3></div></div>
         <div class="admin-list admin-scroll-list">
-            {% for appointment in records.appointments[:5] %}
+            {% for item in appointment_items[:5] %}
+            {% set appointment = item.appointment %}
             <div class="admin-list-row">
                 <strong>{{ appointment.doctor_name }}</strong>
-                <span>{{ display_date_label(appointment.appointment_date) }} &middot; {{ appointment.appointment_time.strftime('%I:%M %p') if appointment.appointment_time else 'No time' }}</span>
+                <span>{{ display_date_label(appointment.appointment_date) }} &middot; {{ appointment.appointment_time.strftime('%I:%M %p') if appointment.appointment_time else 'No time' }} &middot; {{ item.status.label }}</span>
+                <form class="admin-inline-form" method="post" action="{{ url_for('admin_update_appointment_status', appointment_id=appointment.id) }}">
+                    <select name="status">
+                        {% for status_value in ['scheduled', 'completed', 'cancelled', 'missed'] %}
+                        <option value="{{ status_value }}" {% if item.status.key == status_value or (item.status.key == 'today' and status_value == 'scheduled') %}selected{% endif %}>{{ status_value.title() }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Update</button>
+                </form>
             </div>
             {% else %}
             <div class="admin-empty-state"><span class="nav-icon nav-clock"></span><strong>No appointments</strong><p>Doctor visits will appear here.</p></div>

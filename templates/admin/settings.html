@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="admin-hero compact">
+    <div>
+        <span class="admin-kicker">Admin Settings</span>
+        <h1>Safe admin controls</h1>
+        <p>Account, security, notifications, user management, and read-only audit logs.</p>
+    </div>
+</section>
+
+<section class="admin-settings-grid">
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Account</span><h3>Account Settings</h3></div></div>
+        <form class="admin-settings-form" method="post">
+            <input type="hidden" name="action" value="account">
+            <label>Admin name<input name="full_name" value="{{ current_user.full_name }}"></label>
+            <label>Email<input name="email" value="{{ current_user.username }}"></label>
+            <button class="admin-small-button" type="submit">Save account</button>
+        </form>
+        <form class="admin-settings-form" method="post">
+            <input type="hidden" name="action" value="password">
+            <label>Current password<input type="password" name="current_password"></label>
+            <label>New password<input type="password" name="new_password"></label>
+            <label>Confirm password<input type="password" name="confirm_password"></label>
+            <button class="admin-small-button" type="submit">Change password</button>
+        </form>
+    </article>
+
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Security</span><h3>Security Settings</h3></div></div>
+        <div class="admin-toggle-list">
+            <label><span>Login alerts</span><input type="checkbox" checked disabled></label>
+            <label><span>Session timeout</span><em>{{ settings.session_timeout }}</em></label>
+            {% for session_item in settings.recent_sessions %}
+            <label><span>{{ session_item.label }}</span><em>{{ session_item.detail }}</em></label>
+            {% endfor %}
+        </div>
+    </article>
+
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Notifications</span><h3>Notification Settings</h3></div></div>
+        <form class="admin-toggle-list" method="post">
+            <input type="hidden" name="action" value="preferences">
+            <label><span>New user alerts</span><input type="checkbox" name="new_users" checked></label>
+            <label><span>Appointment alerts</span><input type="checkbox" name="appointments" checked></label>
+            <label><span>High stress alerts</span><input type="checkbox" name="high_stress" checked></label>
+            <label><span>Missed medication alerts</span><input type="checkbox" name="missed_medications" checked></label>
+            <button class="admin-small-button" type="submit">Save preferences</button>
+        </form>
+    </article>
+
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Dashboard</span><h3>Preferences</h3></div></div>
+        <form class="admin-toggle-list" method="post">
+            <input type="hidden" name="action" value="preferences">
+            <label><span>Compact mode</span><input type="checkbox" checked></label>
+            <label><span>Chart visibility</span><input type="checkbox" checked></label>
+            <label><span>Dark mode</span><input type="checkbox" checked></label>
+            <button class="admin-small-button" type="submit">Save dashboard</button>
+        </form>
+    </article>
+</section>
+
+<section class="admin-glass-card admin-table-card">
+    <div class="admin-card-head">
+        <div><span>User Management</span><h3>Audit Logs</h3></div>
+    </div>
+    <form class="admin-search" method="get">
+        <input name="q" value="{{ audit_search }}" placeholder="Search audit details">
+        <select name="action">
+            <option value="">All actions</option>
+            {% for action in ['verify_user', 'archive_user', 'update_appointment_status', 'create_admin_note', 'update_admin_note', 'update_admin_account'] %}
+            <option value="{{ action }}" {% if audit_action == action %}selected{% endif %}>{{ action.replace('_', ' ').title() }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Filter</button>
+    </form>
+    <div class="table-wrap">
+        <table class="admin-table">
+            <thead><tr><th>Action</th><th>Details</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for log in audit_logs %}
+                <tr><td>{{ log.action.replace('_', ' ').title() }}</td><td>{{ log.details }}</td><td>{{ display_date_label(log.created_at) }}</td></tr>
+                {% else %}
+                <tr><td colspan="3"><div class="admin-empty-state inline"><strong>No audit logs found</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

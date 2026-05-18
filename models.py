@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
@@ -14,6 +14,8 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="user")
+    archived_at = db.Column(db.DateTime)
+    archive_reason = db.Column(db.String(255))
     supabase_user_id = db.Column(db.String(80), unique=True)
     email_verified = db.Column(db.Boolean, default=False)
     email_verified_at = db.Column(db.DateTime)
@@ -28,6 +30,13 @@ class User(db.Model):
     push_subscriptions = db.relationship("WebPushSubscription", backref="user", lazy="select", cascade="all, delete-orphan")
     push_notification_logs = db.relationship("PushNotificationLog", backref="user", lazy="select", cascade="all, delete-orphan")
     profile = db.relationship("UserProfile", backref="user", uselist=False, lazy="select", cascade="all, delete-orphan")
+    admin_notes = db.relationship(
+        "AdminNote",
+        backref="user",
+        lazy="select",
+        cascade="all, delete-orphan",
+        foreign_keys="AdminNote.user_id",
+    )
 
 
 class Medication(db.Model):
@@ -161,3 +170,25 @@ class PushNotificationLog(db.Model):
     notification_key = db.Column(db.String(180), nullable=False, unique=True)
     notification_type = db.Column(db.String(40), nullable=False)
     sent_at = db.Column(db.DateTime, server_default=db.func.now())
+
+
+class AdminNote(db.Model):
+    __tablename__ = "admin_notes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, server_default=db.func.now())
+
+
+class AdminAuditLog(db.Model):
+    __tablename__ = "admin_audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    action = db.Column(db.String(80), nullable=False)
+    details = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, server_default=db.func.now())

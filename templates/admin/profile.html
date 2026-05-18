@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="admin-hero compact">
+    <div>
+        <span class="admin-kicker">Administrator</span>
+        <h1>{{ current_user.full_name }}</h1>
+        <p>{{ current_user.username }} &middot; Verified administrator</p>
+    </div>
+    <span class="admin-avatar profile">{{ current_user.full_name[:1] }}{{ current_user.username[:1] }}</span>
+</section>
+
+<section class="admin-stat-grid compact">
+    <article class="admin-metric-card mini"><strong>{{ activity.users_monitored }}</strong><span>Users monitored</span><small>Read-only visibility</small></article>
+    <article class="admin-metric-card mini"><strong>{{ activity.appointments_reviewed }}</strong><span>Appointments</span><small>Status updates only</small></article>
+    <article class="admin-metric-card mini"><strong>{{ activity.alerts_reviewed }}</strong><span>Alerts</span><small>Notification logs</small></article>
+    <article class="admin-metric-card mini"><strong>{{ activity.reports_viewed }}</strong><span>Reports viewed</span><small>Audit tracked</small></article>
+</section>
+
+<section class="admin-dashboard-grid">
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Permissions</span><h3>Allowed</h3></div></div>
+        <div class="admin-permission-list allowed">
+            <span>View users and logs</span>
+            <span>View analytics</span>
+            <span>Manage appointment status</span>
+            <span>Verify users</span>
+            <span>Archive inactive accounts</span>
+        </div>
+    </article>
+    <article class="admin-glass-card">
+        <div class="admin-card-head"><div><span>Boundaries</span><h3>Restricted</h3></div></div>
+        <div class="admin-permission-list restricted">
+            <span>Edit health records</span>
+            <span>Delete health logs</span>
+            <span>Diagnose users</span>
+            <span>Modify medical recommendations</span>
+        </div>
+    </article>
+</section>
+
+<section class="admin-glass-card admin-log-card">
+    <div class="admin-card-head sticky"><div><span>Recent Activity</span><h3>Admin audit trail</h3></div></div>
+    <div class="admin-scroll-list">
+        {% for log in recent_logs %}
+        <div class="admin-list-row">
+            <strong>{{ log.action.replace('_', ' ').title() }}</strong>
+            <span>{{ log.details or 'Recorded admin action' }} &middot; {{ display_date_label(log.created_at) }}</span>
+        </div>
+        {% else %}
+        <div class="admin-empty-state"><span class="nav-icon nav-bell"></span><strong>No admin actions yet</strong><p>Actions will be recorded here.</p></div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

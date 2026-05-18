@@ -36,6 +36,8 @@ except ImportError:
 from ml_service import build_health_assessment, build_weekly_wellness_trend
 from models import (
     Appointment,
+    AdminAuditLog,
+    AdminNote,
     CycleLog,
     LifestyleLog,
     Medication,
@@ -826,6 +828,12 @@ def ensure_runtime_schema():
             if "role" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20)"))
                 columns.add("role")
+            if "archived_at" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN archived_at TIMESTAMP"))
+                columns.add("archived_at")
+            if "archive_reason" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN archive_reason VARCHAR(255)"))
+                columns.add("archive_reason")
             connection.execute(text("UPDATE users SET role = COALESCE(NULLIF(role, ''), 'user')"))
             if "email" in columns:
                 connection.execute(
@@ -1006,6 +1014,35 @@ def ensure_runtime_schema():
                 connection.execute(text("UPDATE web_push_subscriptions SET is_active = COALESCE(is_active, TRUE)"))
     except Exception:
         db.session.rollback()
+
+    if "admin_notes" in tables:
+        columns = {column["name"] for column in inspector.get_columns("admin_notes")}
+        required_columns = {
+            "user_id": "ALTER TABLE admin_notes ADD COLUMN user_id INTEGER",
+            "admin_id": "ALTER TABLE admin_notes ADD COLUMN admin_id INTEGER",
+            "note": "ALTER TABLE admin_notes ADD COLUMN note TEXT",
+            "updated_at": "ALTER TABLE admin_notes ADD COLUMN updated_at TIMESTAMP",
+            "created_at": "ALTER TABLE admin_notes ADD COLUMN created_at TIMESTAMP",
+        }
+        with db.engine.begin() as connection:
+            for name, ddl in required_columns.items():
+                if name not in columns:
+                    connection.execute(text(ddl))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_notes_user_id ON admin_notes(user_id)"))
+    if "admin_audit_logs" in tables:
+        columns = {column["name"] for column in inspector.get_columns("admin_audit_logs")}
+        required_columns = {
+            "admin_id": "ALTER TABLE admin_audit_logs ADD COLUMN admin_id INTEGER",
+            "target_user_id": "ALTER TABLE admin_audit_logs ADD COLUMN target_user_id INTEGER",
+            "action": "ALTER TABLE admin_audit_logs ADD COLUMN action VARCHAR(80)",
+            "details": "ALTER TABLE admin_audit_logs ADD COLUMN details VARCHAR(255)",
+            "created_at": "ALTER TABLE admin_audit_logs ADD COLUMN created_at TIMESTAMP",
+        }
+        with db.engine.begin() as connection:
+            for name, ddl in required_columns.items():
+                if name not in columns:
+                    connection.execute(text(ddl))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_id ON admin_audit_logs(admin_id)"))
 
 
 def register_routes(app):
@@ -1202,7 +1239,17 @@ def register_routes(app):
                 remember_pending_verification(user.username)
                 flash("Please verify your email before continuing.", "warning")
                 return redirect(url_for("verify_email"))
-            admin_endpoints = {"admin_dashboard", "admin_users", "admin_user_detail"}
+            admin_endpoints = {
+                "admin_dashboard",
+                "admin_users",
+                "admin_user_detail",
+                "admin_profile",
+                "admin_settings",
+                "admin_verify_user",
+                "admin_archive_user",
+                "admin_save_note",
+                "admin_update_appointment_status",
+            }
             if is_admin_user(user) and request.endpoint not in admin_endpoints:
                 return redirect(url_for("admin_dashboard"))
             return view(*args, **kwargs)
@@ -4873,6 +4920,53 @@ def register_routes(app):
             "cycle": trend_points(cycle_logs, lambda log: log.cycle_day, 35),
         }
 
+    def log_admin_action(action, target_user=None, details=""):
+        admin = current_user()
+        if not admin:
+            return
+        db.session.add(
+            AdminAuditLog(
+                admin_id=admin.id,
+                target_user_id=target_user.id if target_user else None,
+                action=action,
+                details=(details or "")[:255],
+            )
+        )
+
+    def admin_audit_query():
+        search = (request.args.get("q") or "").strip()
+        action_filter = (request.args.get("action") or "").strip()
+        query = AdminAuditLog.query.order_by(AdminAuditLog.created_at.desc())
+        if action_filter:
+            query = query.filter(AdminAuditLog.action == action_filter)
+        if search:
+            query = query.filter(AdminAuditLog.details.ilike(f"%{search}%"))
+        return query.limit(80).all(), search, action_filter
+
+    def admin_note_for_user(user):
+        return AdminNote.query.filter_by(user_id=user.id).order_by(AdminNote.updated_at.desc()).first()
+
+    def admin_settings_state(user):
+        return {
+            "login_alerts": True,
+            "session_timeout": "30 minutes",
+            "recent_sessions": [
+                {"label": "Current session", "detail": "Active admin browser session"},
+                {"label": "Last login", "detail": "Tracked by secure session cookie"},
+            ],
+            "notifications": {
+                "new_users": True,
+                "appointments": True,
+                "high_stress": True,
+                "missed_medications": True,
+            },
+            "preferences": {
+                "compact_mode": True,
+                "charts": True,
+                "dark_mode": True,
+            },
+        }
+
     @app.route("/admin")
     @login_required
     @admin_required
@@ -4904,6 +4998,7 @@ def register_routes(app):
             feature_usage=admin_feature_usage(stats),
             platform_insights=admin_platform_insights(stats, recent_counts),
             activity_feed=admin_activity_feed(),
+            recent_alerts=PushNotificationLog.query.order_by(PushNotificationLog.sent_at.desc()).limit(6).all(),
             display_date_label=display_date_label,
         )
 
@@ -4927,6 +5022,75 @@ def register_routes(app):
             search=search,
         )
 
+    @app.route("/admin/profile")
+    @login_required
+    @admin_required
+    def admin_profile():
+        admin = current_user()
+        activity = {
+            "users_monitored": count_records(User),
+            "appointments_reviewed": count_records(Appointment),
+            "alerts_reviewed": count_records(PushNotificationLog),
+            "reports_viewed": count_records(AdminAuditLog, AdminAuditLog.admin_id == admin.id, AdminAuditLog.action == "view_report"),
+        }
+        recent_logs = AdminAuditLog.query.filter_by(admin_id=admin.id).order_by(AdminAuditLog.created_at.desc()).limit(8).all()
+        return render_template("admin/profile.html", activity=activity, recent_logs=recent_logs, display_date_label=display_date_label)
+
+    @app.route("/admin/settings", methods=["GET", "POST"])
+    @login_required
+    @admin_required
+    def admin_settings():
+        admin = current_user()
+        if request.method == "POST":
+            action = (request.form.get("action") or "").strip()
+            if action == "account":
+                full_name = normalize_full_name(request.form.get("full_name"))
+                email = normalize_email(request.form.get("email"))
+                if not valid_full_name(full_name):
+                    flash(full_name_help, "danger")
+                elif not valid_email(email):
+                    flash(email_help, "danger")
+                elif User.query.filter(User.id != admin.id, func.lower(User.username) == email).first():
+                    flash(email_taken, "danger")
+                else:
+                    admin.full_name = full_name
+                    admin.username = email
+                    log_admin_action("update_admin_account", admin, "Updated admin profile information")
+                    db.session.commit()
+                    flash("Admin account settings updated.", "success")
+                    return redirect(url_for("admin_settings"))
+            elif action == "password":
+                current_password = request.form.get("current_password") or ""
+                new_password = request.form.get("new_password") or ""
+                confirm_password = request.form.get("confirm_password") or ""
+                password_error = validate_password_strength(new_password)
+                if not verify_password(current_password, admin.password_hash):
+                    flash("Current password is incorrect.", "danger")
+                elif password_error:
+                    flash(password_error, "danger")
+                elif new_password != confirm_password:
+                    flash("New passwords do not match.", "danger")
+                else:
+                    admin.password_hash = hash_password(new_password)
+                    log_admin_action("change_admin_password", admin, "Changed admin password")
+                    db.session.commit()
+                    flash("Admin password updated.", "success")
+                    return redirect(url_for("admin_settings"))
+            elif action == "preferences":
+                log_admin_action("update_admin_preferences", admin, "Updated dashboard preference toggles")
+                db.session.commit()
+                flash("Admin preferences saved.", "success")
+                return redirect(url_for("admin_settings"))
+        audit_logs, audit_search, audit_action = admin_audit_query()
+        return render_template(
+            "admin/settings.html",
+            settings=admin_settings_state(admin),
+            audit_logs=audit_logs,
+            audit_search=audit_search,
+            audit_action=audit_action,
+            display_date_label=display_date_label,
+        )
+
     @app.route("/admin/users/<int:user_id>")
     @login_required
     @admin_required
@@ -4944,14 +5108,103 @@ def register_routes(app):
             "cycle_logs": CycleLog.query.filter_by(user_id=user_id).order_by(CycleLog.log_date.desc()).limit(10).all(),
             "appointments": Appointment.query.filter_by(user_id=user_id).order_by(Appointment.appointment_date.desc()).limit(10).all(),
         }
+        appointment_items = []
+        for appointment in records["appointments"]:
+            meta = unpack_appointment_notes(appointment.notes)
+            appointment_items.append({"appointment": appointment, "meta": meta, "status": appointment_status_meta(appointment, meta)})
         return render_template(
             "admin/user_detail.html",
             viewed_user=viewed_user,
             summary=summary,
             records=records,
+            appointment_items=appointment_items,
+            admin_note=admin_note_for_user(viewed_user),
             trends=admin_user_trends(viewed_user),
             display_date_label=display_date_label,
         )
+
+    @app.post("/admin/users/<int:user_id>/verify")
+    @login_required
+    @admin_required
+    def admin_verify_user(user_id):
+        user = db.session.get(User, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("admin_users"))
+        user.email_verified = True
+        user.email_verified_at = datetime.utcnow()
+        log_admin_action("verify_user", user, f"Verified {user.username}")
+        db.session.commit()
+        flash("User account verified.", "success")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    @app.post("/admin/users/<int:user_id>/archive")
+    @login_required
+    @admin_required
+    def admin_archive_user(user_id):
+        user = db.session.get(User, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("admin_users"))
+        reason = (request.form.get("archive_reason") or "Inactive or duplicate account").strip()
+        user.archived_at = datetime.utcnow()
+        user.archive_reason = reason[:255]
+        log_admin_action("archive_user", user, f"Archived {user.username}: {user.archive_reason}")
+        db.session.commit()
+        flash("User account archived. No health logs were deleted.", "success")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    @app.post("/admin/users/<int:user_id>/notes")
+    @login_required
+    @admin_required
+    def admin_save_note(user_id):
+        user = db.session.get(User, user_id)
+        if not user:
+            flash("User not found.", "danger")
+            return redirect(url_for("admin_users"))
+        note_text = (request.form.get("note") or "").strip()
+        if not note_text:
+            flash("Admin note cannot be empty.", "danger")
+            return redirect(url_for("admin_user_detail", user_id=user.id))
+        note = admin_note_for_user(user)
+        if not note:
+            note = AdminNote(user_id=user.id, admin_id=current_user().id, note=note_text)
+            db.session.add(note)
+            action = "create_admin_note"
+        else:
+            note.note = note_text
+            note.admin_id = current_user().id
+            note.updated_at = datetime.utcnow()
+            action = "update_admin_note"
+        log_admin_action(action, user, f"Saved admin note for {user.username}")
+        db.session.commit()
+        flash("Admin note saved.", "success")
+        return redirect(url_for("admin_user_detail", user_id=user.id))
+
+    @app.post("/admin/appointments/<int:appointment_id>/status")
+    @login_required
+    @admin_required
+    def admin_update_appointment_status(appointment_id):
+        appointment = db.session.get(Appointment, appointment_id)
+        if not appointment:
+            flash("Appointment not found.", "danger")
+            return redirect(url_for("admin_users"))
+        status = (request.form.get("status") or "").strip().lower()
+        if status not in {"scheduled", "completed", "cancelled", "missed"}:
+            flash("Invalid appointment status.", "danger")
+            return redirect(url_for("admin_user_detail", user_id=appointment.user_id))
+        meta = unpack_appointment_notes(appointment.notes)
+        appointment.notes = pack_appointment_notes(
+            specialty=meta.get("specialty", "General Checkup"),
+            location=meta.get("location", "Clinic location"),
+            reminder_enabled=meta.get("reminder_enabled", False),
+            status=status,
+            notes_text=meta.get("notes_text", ""),
+        )
+        log_admin_action("update_appointment_status", appointment.user, f"Set appointment {appointment.id} to {status}")
+        db.session.commit()
+        flash("Appointment status updated.", "success")
+        return redirect(url_for("admin_user_detail", user_id=appointment.user_id))
 
     @app.get("/api/health")
     def api_health():

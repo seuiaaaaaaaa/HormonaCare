@@ -23,6 +23,7 @@
                     <th>Email</th>
                     <th>Role</th>
                     <th>Status</th>
+                    <th>Archive</th>
                     <th>Medications</th>
                     <th>Lifestyle</th>
                     <th>Mood</th>
@@ -43,6 +44,7 @@
                     <td>{{ item.user.username }}</td>
                     <td><span class="admin-role-chip">{{ item.user.role or 'user' }}</span></td>
                     <td><span class="admin-badge {{ 'verified' if item.user.email_verified else 'pending' }}">{{ 'Verified' if item.user.email_verified else 'Pending' }}</span></td>
+                    <td><span class="admin-badge {{ 'pending' if item.user.archived_at else 'verified' }}">{{ 'Archived' if item.user.archived_at else 'Active' }}</span></td>
                     <td>{{ item.medication_count }}</td>
                     <td>{{ item.lifestyle_count }}</td>
                     <td>{{ item.mental_count }}</td>
@@ -52,7 +54,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10">
+                    <td colspan="11">
                         <div class="admin-empty-state inline">
                             <span class="nav-icon nav-user"></span>
                             <strong>No matching users</strong>
