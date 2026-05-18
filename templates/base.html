@@ -73,6 +73,10 @@
                 <button class="mobile-menu-close" type="button" aria-label="Close menu">&times;</button>
             </div>
             <div class="mobile-menu-panel" id="mobile-menu-panel">
+                {% if current_is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
+                <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ['admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-user"></span><span>Users</span></a>
+                {% else %}
                 <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Overview</span></a>
                 <a href="{{ url_for('alerts') }}" class="{% if request.endpoint == 'alerts' %}active{% endif %}"><span class="nav-icon nav-bell"></span><span>Alerts</span></a>
                 <a href="{{ url_for('medications') }}" class="{% if request.endpoint in ['medications', 'medication_history'] %}active{% endif %}"><span class="nav-icon nav-pill"></span><span>Meds</span></a>
@@ -80,12 +84,10 @@
                 <a href="{{ url_for('mental_health') }}" class="{% if request.endpoint == 'mental_health' %}active{% endif %}"><span class="nav-icon nav-mood"></span><span>Mood</span></a>
                 <a href="{{ url_for('calendar') }}" class="{% if request.endpoint == 'calendar' %}active{% endif %}"><span class="nav-icon nav-calendar"></span><span>Cycle</span></a>
                 <a href="{{ url_for('appointments') }}" class="{% if request.endpoint == 'appointments' %}active{% endif %}"><span class="nav-icon nav-clock"></span><span>Doctors</span></a>
-                {% if current_is_admin %}
-                <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
-                {% endif %}
                 <div class="nav-divider"></div>
                 <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}"><span class="nav-icon nav-user"></span><span>Profile</span></a>
                 <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}"><span class="nav-icon nav-gear"></span><span>Settings</span></a>
+                {% endif %}
                 <div class="nav-divider"></div>
                 <a class="mobile-logout-link" href="{{ url_for('logout') }}"><span class="nav-icon nav-exit"></span><span>Secure Logout</span></a>
             </div>
@@ -106,6 +108,16 @@
             </div>
             <div class="nav-scroll">
                 <nav class="nav-list">
+                    {% if current_is_admin %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+                        <span class="nav-icon nav-grid"></span>
+                        <span>Admin</span>
+                    </a>
+                    <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ['admin_users', 'admin_user_detail'] %}active{% endif %}">
+                        <span class="nav-icon nav-user"></span>
+                        <span>Users</span>
+                    </a>
+                    {% else %}
                     <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
                         <span class="nav-icon nav-grid"></span>
                         <span>Overview</span>
@@ -134,13 +146,9 @@
                         <span class="nav-icon nav-clock"></span>
                         <span>Doctors</span>
                     </a>
-                    {% if current_is_admin %}
-                    <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}">
-                        <span class="nav-icon nav-grid"></span>
-                        <span>Admin</span>
-                    </a>
                     {% endif %}
                 </nav>
+                {% if not current_is_admin %}
                 <div class="nav-divider"></div>
                 <nav class="nav-list secondary">
                     <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
@@ -152,6 +160,7 @@
                         <span>Settings</span>
                     </a>
                 </nav>
+                {% endif %}
             </div>
             <a class="logout-link" href="{{ url_for('logout') }}">
                 <span class="nav-icon nav-exit"></span>
@@ -226,6 +235,10 @@
         </div>
     </div>
     <nav class="bottom-nav">
+        {% if current_is_admin %}
+        <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
+        <a href="{{ url_for('admin_users') }}" class="{% if request.endpoint in ['admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-user"></span><span>Users</span></a>
+        {% else %}
         <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Overview</span></a>
         <a href="{{ url_for('alerts') }}" class="{% if request.endpoint == 'alerts' %}active{% endif %}"><span class="nav-icon nav-bell"></span><span>Alerts</span></a>
         <a href="{{ url_for('medications') }}" class="{% if request.endpoint in ['medications', 'medication_history'] %}active{% endif %}"><span class="nav-icon nav-pill"></span><span>Meds</span></a>
@@ -233,8 +246,6 @@
         <a href="{{ url_for('mental_health') }}" class="{% if request.endpoint == 'mental_health' %}active{% endif %}"><span class="nav-icon nav-mood"></span><span>Mood</span></a>
         <a href="{{ url_for('calendar') }}" class="{% if request.endpoint == 'calendar' %}active{% endif %}"><span class="nav-icon nav-calendar"></span><span>Cycle</span></a>
         <a href="{{ url_for('appointments') }}" class="{% if request.endpoint == 'appointments' %}active{% endif %}"><span class="nav-icon nav-clock"></span><span>Doctors</span></a>
-        {% if current_is_admin %}
-        <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint in ['admin_dashboard', 'admin_users', 'admin_user_detail'] %}active{% endif %}"><span class="nav-icon nav-grid"></span><span>Admin</span></a>
         {% endif %}
     </nav>
     {% else %}

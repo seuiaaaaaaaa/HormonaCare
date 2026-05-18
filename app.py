@@ -1202,6 +1202,9 @@ def register_routes(app):
                 remember_pending_verification(user.username)
                 flash("Please verify your email before continuing.", "warning")
                 return redirect(url_for("verify_email"))
+            admin_endpoints = {"admin_dashboard", "admin_users", "admin_user_detail"}
+            if is_admin_user(user) and request.endpoint not in admin_endpoints:
+                return redirect(url_for("admin_dashboard"))
             return view(*args, **kwargs)
 
         return wrapped_view
@@ -1215,7 +1218,7 @@ def register_routes(app):
                 return redirect(url_for("login"))
             if not is_admin_user(user):
                 flash("Admin access only.", "error")
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("admin_dashboard"))
             return view(*args, **kwargs)
 
         return wrapped_view
@@ -1448,7 +1451,7 @@ def register_routes(app):
             remember_pending_verification(user.username)
             flash("Please verify your email before continuing.", "warning")
             return redirect(url_for("verify_email"))
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("admin_dashboard" if is_admin_user(user) else "dashboard"))
 
     def clear_pending_verification():
         for key in (
@@ -4163,7 +4166,7 @@ def register_routes(app):
                         clear_failed_login(email)
                         start_authenticated_session(local_user)
                         flash("Signed in using local account while auth service is unavailable.", "warning")
-                        return redirect(url_for("dashboard"))
+                        return redirect(url_for("admin_dashboard" if is_admin_user(local_user) else "dashboard"))
                     form_errors["password"] = friendly_supabase_error(
                         error,
                         "Service temporarily unavailable. Please try again later.",
@@ -4204,7 +4207,7 @@ def register_routes(app):
                 return redirect(url_for("verify_email"))
 
             start_authenticated_session(user)
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("admin_dashboard" if is_admin_user(user) else "dashboard"))
         return render_template("auth/login.html", **build_auth_context("login", form_values, form_errors))
 
     @app.route("/login/otp", methods=["GET", "POST"])
@@ -4306,7 +4309,7 @@ def register_routes(app):
     def verify_email():
         active_user = current_user()
         if active_user and active_user.email_verified:
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("admin_dashboard" if is_admin_user(active_user) else "dashboard"))
         if active_user and not active_user.email_verified:
             remember_pending_verification(active_user.username, verification_type="email")
 
@@ -4341,7 +4344,7 @@ def register_routes(app):
                 clear_failed_login(email)
                 start_authenticated_session(user, new_account=new_account)
                 flash("Email verified successfully.", "success")
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("admin_dashboard" if is_admin_user(user) else "dashboard"))
 
         if request.method == "POST":
             action = (request.form.get("action") or "verify").strip().lower()
@@ -4395,7 +4398,7 @@ def register_routes(app):
                         clear_failed_login(email)
                         start_authenticated_session(user, new_account=new_account)
                         flash("Email verified successfully.", "success")
-                        return redirect(url_for("dashboard"))
+                        return redirect(url_for("admin_dashboard" if is_admin_user(user) else "dashboard"))
 
         retry_in = otp_retry_seconds(form_values["email"])
         return render_template(
