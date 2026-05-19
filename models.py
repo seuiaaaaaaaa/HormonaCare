@@ -30,14 +30,6 @@ class User(db.Model):
     push_subscriptions = db.relationship("WebPushSubscription", backref="user", lazy="select", cascade="all, delete-orphan")
     push_notification_logs = db.relationship("PushNotificationLog", backref="user", lazy="select", cascade="all, delete-orphan")
     profile = db.relationship("UserProfile", backref="user", uselist=False, lazy="select", cascade="all, delete-orphan")
-    admin_notes = db.relationship(
-        "AdminNote",
-        backref="user",
-        lazy="select",
-        cascade="all, delete-orphan",
-        foreign_keys="AdminNote.user_id",
-    )
-
 
 class Medication(db.Model):
     __tablename__ = "medications"

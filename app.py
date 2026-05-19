@@ -4935,6 +4935,10 @@ def register_routes(app):
         admin = db.session.get(User, admin_id)
         return admin.full_name if admin else "Admin"
 
+    def admin_note_target_user(note):
+        user_id = getattr(note, "user_id", None)
+        return db.session.get(User, user_id) if user_id else None
+
     def admin_action_sentence(log):
         actor = admin_actor_name(log)
         action = (getattr(log, "action", "") or "").strip()
@@ -5260,8 +5264,9 @@ def register_routes(app):
             target_note.note = note_text
             target_note.admin_id = current_user().id
             target_note.updated_at = now
-        target_user = None if len(target_notes) > 1 else note.user
-        target_label = f"{len(target_notes)} users" if len(target_notes) > 1 else (note.user.username if note.user else note.user_id)
+        note_user = admin_note_target_user(note)
+        target_user = None if len(target_notes) > 1 else note_user
+        target_label = f"{len(target_notes)} users" if len(target_notes) > 1 else (note_user.username if note_user else note.user_id)
         log_admin_action("update_admin_note", target_user, f"Updated platform note for {target_label}: {admin_note_excerpt(note_text)}")
         db.session.commit()
         flash("Admin note updated.", "success")
@@ -5276,7 +5281,7 @@ def register_routes(app):
             flash("Admin note not found.", "danger")
             return redirect(url_for("admin_users"))
         user_id = note.user_id
-        target_user = note.user
+        target_user = admin_note_target_user(note)
         target_notes = AdminNote.query.filter(AdminNote.admin_id == note.admin_id, AdminNote.note == note.note).all()
         target_label = f"{len(target_notes)} users" if len(target_notes) > 1 else (target_user.username if target_user else user_id)
         log_admin_action("delete_admin_note", None if len(target_notes) > 1 else target_user, f"Deleted platform note for {target_label}: {admin_note_excerpt(note.note)}")
