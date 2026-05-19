@@ -65,18 +65,6 @@
         </form>
     </article>
 
-    <article class="admin-glass-card admin-settings-card">
-        <div class="admin-card-head">
-            <div><span>Security</span><h3>Security Settings</h3></div>
-        </div>
-        <div class="admin-toggle-list admin-security-list">
-            <label><span>Login alerts</span><em>{{ 'Enabled' if settings.login_alerts else 'Disabled' }}</em></label>
-            <label><span>Session timeout</span><em>{{ settings.session_timeout }}</em></label>
-            {% for session_item in settings.recent_sessions %}
-            <label><span>{{ session_item.label }}</span><em>{{ session_item.detail }}</em></label>
-            {% endfor %}
-        </div>
-    </article>
 </section>
 
 <section class="admin-glass-card admin-table-card">
