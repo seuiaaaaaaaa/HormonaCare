@@ -91,7 +91,7 @@
                 <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}"><span class="nav-icon nav-gear"></span><span>Settings</span></a>
                 {% endif %}
                 <div class="nav-divider"></div>
-                <a class="mobile-logout-link" href="{{ url_for('logout') }}"><span class="nav-icon nav-exit"></span><span>Secure Logout</span></a>
+                <a class="mobile-logout-link" href="{{ url_for('logout') }}"><span class="nav-icon nav-exit"></span><span>Log out</span></a>
             </div>
         </div>
     </div>
@@ -174,7 +174,7 @@
             </div>
             <a class="logout-link" href="{{ url_for('logout') }}">
                 <span class="nav-icon nav-exit"></span>
-                <span>Secure Logout</span>
+                <span>Log out</span>
             </a>
         </aside>
         <main class="main-content">
