@@ -1,8 +1,13 @@
-const CACHE_NAME = "hormonacare-static-v46";
-const STATIC_VERSION = "20260517-cycle-cleanup";
+const CACHE_NAME = "hormonacare-static-v47";
+const PAGE_CACHE_NAME = "hormonacare-pages-v47";
+const STATIC_VERSION = "20260520-offline-fallback";
+const OFFLINE_URL = "/offline";
 const STATIC_ASSETS = [
+    OFFLINE_URL,
     `/static/css/style.css?v=${STATIC_VERSION}`,
     `/static/js/app.js?v=${STATIC_VERSION}`,
+    "/static/css/style.css",
+    "/static/js/app.js",
     "/static/manifest.json",
     "/static/icons/icon-192.png",
     "/static/icons/icon-512.png",
@@ -21,7 +26,7 @@ self.addEventListener("activate", (event) => {
         caches.keys().then((keys) =>
             Promise.all(
                 keys
-                    .filter((key) => key !== CACHE_NAME)
+                    .filter((key) => key !== CACHE_NAME && key !== PAGE_CACHE_NAME)
                     .map((key) => caches.delete(key))
             )
         )
@@ -36,6 +41,23 @@ self.addEventListener("fetch", (event) => {
     const requestUrl = new URL(event.request.url);
     const isSameOrigin = requestUrl.origin === self.location.origin;
     const isStaticAsset = isSameOrigin && requestUrl.pathname.startsWith("/static/");
+    const isPageNavigation = event.request.mode === "navigate";
+
+    if (isSameOrigin && isPageNavigation) {
+        event.respondWith(
+            fetch(event.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200 && networkResponse.type === "basic") {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(PAGE_CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+                }
+                return networkResponse;
+            }).catch(() =>
+                caches.match(event.request)
+                    .then((cachedResponse) => cachedResponse || caches.match(OFFLINE_URL))
+            )
+        );
+        return;
+    }
 
     if (!isStaticAsset) {
         return;

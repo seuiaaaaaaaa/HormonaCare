@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ff4f87">
+    <title>HormonaCare Offline</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=static_asset_version) }}">
+</head>
+<body class="offline-page">
+    <main class="offline-shell">
+        <section class="offline-card" aria-labelledby="offline-title">
+            <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="offline-logo">
+            <span class="status-line">Offline Mode</span>
+            <h1 id="offline-title">You are offline</h1>
+            <p>
+                HormonaCare cannot reach the online server right now. Cached resources may still be available,
+                but live dashboard data and cloud services need an internet connection.
+            </p>
+            <div class="offline-list">
+                <span>Login and OTP verification require internet.</span>
+                <span>Database records, notifications, and admin actions require internet.</span>
+                <span>Supported offline entries can sync after the connection returns.</span>
+            </div>
+            <button type="button" onclick="window.location.reload()">Try again</button>
+        </section>
+    </main>
+</body>
+</html>

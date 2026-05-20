@@ -4101,6 +4101,10 @@ def register_routes(app):
     def index():
         return redirect(url_for("dashboard" if current_user() else "login"))
 
+    @app.get("/offline")
+    def offline():
+        return render_template("offline.html")
+
     @app.route("/register", methods=["GET", "POST"])
     def register():
         redirect_response = redirect_authenticated_user()
