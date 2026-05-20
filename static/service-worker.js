@@ -1,6 +1,7 @@
-const CACHE_NAME = "hormonacare-static-v47";
-const PAGE_CACHE_NAME = "hormonacare-pages-v47";
-const STATIC_VERSION = "20260520-offline-fallback";
+const CACHE_NAME = "hormonacare-static-v48";
+const PAGE_CACHE_NAME = "hormonacare-pages-v48";
+const API_CACHE_NAME = "hormonacare-api-v48";
+const STATIC_VERSION = "20260520-offline-api-cache";
 const OFFLINE_URL = "/offline";
 const STATIC_ASSETS = [
     OFFLINE_URL,
@@ -26,7 +27,7 @@ self.addEventListener("activate", (event) => {
         caches.keys().then((keys) =>
             Promise.all(
                 keys
-                    .filter((key) => key !== CACHE_NAME && key !== PAGE_CACHE_NAME)
+                    .filter((key) => key !== CACHE_NAME && key !== PAGE_CACHE_NAME && key !== API_CACHE_NAME)
                     .map((key) => caches.delete(key))
             )
         )
@@ -41,7 +42,35 @@ self.addEventListener("fetch", (event) => {
     const requestUrl = new URL(event.request.url);
     const isSameOrigin = requestUrl.origin === self.location.origin;
     const isStaticAsset = isSameOrigin && requestUrl.pathname.startsWith("/static/");
+    const isApiRequest = isSameOrigin && requestUrl.pathname.startsWith("/api/");
     const isPageNavigation = event.request.mode === "navigate";
+
+    if (isApiRequest) {
+        event.respondWith(
+            fetch(event.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.ok && networkResponse.type === "basic") {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(API_CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+                }
+                return networkResponse;
+            }).catch(() =>
+                caches.match(event.request).then((cachedResponse) => cachedResponse || new Response(
+                    JSON.stringify({
+                        ok: false,
+                        message: "Offline and no cached API data is available yet.",
+                    }),
+                    {
+                        status: 503,
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-HormonaCare-Offline": "true",
+                        },
+                    }
+                ))
+            )
+        );
+        return;
+    }
 
     if (isSameOrigin && isPageNavigation) {
         event.respondWith(

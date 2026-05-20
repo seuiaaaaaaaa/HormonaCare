@@ -65,6 +65,68 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const notificationConfig = readNotificationConfig();
 
+    const warmOfflineApiCache = () => {
+        if (!notificationConfig || !notificationConfig.endpoints || !navigator.onLine) {
+            return;
+        }
+        const apiCacheStorageKey = notificationConfig.apiCacheStorageKey || "hormonacare-api-cache-v1";
+        const writeWarmupCacheEntry = (url, data) => {
+            try {
+                const parsedUrl = new URL(url, window.location.origin);
+                const cacheKey = `${parsedUrl.pathname}${parsedUrl.search}`;
+                const cache = JSON.parse(window.localStorage.getItem(apiCacheStorageKey) || "{}");
+                cache[cacheKey] = {
+                    data,
+                    cachedAt: new Date().toISOString(),
+                };
+                window.localStorage.setItem(apiCacheStorageKey, JSON.stringify(cache));
+            } catch (error) {
+                // Cache warm-up should never block the live page.
+            }
+        };
+        const cacheableEndpointNames = [
+            "dashboard",
+            "profile",
+            "cycle",
+            "alerts",
+            "medications",
+            "lifestyle",
+            "mentalHealth",
+            "appointments",
+            "assessment",
+            "notificationConfig",
+        ];
+        cacheableEndpointNames
+            .map((name) => notificationConfig.endpoints[name])
+            .filter(Boolean)
+            .forEach((url) => {
+                fetch(url, {
+                    headers: {
+                        Accept: "application/json",
+                        "X-HormonaCare-Offline-Warmup": "1",
+                    },
+                    credentials: "same-origin",
+                }).then((response) => response.json().catch(() => null)).then((payload) => {
+                    if (payload && payload.ok === true) {
+                        writeWarmupCacheEntry(url, payload.data);
+                    }
+                }).catch(() => {
+                    // Warm-up is best-effort; normal page behavior should not depend on it.
+                });
+            });
+    };
+
+    const scheduleOfflineApiWarmup = () => {
+        if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(warmOfflineApiCache, { timeout: 3000 });
+            return;
+        }
+        window.setTimeout(warmOfflineApiCache, 1200);
+    };
+
+    scheduleOfflineApiWarmup();
+    window.addEventListener("online", scheduleOfflineApiWarmup);
+
     const notificationCenter = (() => {
         const noopCenter = {
             notify: () => null,
@@ -100,6 +162,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const badgeUrl = notificationConfig.badgeUrl || iconUrl;
         const permissionStorageKey = notificationConfig.permissionStorageKey || "hormonacare-notification-permission-v1";
         const dedupeStorageKey = notificationConfig.dedupeStorageKey || "hormonacare-notification-dedupe-v1";
+        const apiCacheStorageKey = notificationConfig.apiCacheStorageKey || "hormonacare-api-cache-v1";
         const closeAfterMsDefault = Number(notificationConfig.closeAfterMs) || 6500;
         const persistentNotifications = notificationConfig.persistentNotifications !== false;
         const medicationReminderLeadMs = Number(notificationConfig.medicationReminderLeadMs) || 120000;
@@ -146,6 +209,74 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (error) {
                 // Ignore storage failures so notifications still work for the current session.
             }
+        };
+
+        const apiCacheKey = (url) => {
+            try {
+                const parsedUrl = new URL(url, window.location.origin);
+                return `${parsedUrl.pathname}${parsedUrl.search}`;
+            } catch (error) {
+                return String(url || "");
+            }
+        };
+
+        const readApiCache = () => safeReadJson(apiCacheStorageKey, {});
+
+        const readApiCacheEntry = (url) => {
+            const entry = readApiCache()[apiCacheKey(url)];
+            return entry && Object.prototype.hasOwnProperty.call(entry, "data") ? entry : null;
+        };
+
+        const writeApiCacheEntry = (url, data) => {
+            const cache = readApiCache();
+            cache[apiCacheKey(url)] = {
+                data,
+                cachedAt: new Date().toISOString(),
+            };
+            safeWriteJson(apiCacheStorageKey, cache);
+        };
+
+        const formatCachedAt = (cachedAt) => {
+            const dateValue = cachedAt ? new Date(cachedAt) : null;
+            if (!dateValue || Number.isNaN(dateValue.getTime())) {
+                return "last sync";
+            }
+            return dateValue.toLocaleString([], {
+                dateStyle: "medium",
+                timeStyle: "short",
+            });
+        };
+
+        const showApiCacheStatus = (message, tone = "warning") => {
+            let banner = document.querySelector("[data-api-cache-status]");
+            if (!banner) {
+                banner = document.createElement("div");
+                banner.dataset.apiCacheStatus = "true";
+                banner.setAttribute("role", "status");
+                banner.style.cssText = [
+                    "position:fixed",
+                    "left:50%",
+                    "top:16px",
+                    "transform:translateX(-50%)",
+                    "z-index:10000",
+                    "max-width:min(92vw,560px)",
+                    "padding:10px 14px",
+                    "border-radius:8px",
+                    "background:#92400e",
+                    "color:#fff",
+                    "font:600 13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+                    "box-shadow:0 10px 24px rgba(15,23,42,.2)",
+                    "display:none",
+                ].join(";");
+                document.body.appendChild(banner);
+            }
+            banner.textContent = message;
+            banner.style.background = tone === "danger" ? "#991b1b" : "#92400e";
+            banner.style.display = "block";
+            window.clearTimeout(showApiCacheStatus.hideTimer);
+            showApiCacheStatus.hideTimer = window.setTimeout(() => {
+                banner.style.display = "none";
+            }, 5200);
         };
 
         const dedupeCache = safeReadJson(dedupeStorageKey, {});
@@ -823,22 +954,39 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!url) {
                 return null;
             }
+            const method = String(fetchOptions.method || "GET").toUpperCase();
+            const canUseOfflineCache = method === "GET";
             const headers = {
                 Accept: "application/json",
                 ...(fetchOptions.headers || {}),
             };
-            const response = await fetch(url, {
-                ...fetchOptions,
-                headers: {
-                    ...headers,
-                },
-                credentials: "same-origin",
-            });
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload || payload.ok !== true) {
-                throw new Error((payload && payload.message) || "Notification request failed.");
+            try {
+                const response = await fetch(url, {
+                    ...fetchOptions,
+                    headers: {
+                        ...headers,
+                    },
+                    credentials: "same-origin",
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload || payload.ok !== true) {
+                    throw new Error((payload && payload.message) || "Notification request failed.");
+                }
+                if (canUseOfflineCache) {
+                    writeApiCacheEntry(url, payload.data);
+                }
+                return payload.data;
+            } catch (error) {
+                const cachedEntry = canUseOfflineCache ? readApiCacheEntry(url) : null;
+                if (cachedEntry) {
+                    const message = navigator.onLine
+                        ? `Server unavailable. Showing last synced data from ${formatCachedAt(cachedEntry.cachedAt)}.`
+                        : `Offline mode: showing last synced data from ${formatCachedAt(cachedEntry.cachedAt)}.`;
+                    showApiCacheStatus(message, navigator.onLine ? "danger" : "warning");
+                    return cachedEntry.data;
+                }
+                throw error;
             }
-            return payload.data;
         };
 
         const urlBase64ToUint8Array = (base64String) => {

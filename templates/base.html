@@ -191,8 +191,13 @@
                             "badgeUrl": url_for('static', filename='icons/icon-192.png'),
                             "flashMessages": messages,
                             "endpoints": {
+                                "dashboard": url_for('api_dashboard'),
+                                "profile": url_for('api_profile'),
+                                "cycle": url_for('api_cycle'),
                                 "alerts": url_for('api_alerts'),
                                 "medications": url_for('api_medications'),
+                                "lifestyle": url_for('api_lifestyle'),
+                                "mentalHealth": url_for('api_mental_health'),
                                 "appointments": url_for('api_appointments'),
                                 "assessment": url_for('api_ml_health_assessment'),
                                 "notificationConfig": url_for('api_notifications_config'),
