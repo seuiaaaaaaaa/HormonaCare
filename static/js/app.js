@@ -124,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "/",
             notificationConfig.currentPath,
             ...Object.values(notificationConfig.pages || {}),
+            ...(Array.isArray(notificationConfig.offlinePages) ? notificationConfig.offlinePages : []),
         ]);
         pageUrls.forEach((url) => {
             if (!url) {
