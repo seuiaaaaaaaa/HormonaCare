@@ -116,16 +116,45 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     };
 
-    const scheduleOfflineApiWarmup = () => {
-        if ("requestIdleCallback" in window) {
-            window.requestIdleCallback(warmOfflineApiCache, { timeout: 3000 });
+    const warmOfflinePageCache = () => {
+        if (!notificationConfig || !navigator.onLine) {
             return;
         }
-        window.setTimeout(warmOfflineApiCache, 1200);
+        const pageUrls = new Set([
+            "/",
+            notificationConfig.currentPath,
+            ...Object.values(notificationConfig.pages || {}),
+        ]);
+        pageUrls.forEach((url) => {
+            if (!url) {
+                return;
+            }
+            fetch(url, {
+                headers: {
+                    Accept: "text/html",
+                    "X-HormonaCare-Offline-Warmup": "1",
+                },
+                credentials: "same-origin",
+            }).catch(() => {
+                // Page warm-up is best-effort; failed pages simply fall back to the offline screen.
+            });
+        });
     };
 
-    scheduleOfflineApiWarmup();
-    window.addEventListener("online", scheduleOfflineApiWarmup);
+    const scheduleOfflineWarmup = () => {
+        const warmup = () => {
+            warmOfflinePageCache();
+            warmOfflineApiCache();
+        };
+        if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(warmup, { timeout: 3000 });
+            return;
+        }
+        window.setTimeout(warmup, 1200);
+    };
+
+    scheduleOfflineWarmup();
+    window.addEventListener("online", scheduleOfflineWarmup);
 
     const notificationCenter = (() => {
         const noopCenter = {

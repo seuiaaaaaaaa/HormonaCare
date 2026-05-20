@@ -1,8 +1,18 @@
-const CACHE_NAME = "hormonacare-static-v48";
-const PAGE_CACHE_NAME = "hormonacare-pages-v48";
-const API_CACHE_NAME = "hormonacare-api-v48";
-const STATIC_VERSION = "20260520-offline-api-cache";
+const CACHE_NAME = "hormonacare-static-v49";
+const PAGE_CACHE_NAME = "hormonacare-pages-v49";
+const API_CACHE_NAME = "hormonacare-api-v49";
+const STATIC_VERSION = "20260520-offline-page-api-cache";
 const OFFLINE_URL = "/offline";
+const PAGE_FALLBACK_URLS = [
+    "/dashboard",
+    "/",
+    "/alerts",
+    "/medications",
+    "/lifestyle",
+    "/mental-health",
+    "/calendar",
+    "/appointments",
+];
 const STATIC_ASSETS = [
     OFFLINE_URL,
     `/static/css/style.css?v=${STATIC_VERSION}`,
@@ -43,7 +53,8 @@ self.addEventListener("fetch", (event) => {
     const isSameOrigin = requestUrl.origin === self.location.origin;
     const isStaticAsset = isSameOrigin && requestUrl.pathname.startsWith("/static/");
     const isApiRequest = isSameOrigin && requestUrl.pathname.startsWith("/api/");
-    const isPageNavigation = event.request.mode === "navigate";
+    const acceptsHtml = event.request.headers.get("accept") || "";
+    const isPageNavigation = event.request.mode === "navigate" || acceptsHtml.includes("text/html");
 
     if (isApiRequest) {
         event.respondWith(
@@ -82,7 +93,18 @@ self.addEventListener("fetch", (event) => {
                 return networkResponse;
             }).catch(() =>
                 caches.match(event.request)
-                    .then((cachedResponse) => cachedResponse || caches.match(OFFLINE_URL))
+                    .then((cachedResponse) => {
+                        if (cachedResponse) {
+                            return cachedResponse;
+                        }
+                        return caches.open(PAGE_CACHE_NAME).then((cache) =>
+                            PAGE_FALLBACK_URLS.reduce(
+                                (promise, url) => promise.then((match) => match || cache.match(url)),
+                                Promise.resolve(null)
+                            )
+                        );
+                    })
+                    .then((cachedPage) => cachedPage || caches.match(OFFLINE_URL))
             )
         );
         return;
