@@ -116,46 +116,16 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     };
 
-    const warmOfflinePageCache = () => {
-        if (!notificationConfig || !navigator.onLine) {
-            return;
-        }
-        const pageUrls = new Set([
-            "/",
-            notificationConfig.currentPath,
-            ...Object.values(notificationConfig.pages || {}),
-            ...(Array.isArray(notificationConfig.offlinePages) ? notificationConfig.offlinePages : []),
-        ]);
-        pageUrls.forEach((url) => {
-            if (!url) {
-                return;
-            }
-            fetch(url, {
-                headers: {
-                    Accept: "text/html",
-                    "X-HormonaCare-Offline-Warmup": "1",
-                },
-                credentials: "same-origin",
-            }).catch(() => {
-                // Page warm-up is best-effort; failed pages simply fall back to the offline screen.
-            });
-        });
-    };
-
-    const scheduleOfflineWarmup = () => {
-        const warmup = () => {
-            warmOfflinePageCache();
-            warmOfflineApiCache();
-        };
+    const scheduleOfflineApiWarmup = () => {
         if ("requestIdleCallback" in window) {
-            window.requestIdleCallback(warmup, { timeout: 3000 });
+            window.requestIdleCallback(warmOfflineApiCache, { timeout: 3000 });
             return;
         }
-        window.setTimeout(warmup, 1200);
+        window.setTimeout(warmOfflineApiCache, 1200);
     };
 
-    scheduleOfflineWarmup();
-    window.addEventListener("online", scheduleOfflineWarmup);
+    scheduleOfflineApiWarmup();
+    window.addEventListener("online", scheduleOfflineApiWarmup);
 
     const notificationCenter = (() => {
         const noopCenter = {
@@ -1841,10 +1811,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (registerForm) {
         const fullNameInput = registerForm.querySelector("input[name='full_name']");
         const emailInput = registerForm.querySelector("input[name='email']");
+        const usernameInput = document.getElementById("register-account-username");
         const passwordInput = document.getElementById("register-password");
         const confirmInput = document.getElementById("register-confirm-password");
         const fullNameError = registerForm.querySelector("[data-full-name-error]");
         const emailError = registerForm.querySelector("[data-email-error]");
+        const usernameError = registerForm.querySelector("[data-username-error]");
         const passwordError = registerForm.querySelector("[data-password-error]");
         const confirmError = registerForm.querySelector("[data-confirm-error]");
 
@@ -1852,6 +1824,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const clearRegisterAutofill = () => {
                 if (fullNameInput) fullNameInput.value = "";
                 if (emailInput) emailInput.value = "";
+                if (usernameInput) usernameInput.value = "";
                 if (passwordInput) passwordInput.value = "";
                 if (confirmInput) confirmInput.value = "";
             };
@@ -1883,6 +1856,13 @@ document.addEventListener("DOMContentLoaded", () => {
             return valid;
         };
 
+        const validateUsername = () => {
+            const value = usernameInput ? usernameInput.value.trim() : "";
+            const valid = /^[A-Za-z0-9._-]{3,30}$/.test(value);
+            setFieldState(usernameInput, usernameError, valid || !value, "Use 3 to 30 letters, numbers, dots, underscores, or hyphens.");
+            return valid;
+        };
+
         const validatePassword = () => {
             const value = passwordInput ? passwordInput.value : "";
             const valid =
@@ -1907,6 +1887,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (fullNameInput) fullNameInput.addEventListener("input", validateFullName);
         if (emailInput) emailInput.addEventListener("input", validateEmail);
+        if (usernameInput) usernameInput.addEventListener("input", validateUsername);
         if (passwordInput) passwordInput.addEventListener("input", () => {
             validatePassword();
             validateConfirm();
@@ -1916,9 +1897,62 @@ document.addEventListener("DOMContentLoaded", () => {
         registerForm.addEventListener("submit", (event) => {
             const isFullNameValid = validateFullName();
             const isEmailValid = validateEmail();
+            const isUsernameValid = validateUsername();
             const isPasswordValid = validatePassword();
             const isConfirmValid = validateConfirm();
-            if (!isFullNameValid || !isEmailValid || !isPasswordValid || !isConfirmValid) {
+            if (!isFullNameValid || !isEmailValid || !isUsernameValid || !isPasswordValid || !isConfirmValid) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    const setupPinForm = document.getElementById("setup-pin-form");
+    if (setupPinForm) {
+        const pinInput = document.getElementById("setup-security-pin");
+        const confirmPinInput = document.getElementById("setup-confirm-pin");
+        const pinError = setupPinForm.querySelector("[data-setup-pin-error]");
+        const confirmPinError = setupPinForm.querySelector("[data-setup-confirm-pin-error]");
+
+        const setFieldState = (input, errorNode, isValid, message) => {
+            if (!input || !errorNode) return;
+            const wrap = input.closest(".auth-input-wrap");
+            if (!wrap) return;
+            wrap.classList.toggle("is-invalid", !isValid);
+            errorNode.textContent = message;
+            errorNode.classList.toggle("hidden-error", isValid);
+        };
+
+        const validatePin = () => {
+            const value = pinInput ? pinInput.value.trim() : "";
+            const valid = /^(\d{4}|\d{6})$/.test(value);
+            const message = /\D/.test(value)
+                ? "Security PIN Number must contain numbers only."
+                : "Security PIN Number must be exactly 4 or 6 numeric digits.";
+            setFieldState(pinInput, pinError, valid || !value, message);
+            return valid;
+        };
+
+        const validateConfirmPin = () => {
+            const value = confirmPinInput ? confirmPinInput.value.trim() : "";
+            const pinValue = pinInput ? pinInput.value.trim() : "";
+            const valid = value.length > 0 && value === pinValue;
+            setFieldState(confirmPinInput, confirmPinError, valid || !value, "Security PIN Numbers must match.");
+            return valid;
+        };
+
+        if (pinInput) {
+            pinInput.addEventListener("input", () => {
+                validatePin();
+                validateConfirmPin();
+            });
+        }
+        if (confirmPinInput) {
+            confirmPinInput.addEventListener("input", validateConfirmPin);
+        }
+        setupPinForm.addEventListener("submit", (event) => {
+            const isPinValid = validatePin();
+            const isConfirmPinValid = validateConfirmPin();
+            if (!isPinValid || !isConfirmPinValid) {
                 event.preventDefault();
             }
         });
@@ -1928,6 +1962,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (resetFlow) {
         const requestUrl = resetFlow.dataset.requestUrl;
         const verifyUrl = resetFlow.dataset.verifyUrl;
+        const verifyPinUrl = resetFlow.dataset.verifyPinUrl;
         const updateUrl = resetFlow.dataset.updateUrl;
         const loginUrl = resetFlow.dataset.loginUrl;
         const subtitle = document.querySelector("[data-reset-subtitle]");
@@ -1938,6 +1973,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const identifierError = resetFlow.querySelector("[data-reset-identifier-error]");
         const otpInput = resetFlow.querySelector("[data-reset-otp-input]");
         const otpError = resetFlow.querySelector("[data-reset-otp-error]");
+        const pinInput = resetFlow.querySelector("[data-reset-pin-input]");
+        const pinError = resetFlow.querySelector("[data-reset-pin-error]");
         const passwordInput = resetFlow.querySelector("[data-reset-password-input]");
         const confirmInput = resetFlow.querySelector("[data-reset-confirm-input]");
         const passwordError = resetFlow.querySelector("[data-reset-password-error]");
@@ -1945,13 +1982,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const panels = Array.from(resetFlow.querySelectorAll("[data-reset-step-panel]"));
         const chips = Array.from(resetFlow.querySelectorAll("[data-reset-step-chip]"));
         const resendButton = resetFlow.querySelector("[data-reset-resend-button]");
-        const backButton = resetFlow.querySelector("[data-reset-back-button]");
+        const backButtons = Array.from(resetFlow.querySelectorAll("[data-reset-back-button]"));
+        const methodBackButton = resetFlow.querySelector("[data-reset-method-back]");
+        const methodButtons = Array.from(resetFlow.querySelectorAll("[data-reset-method]"));
         let currentStep = "identify";
         let activeRequestCount = 0;
 
         const subtitleByStep = {
-            identify: "Enter your email or username and we'll send a reset code.",
+            identify: "Enter your email or username to choose a reset method.",
+            method: "Choose how you want to verify this password reset.",
             otp: "Enter the 6-digit code sent to your email.",
+            pin: "Enter your registered Security PIN Number.",
             password: "Choose a new password for your account.",
         };
 
@@ -2009,7 +2050,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 panel.classList.toggle("is-active", panel.dataset.resetStepPanel === stepName);
             });
             chips.forEach((chip) => {
-                chip.classList.toggle("is-active", chip.dataset.resetStepChip === stepName);
+                const chipStep = chip.dataset.resetStepChip;
+                chip.classList.toggle("is-active", chipStep === stepName || (chipStep === "otp" && stepName === "pin"));
             });
             if (subtitle) {
                 subtitle.textContent = subtitleByStep[stepName] || subtitleByStep.identify;
@@ -2017,8 +2059,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (stepName === "identify" && identifierInput) {
                 identifierInput.focus();
+            } else if (stepName === "method" && methodButtons[0]) {
+                methodButtons[0].focus();
             } else if (stepName === "otp" && otpInput) {
                 otpInput.focus();
+            } else if (stepName === "pin" && pinInput) {
+                pinInput.focus();
             } else if (stepName === "password" && passwordInput) {
                 passwordInput.focus();
             }
@@ -2030,6 +2076,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw data;
             }
             return data;
+        };
+
+        const chooseMethod = () => {
+            hideStatus();
+            clearFieldState(identifierInput, identifierError);
+            const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
+            if (!identifier) {
+                setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
+                return;
+            }
+            setStep("method");
         };
 
         const validatePassword = () => {
@@ -2078,6 +2135,56 @@ document.addEventListener("DOMContentLoaded", () => {
                 showStatus(data.message || "A 6-digit code has been sent to your email.", "success");
             } catch (error) {
                 setFieldState(identifierInput, identifierError, false, error.message || "We could not send a reset code right now.");
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const validatePinInput = () => {
+            const pin = (pinInput ? pinInput.value : "").trim();
+            if (/\D/.test(pin)) {
+                setFieldState(pinInput, pinError, false, "Security PIN Number must contain numbers only.");
+                return false;
+            }
+            if (!/^(\d{4}|\d{6})$/.test(pin)) {
+                setFieldState(pinInput, pinError, false, "Security PIN Number must be exactly 4 or 6 digits.");
+                return false;
+            }
+            clearFieldState(pinInput, pinError);
+            return true;
+        };
+
+        const verifyPin = async () => {
+            hideStatus();
+            clearFieldState(pinInput, pinError);
+            const identifier = syncIdentifier(hiddenIdentifierInput ? hiddenIdentifierInput.value : "");
+            const securityPin = (pinInput ? pinInput.value : "").trim();
+            if (!validatePinInput()) {
+                return;
+            }
+
+            setBusy(true);
+            try {
+                const response = await fetch(verifyPinUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ identifier, security_pin: securityPin }),
+                });
+                await parseResponse(response);
+                clearFieldState(passwordInput, passwordError);
+                clearFieldState(confirmInput, confirmError);
+                if (pinInput) pinInput.value = "";
+                if (passwordInput) passwordInput.value = "";
+                if (confirmInput) confirmInput.value = "";
+                setStep("password");
+                showStatus("Security PIN verified. You can now create a new password.", "success");
+            } catch (error) {
+                if (error.field === "identifier") {
+                    setStep("identify");
+                    setFieldState(identifierInput, identifierError, false, error.message || "This account is not registered. Please sign up.");
+                } else {
+                    setFieldState(pinInput, pinError, false, error.message || "Incorrect Security PIN Number.");
+                }
             } finally {
                 setBusy(false);
             }
@@ -2181,21 +2288,52 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        if (backButton) {
+        backButtons.forEach((backButton) => {
             backButton.addEventListener("click", (event) => {
                 event.preventDefault();
                 hideStatus();
                 clearFieldState(otpInput, otpError);
+                clearFieldState(pinInput, pinError);
+                setStep("method");
+            });
+        });
+
+        if (methodBackButton) {
+            methodBackButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                hideStatus();
                 setStep("identify");
             });
+        }
+
+        methodButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                hideStatus();
+                clearFieldState(otpInput, otpError);
+                clearFieldState(pinInput, pinError);
+                if (button.dataset.resetMethod === "pin") {
+                    if (pinInput) pinInput.value = "";
+                    setStep("pin");
+                } else {
+                    requestOtp();
+                }
+            });
+        });
+
+        if (pinInput) {
+            pinInput.addEventListener("input", validatePinInput);
         }
 
         resetFlow.addEventListener("submit", (event) => {
             event.preventDefault();
             if (currentStep === "identify") {
-                requestOtp();
+                chooseMethod();
+            } else if (currentStep === "method") {
+                showStatus("Choose a verification method to continue.", "info");
             } else if (currentStep === "otp") {
                 verifyOtp();
+            } else if (currentStep === "pin") {
+                verifyPin();
             } else {
                 updatePassword();
             }
@@ -2280,6 +2418,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const verifyCurrentUrl = settingsPasswordModal.dataset.verifyCurrentUrl;
         const sendOtpUrl = settingsPasswordModal.dataset.sendOtpUrl;
         const verifyOtpUrl = settingsPasswordModal.dataset.verifyOtpUrl;
+        const verifyPinUrl = settingsPasswordModal.dataset.verifyPinUrl;
         const updatePasswordUrl = settingsPasswordModal.dataset.updatePasswordUrl;
         const flow = settingsPasswordModal.querySelector("[data-settings-password-flow]");
         const statusNode = settingsPasswordModal.querySelector("[data-settings-password-status]");
@@ -2295,6 +2434,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const currentPasswordError = settingsPasswordModal.querySelector("[data-settings-current-password-error]");
         const otpInput = settingsPasswordModal.querySelector("[data-settings-otp-input]");
         const otpError = settingsPasswordModal.querySelector("[data-settings-otp-error]");
+        const pinInput = settingsPasswordModal.querySelector("[data-settings-pin-input]");
+        const pinError = settingsPasswordModal.querySelector("[data-settings-pin-error]");
         const newPasswordInput = settingsPasswordModal.querySelector("[data-settings-new-password]");
         const newPasswordError = settingsPasswordModal.querySelector("[data-settings-new-password-error]");
         const confirmPasswordInput = settingsPasswordModal.querySelector("[data-settings-confirm-password]");
@@ -2366,13 +2507,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentPasswordInput.focus();
             } else if (stepName === "otp" && otpInput) {
                 otpInput.focus();
+            } else if (stepName === "pin" && pinInput) {
+                pinInput.focus();
             } else if (stepName === "new" && newPasswordInput) {
                 newPasswordInput.focus();
             }
         };
 
         const clearSensitiveInputs = () => {
-            [currentPasswordInput, otpInput, newPasswordInput, confirmPasswordInput].forEach((input) => {
+            [currentPasswordInput, otpInput, pinInput, newPasswordInput, confirmPasswordInput].forEach((input) => {
                 if (input) {
                     input.value = "";
                 }
@@ -2382,6 +2525,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const clearErrors = () => {
             clearFieldState(currentPasswordInput, currentPasswordError);
             clearFieldState(otpInput, otpError);
+            clearFieldState(pinInput, pinError);
             clearFieldState(newPasswordInput, newPasswordError);
             clearFieldState(confirmPasswordInput, confirmPasswordError);
         };
@@ -2521,6 +2665,50 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
+        const validatePinInput = () => {
+            const pin = (pinInput ? pinInput.value : "").trim();
+            if (/\D/.test(pin)) {
+                setFieldState(pinInput, pinError, false, "Security PIN Number must contain numbers only.");
+                return false;
+            }
+            if (!/^(\d{4}|\d{6})$/.test(pin)) {
+                setFieldState(pinInput, pinError, false, "Security PIN Number must be exactly 4 or 6 digits.");
+                return false;
+            }
+            clearFieldState(pinInput, pinError);
+            return true;
+        };
+
+        const verifyPin = async () => {
+            hideStatus();
+            clearFieldState(pinInput, pinError);
+            const securityPin = (pinInput ? pinInput.value : "").trim();
+            if (!validatePinInput()) {
+                return;
+            }
+
+            setBusy(true);
+            try {
+                const response = await fetch(verifyPinUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ identifier: userEmail, security_pin: securityPin }),
+                });
+                const data = await parseResponse(response);
+                clearFieldState(newPasswordInput, newPasswordError);
+                clearFieldState(confirmPasswordInput, confirmPasswordError);
+                if (pinInput) pinInput.value = "";
+                if (newPasswordInput) newPasswordInput.value = "";
+                if (confirmPasswordInput) confirmPasswordInput.value = "";
+                setStep("new");
+                showStatus(data.message || "Security PIN verified.", "success");
+            } catch (error) {
+                setFieldState(pinInput, pinError, false, error.message || "Incorrect Security PIN Number.");
+            } finally {
+                setBusy(false);
+            }
+        };
+
         const updatePassword = async () => {
             hideStatus();
             const isPasswordValid = validatePassword();
@@ -2578,6 +2766,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 resetPasswordVisibility();
                 if (button.dataset.settingsPasswordMethod === "current") {
                     setStep("current");
+                } else if (button.dataset.settingsPasswordMethod === "pin") {
+                    setStep("pin");
                 } else {
                     sendOtp();
                 }
@@ -2626,6 +2816,10 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
+        if (pinInput) {
+            pinInput.addEventListener("input", validatePinInput);
+        }
+
         if (newPasswordInput) {
             newPasswordInput.addEventListener("input", () => {
                 validatePassword();
@@ -2650,12 +2844,183 @@ document.addEventListener("DOMContentLoaded", () => {
                 verifyCurrentPassword();
             } else if (currentStep === "otp") {
                 verifyOtp();
+            } else if (currentStep === "pin") {
+                verifyPin();
             } else if (currentStep === "new") {
                 updatePassword();
             }
         });
 
         syncEmailDisplays();
+        resetFlow();
+    }
+
+    const settingsPinModal = document.querySelector("[data-settings-pin-modal]");
+    if (settingsPinModal) {
+        const updatePinUrl = settingsPinModal.dataset.updatePinUrl;
+        const flow = settingsPinModal.querySelector("[data-settings-pin-flow]");
+        const statusNode = settingsPinModal.querySelector("[data-settings-pin-status]");
+        const currentPasswordInput = settingsPinModal.querySelector("[data-settings-pin-current-password]");
+        const currentPasswordError = settingsPinModal.querySelector("[data-settings-pin-current-error]");
+        const newPinInput = settingsPinModal.querySelector("[data-settings-new-pin]");
+        const newPinError = settingsPinModal.querySelector("[data-settings-new-pin-error]");
+        const confirmPinInput = settingsPinModal.querySelector("[data-settings-confirm-pin]");
+        const confirmPinError = settingsPinModal.querySelector("[data-settings-confirm-pin-error]");
+        const openButtons = Array.from(document.querySelectorAll("[data-settings-pin-open]"));
+        const closeButtons = Array.from(settingsPinModal.querySelectorAll("[data-modal-close='settings-pin-modal']"));
+        let activeRequestCount = 0;
+        let closeTimer = null;
+
+        const setFieldState = (input, errorNode, isValid, message) => {
+            if (!input || !errorNode) return;
+            const wrap = input.closest(".auth-input-wrap");
+            if (wrap) wrap.classList.toggle("is-invalid", !isValid);
+            errorNode.textContent = message || "";
+            errorNode.classList.toggle("hidden-error", isValid);
+        };
+
+        const clearFieldState = (input, errorNode) => setFieldState(input, errorNode, true, "");
+
+        const showStatus = (message, tone = "info") => {
+            if (!statusNode) return;
+            statusNode.textContent = message;
+            statusNode.classList.remove("hidden-error", "is-error", "is-success", "is-info");
+            statusNode.classList.add(`is-${tone}`);
+        };
+
+        const hideStatus = () => {
+            if (!statusNode) return;
+            statusNode.textContent = "";
+            statusNode.classList.add("hidden-error");
+            statusNode.classList.remove("is-error", "is-success", "is-info");
+        };
+
+        const setBusy = (isBusy) => {
+            activeRequestCount = isBusy ? activeRequestCount + 1 : Math.max(0, activeRequestCount - 1);
+            const disabled = activeRequestCount > 0;
+            flow.querySelectorAll("button, input").forEach((node) => {
+                node.disabled = disabled;
+            });
+        };
+
+        const resetPasswordVisibility = () => {
+            settingsPinModal.querySelectorAll("[data-password-toggle]").forEach((button) => {
+                const wrap = button.closest(".auth-input-wrap");
+                const input = wrap ? wrap.querySelector("[data-password-field]") : null;
+                if (!input) return;
+                input.type = "password";
+                button.setAttribute("aria-pressed", "false");
+                button.setAttribute("aria-label", button.getAttribute("aria-label") || "Show PIN");
+            });
+        };
+
+        const resetFlow = () => {
+            if (closeTimer) {
+                window.clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+            [currentPasswordInput, newPinInput, confirmPinInput].forEach((input) => {
+                if (input) input.value = "";
+            });
+            clearFieldState(currentPasswordInput, currentPasswordError);
+            clearFieldState(newPinInput, newPinError);
+            clearFieldState(confirmPinInput, confirmPinError);
+            hideStatus();
+            resetPasswordVisibility();
+        };
+
+        const validatePin = () => {
+            const value = newPinInput ? newPinInput.value.trim() : "";
+            if (/\D/.test(value)) {
+                setFieldState(newPinInput, newPinError, false, "Security PIN Number must contain numbers only.");
+                return false;
+            }
+            const valid = /^(\d{4}|\d{6})$/.test(value);
+            setFieldState(newPinInput, newPinError, valid || !value, "Security PIN Number must be exactly 4 or 6 digits.");
+            return valid;
+        };
+
+        const validateConfirmPin = () => {
+            const value = confirmPinInput ? confirmPinInput.value.trim() : "";
+            const valid = newPinInput && value.length > 0 && value === newPinInput.value.trim();
+            setFieldState(confirmPinInput, confirmPinError, valid || !value, "Security PIN Numbers must match.");
+            return valid;
+        };
+
+        const parseResponse = async (response) => {
+            const contentType = response.headers.get("content-type") || "";
+            const data = contentType.includes("application/json") ? await response.json().catch(() => ({})) : {};
+            if (!response.ok) throw data;
+            return data;
+        };
+
+        const updatePin = async () => {
+            hideStatus();
+            clearFieldState(currentPasswordInput, currentPasswordError);
+            const currentPassword = currentPasswordInput ? currentPasswordInput.value : "";
+            if (!currentPassword) {
+                setFieldState(currentPasswordInput, currentPasswordError, false, "Enter your current password before changing your PIN.");
+                return;
+            }
+            const isPinValid = validatePin();
+            const isConfirmValid = validateConfirmPin();
+            if (!isPinValid || !isConfirmValid) return;
+
+            setBusy(true);
+            try {
+                const response = await fetch(updatePinUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        security_pin: newPinInput ? newPinInput.value.trim() : "",
+                        confirm_pin: confirmPinInput ? confirmPinInput.value.trim() : "",
+                    }),
+                });
+                const data = await parseResponse(response);
+                showStatus(data.message || "Security PIN Number changed successfully.", "success");
+                closeTimer = window.setTimeout(() => {
+                    resetFlow();
+                    settingsPinModal.hidden = true;
+                }, 1400);
+            } catch (error) {
+                const message = error.message || "We could not update your Security PIN Number right now.";
+                if (error.field === "current_password") {
+                    setFieldState(currentPasswordInput, currentPasswordError, false, message);
+                } else if (error.field === "confirm_pin") {
+                    setFieldState(confirmPinInput, confirmPinError, false, message);
+                } else {
+                    setFieldState(newPinInput, newPinError, false, message);
+                }
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        if (newPinInput) {
+            newPinInput.addEventListener("input", () => {
+                validatePin();
+                validateConfirmPin();
+            });
+        }
+        if (confirmPinInput) {
+            confirmPinInput.addEventListener("input", validateConfirmPin);
+        }
+        openButtons.forEach((button) => {
+            button.addEventListener("click", resetFlow);
+        });
+        closeButtons.forEach((button) => {
+            button.addEventListener("click", resetFlow);
+        });
+        settingsPinModal.addEventListener("click", (event) => {
+            if (event.target === settingsPinModal) {
+                window.setTimeout(resetFlow, 0);
+            }
+        });
+        flow.addEventListener("submit", (event) => {
+            event.preventDefault();
+            updatePin();
+        });
         resetFlow();
     }
 

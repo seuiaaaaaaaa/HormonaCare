@@ -5,7 +5,11 @@
     <div class="auth-mock-card auth-register-card auth-form-card">
         <div class="auth-heart-badge"></div>
         <h1>HormonaCare</h1>
-        <p class="auth-subtitle">Create your account with your name, email, and password.</p>
+        <p class="auth-subtitle">Create your account details first, then set up your recovery PIN.</p>
+        <div class="auth-reset-steps auth-progress-steps" aria-label="Registration progress">
+            <span class="auth-reset-step-chip is-active">Step 1: Account Details</span>
+            <span class="auth-reset-step-chip">Step 2: Security PIN Setup</span>
+        </div>
         <form
             method="post"
             class="form-grid auth-form-tight"
@@ -31,6 +35,13 @@
                 </div>
                 <small class="field-error {% if not form_errors.email %}hidden-error{% endif %}" data-email-error>{{ form_errors.email or 'Enter a valid email address.' }}</small>
             </label>
+            <label>Username
+                <div class="auth-input-wrap {% if form_errors.account_username %}is-invalid{% endif %}">
+                    <span class="auth-input-icon user"></span>
+                    <input type="text" id="register-account-username" name="account_username" value="{{ form_values.account_username }}" placeholder="Choose a username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+                </div>
+                <small class="field-error {% if not form_errors.account_username %}hidden-error{% endif %}" data-username-error>{{ form_errors.account_username or 'Use 3 to 30 letters, numbers, dots, underscores, or hyphens.' }}</small>
+            </label>
             <label>Password
                 <div class="auth-input-wrap {% if form_errors.password %}is-invalid{% endif %}">
                     <span class="auth-input-icon lock"></span>
@@ -51,7 +62,7 @@
                 </div>
                 <small class="field-error {% if not form_errors.confirm_password %}hidden-error{% endif %}" data-confirm-error>{{ form_errors.confirm_password or 'Passwords must match.' }}</small>
             </label>
-            <button type="submit" class="auth-gradient-button">Create Account</button>
+            <button type="submit" class="auth-gradient-button">Continue to PIN Setup</button>
         </form>
         <p class="auth-footer-link">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
     </div>

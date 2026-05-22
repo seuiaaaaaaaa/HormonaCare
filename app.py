@@ -815,6 +815,9 @@ def ensure_runtime_schema():
             if "username" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR(80)"))
                 columns.add("username")
+            if "account_username" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN account_username VARCHAR(30)"))
+                columns.add("account_username")
             if "supabase_user_id" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN supabase_user_id VARCHAR(80)"))
                 columns.add("supabase_user_id")
@@ -834,7 +837,34 @@ def ensure_runtime_schema():
             if "archive_reason" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN archive_reason VARCHAR(255)"))
                 columns.add("archive_reason")
+            if "pin_number" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN pin_number VARCHAR(255)"))
+                columns.add("pin_number")
+            if "security_pin_hash" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN security_pin_hash VARCHAR(255)"))
+                columns.add("security_pin_hash")
+            if "pin_failed_attempts" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN pin_failed_attempts INTEGER"))
+                connection.execute(text("UPDATE users SET pin_failed_attempts = 0 WHERE pin_failed_attempts IS NULL"))
+                columns.add("pin_failed_attempts")
+            if "pin_locked_until" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN pin_locked_until TIMESTAMP"))
+                columns.add("pin_locked_until")
             connection.execute(text("UPDATE users SET role = COALESCE(NULLIF(role, ''), 'user')"))
+            connection.execute(text("UPDATE users SET pin_failed_attempts = 0 WHERE pin_failed_attempts IS NULL"))
+            if "security_pin_hash" in columns:
+                connection.execute(
+                    text(
+                        "UPDATE users "
+                        "SET pin_number = security_pin_hash "
+                        "WHERE (pin_number IS NULL OR pin_number = '') "
+                        "AND security_pin_hash IS NOT NULL AND security_pin_hash != ''"
+                    )
+                )
+            connection.execute(
+                text("UPDATE users SET pin_number = :pin_hash WHERE pin_number IS NULL OR pin_number = ''"),
+                {"pin_hash": hash_password("2005")},
+            )
             if "email" in columns:
                 connection.execute(
                     text(
@@ -863,6 +893,12 @@ def ensure_runtime_schema():
             connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)"))
             connection.execute(
                 text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_username "
+                    "ON users(account_username)"
+                )
+            )
+            connection.execute(
+                text(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_user_id "
                     "ON users(supabase_user_id)"
                 )
@@ -872,7 +908,12 @@ def ensure_runtime_schema():
                 "id",
                 "full_name",
                 "username",
+                "account_username",
                 "password_hash",
+                "pin_number",
+                "security_pin_hash",
+                "pin_failed_attempts",
+                "pin_locked_until",
                 "role",
                 "supabase_user_id",
                 "email_verified",
@@ -1047,6 +1088,7 @@ def ensure_runtime_schema():
 
 def register_routes(app):
     login_attempts = {}
+    pending_registrations = {}
     api_version = "v1"
     api_gateway_name = "HormonaCare Application API Gateway"
     api_gateway_public_paths = {
@@ -1255,7 +1297,9 @@ def register_routes(app):
                 "settings_password_verify_current",
                 "settings_password_send_otp",
                 "settings_password_verify_otp",
+                "settings_password_verify_pin",
                 "settings_password_update",
+                "settings_pin_update",
             }
             if is_admin_user(user) and request.endpoint not in admin_endpoints:
                 return redirect(url_for("admin_dashboard"))
@@ -1685,9 +1729,106 @@ def register_routes(app):
                 return value
         return fallback_full_name(fallback_email or getattr(auth_user, "email", ""))
 
-    def ensure_local_user(email, password=None, full_name="", auth_user=None):
+    def normalize_pin(pin):
+        return (pin or "").strip()
+
+    def validate_security_pin(pin):
+        pin = normalize_pin(pin)
+        if not pin:
+            return "Security PIN Number is required."
+        if not pin.isdigit():
+            return "Security PIN Number must contain numbers only."
+        if len(pin) not in {4, 6}:
+            return "Security PIN Number must be exactly 4 or 6 digits."
+        return None
+
+    def valid_account_username(value):
+        username = (value or "").strip()
+        return bool(re.fullmatch(r"[A-Za-z0-9._-]{3,30}", username))
+
+    def account_username_help():
+        return "Username must use 3 to 30 letters, numbers, dots, underscores, or hyphens."
+
+    def remember_pending_registration(full_name, email, account_username, password):
+        token = secrets.token_urlsafe(24)
+        pending_registrations[token] = {
+            "full_name": full_name,
+            "email": email,
+            "account_username": (account_username or "").strip(),
+            "password": password,
+            "created_at": datetime.utcnow(),
+        }
+        session["pending_registration_token"] = token
+        return token
+
+    def pending_registration():
+        token = session.get("pending_registration_token")
+        if not token:
+            return None
+        pending = pending_registrations.get(token)
+        if not pending:
+            session.pop("pending_registration_token", None)
+            return None
+        if datetime.utcnow() - pending["created_at"] > timedelta(minutes=20):
+            pending_registrations.pop(token, None)
+            session.pop("pending_registration_token", None)
+            return None
+        return pending
+
+    def clear_pending_registration():
+        token = session.pop("pending_registration_token", None)
+        if token:
+            pending_registrations.pop(token, None)
+
+    def pin_locked_message(user):
+        locked_until = getattr(user, "pin_locked_until", None)
+        if not locked_until:
+            return None
+        if locked_until <= datetime.utcnow():
+            user.pin_locked_until = None
+            user.pin_failed_attempts = 0
+            db.session.commit()
+            return None
+        remaining = max(1, int((locked_until - datetime.utcnow()).total_seconds() // 60) + 1)
+        return f"Too many incorrect PIN attempts. Try again in {remaining} minute(s)."
+
+    def verify_user_pin(user, pin):
+        lock_message = pin_locked_message(user)
+        if lock_message:
+            return False, lock_message
+        stored_pin_hash = getattr(user, "pin_number", None) or getattr(user, "security_pin_hash", None)
+        if not stored_pin_hash:
+            return False, "No Security PIN Number is registered for this account."
+        pin_error = validate_security_pin(pin)
+        if pin_error:
+            return False, pin_error
+        if verify_password(pin, stored_pin_hash):
+            user.pin_failed_attempts = 0
+            user.pin_locked_until = None
+            db.session.commit()
+            return True, None
+        user.pin_failed_attempts = int(user.pin_failed_attempts or 0) + 1
+        if user.pin_failed_attempts >= 5:
+            user.pin_locked_until = datetime.utcnow() + timedelta(minutes=15)
+            message = "Too many incorrect PIN attempts. Try again in 15 minutes."
+        else:
+            remaining = 5 - user.pin_failed_attempts
+            message = f"Incorrect Security PIN Number. {remaining} attempt(s) remaining."
+        db.session.commit()
+        return False, message
+
+    def remember_pin_password_reset_verification(email):
+        session["reset_password_email"] = normalize_email(email)
+        session["reset_password_verified"] = {
+            "email": normalize_email(email),
+            "method": "security_pin",
+            "verified_at": datetime.utcnow().isoformat(),
+        }
+
+    def ensure_local_user(email, password=None, full_name="", auth_user=None, security_pin=None, account_username=None):
         normalized_email = normalize_email(email)
         user = User.query.filter_by(username=normalized_email).first()
+        normalized_account_username = (account_username or "").strip().lower()
         resolved_full_name = normalize_full_name(full_name) or auth_user_full_name(auth_user, normalized_email)
         resolved_verified_at = supabase_user_verified_at(auth_user)
         resolved_supabase_user_id = (getattr(auth_user, "id", "") or "").strip() if auth_user else ""
@@ -1702,7 +1843,11 @@ def register_routes(app):
             user = User(
                 full_name=resolved_full_name or fallback_full_name(normalized_email),
                 username=normalized_email,
+                account_username=normalized_account_username or None,
                 password_hash=hash_password(password or os.urandom(16).hex()),
+                pin_number=hash_password(security_pin or "2005"),
+                security_pin_hash=hash_password(security_pin) if security_pin else None,
+                pin_failed_attempts=0,
                 role=resolved_role,
                 supabase_user_id=resolved_supabase_user_id or None,
                 email_verified=bool(resolved_verified_at),
@@ -1715,6 +1860,9 @@ def register_routes(app):
         changed = False
         if resolved_full_name and user.full_name != resolved_full_name:
             user.full_name = resolved_full_name
+            changed = True
+        if normalized_account_username and user.account_username != normalized_account_username:
+            user.account_username = normalized_account_username
             changed = True
         if resolved_supabase_user_id and user.supabase_user_id != resolved_supabase_user_id:
             user.supabase_user_id = resolved_supabase_user_id
@@ -1735,6 +1883,12 @@ def register_routes(app):
                 changed = True
         if password and not verify_password(password, user.password_hash):
             user.password_hash = hash_password(password)
+            changed = True
+        if security_pin:
+            user.pin_number = hash_password(security_pin)
+            user.security_pin_hash = user.pin_number
+            user.pin_failed_attempts = 0
+            user.pin_locked_until = None
             changed = True
         if changed:
             db.session.commit()
@@ -4111,20 +4265,30 @@ def register_routes(app):
         if redirect_response:
             return redirect_response
 
-        form_values = {"full_name": "", "email": ""}
+        form_values = {"full_name": "", "email": "", "account_username": ""}
         form_errors = {}
         if request.method == "POST":
             full_name = normalize_full_name(request.form.get("full_name"))
             email = normalize_email(request.form.get("email") or request.form.get("username"))
+            account_username = (request.form.get("account_username") or "").strip()
             password = request.form.get("password") or ""
             confirm_password = request.form.get("confirm_password", "")
-            form_values = {"full_name": full_name, "email": email}
+            form_values = {"full_name": full_name, "email": email, "account_username": account_username}
             existing_user = User.query.filter_by(username=email).first() if email else None
+            existing_account_username = (
+                User.query.filter(func.lower(User.account_username) == account_username.lower()).first()
+                if account_username
+                else None
+            )
 
             if not valid_full_name(full_name):
                 form_errors["full_name"] = full_name_help
             if not valid_email(email):
                 form_errors["email"] = email_help
+            if not valid_account_username(account_username):
+                form_errors["account_username"] = account_username_help()
+            elif existing_account_username:
+                form_errors["account_username"] = "That username is already taken."
             if not password:
                 form_errors["password"] = "Password is required."
             if password != confirm_password:
@@ -4142,6 +4306,38 @@ def register_routes(app):
             if form_errors:
                 return render_template("auth/register.html", **build_auth_context("register", form_values, form_errors))
 
+            remember_pending_registration(full_name, email, account_username, password)
+            return redirect(url_for("setup_pin"))
+        return render_template("auth/register.html", **build_auth_context("register", form_values))
+
+    @app.route("/setup-pin", methods=["GET", "POST"])
+    @app.route("/create-pin", methods=["GET", "POST"])
+    def setup_pin():
+        redirect_response = redirect_authenticated_user()
+        if redirect_response:
+            return redirect_response
+
+        pending = pending_registration()
+        if not pending:
+            flash("Please complete your account details first.", "warning")
+            return redirect(url_for("register"))
+
+        form_values = {"email": pending["email"], "account_username": pending.get("account_username", "")}
+        form_errors = {}
+        if request.method == "POST":
+            security_pin = normalize_pin(request.form.get("security_pin"))
+            confirm_pin = normalize_pin(request.form.get("confirm_pin"))
+            pin_error = validate_security_pin(security_pin)
+            if pin_error:
+                form_errors["security_pin"] = pin_error
+            if security_pin != confirm_pin:
+                form_errors["confirm_pin"] = "Security PIN Numbers do not match."
+            if form_errors:
+                return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
+
+            email = pending["email"]
+            password = pending["password"]
+            full_name = pending["full_name"]
             try:
                 auth_response = register_supabase_password_account(email, password, full_name)
             except Exception as error:
@@ -4151,9 +4347,15 @@ def register_routes(app):
                     except Exception as otp_error:
                         log_supabase_otp_error(email, otp_error)
                         form_errors["email"] = otp_send_error_message(otp_error)
-                        return render_template("auth/register.html", **build_auth_context("register", form_values, form_errors))
+                        return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
 
-                    ensure_local_user(email, full_name=full_name)
+                    ensure_local_user(
+                        email,
+                        full_name=full_name,
+                        security_pin=security_pin,
+                        account_username=pending.get("account_username"),
+                    )
+                    clear_pending_registration()
                     remember_pending_verification(email, verification_type="email", new_account=True)
                     flash("OTP sent to your email.", "success")
                     return redirect(url_for("verify_email"))
@@ -4162,19 +4364,22 @@ def register_routes(app):
                     error,
                     "We could not create your account right now. Please try again.",
                 )
-                return render_template("auth/register.html", **build_auth_context("register", form_values, form_errors))
+                return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
 
             ensure_local_user(
                 email,
                 password=password,
                 full_name=full_name,
                 auth_user=response_auth_user(auth_response),
+                security_pin=security_pin,
+                account_username=pending.get("account_username"),
             )
+            clear_pending_registration()
             remember_pending_verification(email, verification_type="email", new_account=True)
             remember_otp_request(email)
             flash("OTP sent to your email.", "success")
             return redirect(url_for("verify_email"))
-        return render_template("auth/register.html", **build_auth_context("register", form_values))
+        return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values))
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -4236,6 +4441,11 @@ def register_routes(app):
                     )
                 else:
                     record_failed_login(email)
+                    if local_user and local_user.email_verified and verify_password(password, local_user.password_hash):
+                        clear_failed_login(email)
+                        start_authenticated_session(local_user)
+                        flash("Signed in with your HormonaCare account password.", "success")
+                        return redirect(url_for("admin_dashboard" if is_admin_user(local_user) else "dashboard"))
                     if local_user and not local_user.supabase_user_id and verify_password(password, local_user.password_hash):
                         try:
                             bootstrap_response = register_supabase_password_account(email, password, local_user.full_name)
@@ -4584,6 +4794,36 @@ def register_routes(app):
 
         return {"message": "OTP verified.", "identifier": user.username}
 
+    @app.post("/auth/password-reset/verify-pin")
+    def password_reset_verify_pin():
+        payload = request.get_json(silent=True) if request.is_json else {}
+        identifier = normalize_email(
+            request.form.get("identifier")
+            or request.form.get("email")
+            or request.values.get("identifier")
+            or request.values.get("email")
+            or (payload or {}).get("identifier")
+            or (payload or {}).get("email")
+            or session.get("reset_password_email")
+        )
+        security_pin = normalize_pin(
+            request.form.get("security_pin")
+            or request.form.get("pin")
+            or request.values.get("security_pin")
+            or request.values.get("pin")
+            or (payload or {}).get("security_pin")
+            or (payload or {}).get("pin")
+        )
+        user = find_user_by_auth_identifier(identifier)
+        if not user or not user.email_verified:
+            clear_password_reset_state()
+            return {"field": "identifier", "message": "This account is not registered. Please sign up."}, 404
+        verified, message = verify_user_pin(user, security_pin)
+        if not verified:
+            return {"field": "security_pin", "message": message or "Incorrect Security PIN Number."}, 401
+        remember_pin_password_reset_verification(user.username)
+        return {"message": "Security PIN verified.", "identifier": user.username}
+
     @app.post("/auth/password-reset/update")
     def password_reset_update():
         payload = request.get_json(silent=True) if request.is_json else {}
@@ -4623,7 +4863,7 @@ def register_routes(app):
         if password_errors:
             return {"field": "password", "message": " ".join(password_errors)}, 422
 
-        if verified_state.get("method") == "local_otp":
+        if verified_state.get("method") in {"local_otp", "security_pin"}:
             ensure_local_user(user.username, password=password, full_name=user.full_name)
             clear_password_reset_state()
             return {
@@ -6027,6 +6267,26 @@ def register_routes(app):
 
         return {"message": "OTP verified."}
 
+    @app.post("/settings/password/verify-pin")
+    @login_required
+    def settings_password_verify_pin():
+        user = current_user()
+        payload = request.get_json(silent=True) if request.is_json else {}
+        security_pin = normalize_pin(
+            request.form.get("security_pin")
+            or request.form.get("pin")
+            or request.values.get("security_pin")
+            or request.values.get("pin")
+            or (payload or {}).get("security_pin")
+            or (payload or {}).get("pin")
+        )
+        verified, message = verify_user_pin(user, security_pin)
+        if not verified:
+            clear_settings_password_state()
+            return {"field": "security_pin", "message": message or "Incorrect Security PIN Number."}, 401
+        remember_local_settings_password_verification(user.username, "security_pin")
+        return {"message": "Security PIN verified."}
+
     @app.post("/settings/password/update")
     @login_required
     def settings_password_update():
@@ -6045,7 +6305,7 @@ def register_routes(app):
             or ""
         )
         verified_state = settings_password_verification_state()
-        if normalize_email(verified_state.get("email")) != user.username or verified_state.get("method") not in {"current_password", "otp", "local_current_password", "local_otp"}:
+        if normalize_email(verified_state.get("email")) != user.username or verified_state.get("method") not in {"current_password", "otp", "local_current_password", "local_otp", "security_pin"}:
             clear_settings_password_state()
             return {"field": "otp", "message": "Verify your chosen method first."}, 409
         if password != confirm_password:
@@ -6057,7 +6317,7 @@ def register_routes(app):
         if verify_password(password, user.password_hash):
             return {"field": "password", "message": "New password must be different from your current password."}, 422
 
-        if verified_state.get("method") in {"local_current_password", "local_otp"}:
+        if verified_state.get("method") in {"local_current_password", "local_otp", "security_pin"}:
             ensure_local_user(
                 user.username,
                 password=password,
@@ -6093,6 +6353,54 @@ def register_routes(app):
         )
         clear_settings_password_state()
         return {"message": "Password changed successfully."}
+
+    @app.post("/settings/pin/update")
+    @login_required
+    def settings_pin_update():
+        user = current_user()
+        payload = request.get_json(silent=True) if request.is_json else {}
+        current_password = (
+            request.form.get("current_password")
+            or request.values.get("current_password")
+            or (payload or {}).get("current_password")
+            or ""
+        )
+        security_pin = normalize_pin(
+            request.form.get("security_pin")
+            or request.form.get("pin")
+            or request.values.get("security_pin")
+            or request.values.get("pin")
+            or (payload or {}).get("security_pin")
+            or (payload or {}).get("pin")
+        )
+        confirm_pin = normalize_pin(
+            request.form.get("confirm_pin")
+            or request.values.get("confirm_pin")
+            or (payload or {}).get("confirm_pin")
+        )
+        if not current_password:
+            return {"field": "current_password", "message": "Enter your current password before changing your PIN."}, 422
+        if not verify_password(current_password, user.password_hash):
+            try:
+                supabase = get_supabase_client()
+                supabase.auth.sign_in_with_password({"email": user.username, "password": current_password})
+            except Exception as error:
+                log_supabase_otp_error(user.username, error)
+                return {"field": "current_password", "message": "Current password is incorrect."}, 401
+        pin_error = validate_security_pin(security_pin)
+        if pin_error:
+            return {"field": "security_pin", "message": pin_error}, 422
+        if security_pin != confirm_pin:
+            return {"field": "confirm_pin", "message": "Security PIN Numbers do not match."}, 422
+        current_pin_hash = getattr(user, "pin_number", None) or getattr(user, "security_pin_hash", None)
+        if current_pin_hash and verify_password(security_pin, current_pin_hash):
+            return {"field": "security_pin", "message": "New PIN must be different from your current PIN."}, 422
+        user.pin_number = hash_password(security_pin)
+        user.security_pin_hash = user.pin_number
+        user.pin_failed_attempts = 0
+        user.pin_locked_until = None
+        db.session.commit()
+        return {"message": "Security PIN Number changed successfully."}
 
     @app.route("/settings", methods=["GET", "POST"])
     @login_required

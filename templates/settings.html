@@ -24,10 +24,20 @@
             <div class="settings-password-card-copy">
                 <span class="status-line">Password</span>
                 <h4>Change Password</h4>
-                <p>Verify with your current password or send a one-time code to your email.</p>
+                <p>Verify with your current password, email OTP, or Security PIN Number.</p>
             </div>
             <button type="button" class="outline-button" data-modal-open="settings-password-modal" data-settings-password-open>
                 Change Password
+            </button>
+        </div>
+        <div class="settings-mini-block settings-password-card">
+            <div class="settings-password-card-copy">
+                <span class="status-line">Security PIN</span>
+                <h4>Change PIN Number</h4>
+                <p>Update your password recovery PIN after confirming your current password.</p>
+            </div>
+            <button type="button" class="outline-button" data-modal-open="settings-pin-modal" data-settings-pin-open>
+                Change PIN
             </button>
         </div>
     </article>
@@ -98,6 +108,7 @@
     data-verify-current-url="{{ url_for('settings_password_verify_current') }}"
     data-send-otp-url="{{ url_for('settings_password_send_otp') }}"
     data-verify-otp-url="{{ url_for('settings_password_verify_otp') }}"
+    data-verify-pin-url="{{ url_for('settings_password_verify_pin') }}"
     data-update-password-url="{{ url_for('settings_password_update') }}"
     data-user-email="{{ current_user.username }}"
 >
@@ -123,6 +134,11 @@
                         <span class="settings-password-method-icon mail" aria-hidden="true"></span>
                         <strong>Send OTP to Email</strong>
                         <span>Receive a 6-digit code at your registered email address.</span>
+                    </button>
+                    <button type="button" class="settings-password-method" data-settings-password-method="pin">
+                        <span class="settings-password-method-icon pin" aria-hidden="true"></span>
+                        <strong>Verify Using PIN Number</strong>
+                        <span>Use your registered Security PIN Number to continue.</span>
                     </button>
                 </div>
             </section>
@@ -165,6 +181,26 @@
                 </div>
             </section>
 
+            <section class="settings-password-panel" data-settings-password-panel="pin">
+                <div class="auth-step-context">
+                    Enter the Security PIN Number registered to <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
+                </div>
+                <label>Security PIN Number
+                    <div class="auth-input-wrap">
+                        <span class="auth-input-icon shield"></span>
+                        <input type="password" placeholder="Enter your 4 or 6 digit PIN" inputmode="numeric" maxlength="6" autocomplete="one-time-code" data-settings-pin-input data-password-field>
+                        <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show PIN" aria-pressed="false">
+                            <span class="auth-password-eye" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <p class="field-error hidden-error" data-settings-pin-error></p>
+                </label>
+                <div class="settings-password-actions">
+                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="submit" class="auth-gradient-button">Verify PIN</button>
+                </div>
+            </section>
+
             <section class="settings-password-panel" data-settings-password-panel="new">
                 <div class="auth-step-context">
                     Verification complete. Create a new password for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
@@ -194,6 +230,60 @@
                     <button type="submit" class="auth-gradient-button">Save New Password</button>
                 </div>
             </section>
+        </form>
+    </div>
+</div>
+
+<div
+    class="modal-backdrop"
+    id="settings-pin-modal"
+    hidden
+    data-settings-pin-modal
+    data-update-pin-url="{{ url_for('settings_pin_update') }}"
+>
+    <div class="modal-card settings-password-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-pin-modal-title">
+        <button type="button" class="modal-close" data-modal-close="settings-pin-modal" aria-label="Close PIN change modal">&times;</button>
+        <div class="settings-password-modal-head">
+            <span class="status-line">Account Security</span>
+            <h2 id="settings-pin-modal-title">Change PIN Number</h2>
+            <p>Confirm your current password before updating your Security PIN Number.</p>
+        </div>
+        <div class="auth-inline-status hidden-error" data-settings-pin-status></div>
+        <form class="settings-password-flow" data-settings-pin-flow novalidate>
+            <label>Current Password
+                <div class="auth-input-wrap">
+                    <span class="auth-input-icon lock"></span>
+                    <input type="password" placeholder="Enter your current password" autocomplete="current-password" data-settings-pin-current-password data-password-field>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <p class="field-error hidden-error" data-settings-pin-current-error></p>
+            </label>
+            <label>New Security PIN Number
+                <div class="auth-input-wrap">
+                    <span class="auth-input-icon shield"></span>
+                    <input type="password" placeholder="Create a 4 or 6 digit PIN" inputmode="numeric" maxlength="6" autocomplete="new-password" data-settings-new-pin data-password-field>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show PIN" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <p class="field-error hidden-error" data-settings-new-pin-error></p>
+            </label>
+            <label>Confirm PIN
+                <div class="auth-input-wrap">
+                    <span class="auth-input-icon shield"></span>
+                    <input type="password" placeholder="Repeat your PIN" inputmode="numeric" maxlength="6" autocomplete="new-password" data-settings-confirm-pin data-password-field>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show PIN" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <p class="field-error hidden-error" data-settings-confirm-pin-error></p>
+            </label>
+            <div class="settings-password-actions">
+                <button type="button" class="auth-text-button" data-modal-close="settings-pin-modal">Cancel</button>
+                <button type="submit" class="auth-gradient-button">Save New PIN</button>
+            </div>
         </form>
     </div>
 </div>

@@ -4083,6 +4083,29 @@ svg {
     transform-origin: center;
 }
 
+.settings-password-method-icon.pin::before {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 9px;
+    width: 16px;
+    height: 24px;
+    border: 2px solid #fff;
+    border-radius: 10px;
+}
+
+.settings-password-method-icon.pin::after {
+    content: "";
+    position: absolute;
+    left: 19px;
+    top: 17px;
+    width: 4px;
+    height: 4px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 7px 0 #fff;
+}
+
 .settings-password-actions {
     display: flex;
     flex-wrap: wrap;

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block auth_content %}
+<section class="auth-center-shell">
+    <div class="auth-mock-card auth-register-card auth-form-card">
+        <div class="auth-heart-badge"></div>
+        <h1>Security PIN Setup</h1>
+        <p class="auth-subtitle">This PIN will be used to recover your account if you forget your password.</p>
+        <div class="auth-reset-steps auth-progress-steps" aria-label="Registration progress">
+            <span class="auth-reset-step-chip">Step 1: Account Details</span>
+            <span class="auth-reset-step-chip is-active">Step 2: Security PIN Setup</span>
+        </div>
+        <form method="post" class="form-grid auth-form-tight" id="setup-pin-form" novalidate>
+            <div class="auth-step-context">
+                Creating account for <strong>{{ form_values.email }}</strong>
+            </div>
+            {% if form_errors.email %}
+                <div class="auth-inline-status is-error">{{ form_errors.email }}</div>
+            {% endif %}
+            <label>Create Security PIN Number
+                <div class="auth-input-wrap {% if form_errors.security_pin %}is-invalid{% endif %}">
+                    <span class="auth-input-icon shield"></span>
+                    <input type="password" name="security_pin" id="setup-security-pin" placeholder="Create a 4 or 6 digit PIN" inputmode="numeric" maxlength="6" autocomplete="new-password" data-password-field required>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show PIN" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <small class="field-error {% if not form_errors.security_pin %}hidden-error{% endif %}" data-setup-pin-error>{{ form_errors.security_pin or 'Use numbers only, exactly 4 or 6 digits.' }}</small>
+            </label>
+            <label>Confirm PIN Number
+                <div class="auth-input-wrap {% if form_errors.confirm_pin %}is-invalid{% endif %}">
+                    <span class="auth-input-icon shield"></span>
+                    <input type="password" name="confirm_pin" id="setup-confirm-pin" placeholder="Repeat your PIN" inputmode="numeric" maxlength="6" autocomplete="new-password" data-password-field required>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show PIN" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <small class="field-error {% if not form_errors.confirm_pin %}hidden-error{% endif %}" data-setup-confirm-pin-error>{{ form_errors.confirm_pin or 'Security PIN Numbers must match.' }}</small>
+            </label>
+            <button type="submit" class="auth-gradient-button">Continue/Register</button>
+        </form>
+        <p class="auth-footer-link"><a href="{{ url_for('register') }}">Back to account details</a></p>
+    </div>
+</section>
+{% endblock %}
