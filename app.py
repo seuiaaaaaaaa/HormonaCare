@@ -815,9 +815,6 @@ def ensure_runtime_schema():
             if "username" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR(80)"))
                 columns.add("username")
-            if "account_username" not in columns:
-                connection.execute(text("ALTER TABLE users ADD COLUMN account_username VARCHAR(30)"))
-                columns.add("account_username")
             if "supabase_user_id" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN supabase_user_id VARCHAR(80)"))
                 columns.add("supabase_user_id")
@@ -893,12 +890,6 @@ def ensure_runtime_schema():
             connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)"))
             connection.execute(
                 text(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_username "
-                    "ON users(account_username)"
-                )
-            )
-            connection.execute(
-                text(
                     "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_user_id "
                     "ON users(supabase_user_id)"
                 )
@@ -908,7 +899,6 @@ def ensure_runtime_schema():
                 "id",
                 "full_name",
                 "username",
-                "account_username",
                 "password_hash",
                 "pin_number",
                 "security_pin_hash",
@@ -1825,10 +1815,9 @@ def register_routes(app):
             "verified_at": datetime.utcnow().isoformat(),
         }
 
-    def ensure_local_user(email, password=None, full_name="", auth_user=None, security_pin=None, account_username=None):
+    def ensure_local_user(email, password=None, full_name="", auth_user=None, security_pin=None):
         normalized_email = normalize_email(email)
         user = User.query.filter_by(username=normalized_email).first()
-        normalized_account_username = (account_username or "").strip().lower()
         resolved_full_name = normalize_full_name(full_name) or auth_user_full_name(auth_user, normalized_email)
         resolved_verified_at = supabase_user_verified_at(auth_user)
         resolved_supabase_user_id = (getattr(auth_user, "id", "") or "").strip() if auth_user else ""
@@ -1843,7 +1832,6 @@ def register_routes(app):
             user = User(
                 full_name=resolved_full_name or fallback_full_name(normalized_email),
                 username=normalized_email,
-                account_username=normalized_account_username or None,
                 password_hash=hash_password(password or os.urandom(16).hex()),
                 pin_number=hash_password(security_pin or "2005"),
                 security_pin_hash=hash_password(security_pin) if security_pin else None,
@@ -1860,9 +1848,6 @@ def register_routes(app):
         changed = False
         if resolved_full_name and user.full_name != resolved_full_name:
             user.full_name = resolved_full_name
-            changed = True
-        if normalized_account_username and user.account_username != normalized_account_username:
-            user.account_username = normalized_account_username
             changed = True
         if resolved_supabase_user_id and user.supabase_user_id != resolved_supabase_user_id:
             user.supabase_user_id = resolved_supabase_user_id
@@ -4275,11 +4260,6 @@ def register_routes(app):
             confirm_password = request.form.get("confirm_password", "")
             form_values = {"full_name": full_name, "email": email, "account_username": account_username}
             existing_user = User.query.filter_by(username=email).first() if email else None
-            existing_account_username = (
-                User.query.filter(func.lower(User.account_username) == account_username.lower()).first()
-                if account_username
-                else None
-            )
 
             if not valid_full_name(full_name):
                 form_errors["full_name"] = full_name_help
@@ -4287,8 +4267,6 @@ def register_routes(app):
                 form_errors["email"] = email_help
             if not valid_account_username(account_username):
                 form_errors["account_username"] = account_username_help()
-            elif existing_account_username:
-                form_errors["account_username"] = "That username is already taken."
             if not password:
                 form_errors["password"] = "Password is required."
             if password != confirm_password:
@@ -4353,7 +4331,6 @@ def register_routes(app):
                         email,
                         full_name=full_name,
                         security_pin=security_pin,
-                        account_username=pending.get("account_username"),
                     )
                     clear_pending_registration()
                     remember_pending_verification(email, verification_type="email", new_account=True)
@@ -4372,7 +4349,6 @@ def register_routes(app):
                 full_name=full_name,
                 auth_user=response_auth_user(auth_response),
                 security_pin=security_pin,
-                account_username=pending.get("account_username"),
             )
             clear_pending_registration()
             remember_pending_verification(email, verification_type="email", new_account=True)
