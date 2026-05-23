@@ -6,6 +6,11 @@
         <div class="auth-card-topline">Verify email</div>
         <h1>Confirm your OTP</h1>
         <p class="auth-subtitle">Check your inbox and spam folder for the latest code.</p>
+        {% if local_demo_code %}
+        <div class="auth-inline-status is-info">
+            Demo verification code: <strong>{{ local_demo_code }}</strong>
+        </div>
+        {% endif %}
         <form method="post" class="form-grid auth-form-tight" id="verify-email-form" autocomplete="off" novalidate>
             <input type="text" name="verify_shadow_email" value="" autocomplete="username" tabindex="-1" aria-hidden="true" class="auth-shadow-input">
             <label>Email
