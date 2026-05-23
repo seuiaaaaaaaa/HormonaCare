@@ -2391,7 +2391,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }),
                 });
                 const data = await parseResponse(response);
-                showStatus(data.message || "Password updated successfully.", "success");
+                showStatus(data.message || "Password changed successfully. You can now login.", "success");
                 window.setTimeout(() => {
                     window.location.href = data.redirect_url || loginUrl || "/login";
                 }, 1200);
