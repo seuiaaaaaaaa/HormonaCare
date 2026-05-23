@@ -6841,6 +6841,28 @@ def register_routes(app):
     @login_required
     def delete_account():
         user = current_user()
+        current_password = request.form.get("current_password") or request.values.get("current_password") or ""
+        if not current_password:
+            flash("Enter your current password before deleting your account.", "danger")
+            return redirect(url_for("settings"))
+        password_verified = verify_password(current_password, user.password_hash)
+        if not password_verified:
+            try:
+                supabase = get_supabase_client()
+                supabase.auth.sign_in_with_password({"email": user.username, "password": current_password})
+                password_verified = True
+            except Exception as error:
+                log_supabase_otp_error(user.username, error)
+        if not password_verified:
+            flash("Verification failed. Please try again.", "danger")
+            return redirect(url_for("settings"))
+
+        AdminNote.query.filter(or_(AdminNote.user_id == user.id, AdminNote.admin_id == user.id)).delete(synchronize_session=False)
+        AdminAuditLog.query.filter(AdminAuditLog.admin_id == user.id).delete(synchronize_session=False)
+        AdminAuditLog.query.filter(AdminAuditLog.target_user_id == user.id).update(
+            {AdminAuditLog.target_user_id: None},
+            synchronize_session=False,
+        )
         db.session.delete(user)
         db.session.commit()
         session.clear()

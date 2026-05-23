@@ -258,6 +258,17 @@
             <span class="status-line">Confirm Action</span>
             <h2 id="confirm-action-title">Confirm action</h2>
             <p id="confirm-action-message">Are you sure you want to continue?</p>
+            <label class="confirm-password-check" data-confirm-password-wrap hidden>
+                Current Password
+                <div class="auth-input-wrap">
+                    <span class="auth-input-icon lock"></span>
+                    <input type="password" autocomplete="current-password" data-confirm-password-input data-password-field>
+                    <button type="button" class="auth-password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+                        <span class="auth-password-eye" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <small class="field-error hidden-error" data-confirm-password-error>Enter your current password to continue.</small>
+            </label>
             <div class="modal-actions confirm-modal-actions">
                 <button type="button" class="outline-wide" data-confirm-cancel>Cancel</button>
                 <button type="button" class="inline-action danger-light" data-confirm-submit>Continue</button>

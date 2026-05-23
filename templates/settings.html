@@ -95,10 +95,13 @@
     action="{{ url_for('delete_account') }}"
     id="delete-account-form"
     data-confirm-dialog
+    data-confirm-require-password="true"
     data-confirm-title="Delete account permanently?"
-    data-confirm-message="This will permanently remove your HormonaCare account and stored health data."
+    data-confirm-message="This will permanently remove your HormonaCare account and stored health data. Enter your current password to confirm."
     data-confirm-action="Delete Account"
-></form>
+>
+    <input type="hidden" name="current_password" value="" data-confirm-password-target>
+</form>
 
 <div
     class="modal-backdrop"

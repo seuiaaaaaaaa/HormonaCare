@@ -1597,12 +1597,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmActionMessage = document.getElementById("confirm-action-message");
     const confirmActionSubmit = document.querySelector("[data-confirm-submit]");
     const confirmActionCancelButtons = document.querySelectorAll("[data-confirm-cancel]");
+    const confirmPasswordWrap = document.querySelector("[data-confirm-password-wrap]");
+    const confirmPasswordInput = document.querySelector("[data-confirm-password-input]");
+    const confirmPasswordError = document.querySelector("[data-confirm-password-error]");
     let pendingConfirmForm = null;
     let pendingConfirmSubmitter = null;
 
     const resetConfirmActionModal = () => {
         pendingConfirmForm = null;
         pendingConfirmSubmitter = null;
+        if (confirmPasswordWrap) {
+            confirmPasswordWrap.hidden = true;
+        }
+        if (confirmPasswordInput) {
+            confirmPasswordInput.value = "";
+            confirmPasswordInput.type = "password";
+        }
+        if (confirmPasswordError) {
+            confirmPasswordError.classList.add("hidden-error");
+        }
         if (confirmActionTitle) {
             confirmActionTitle.textContent = "Confirm action";
         }
@@ -1639,9 +1652,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if (confirmActionSubmit) {
             confirmActionSubmit.textContent = form.dataset.confirmAction || "Continue";
         }
+        if (confirmPasswordWrap) {
+            confirmPasswordWrap.hidden = form.dataset.confirmRequirePassword !== "true";
+        }
+        if (confirmPasswordInput) {
+            confirmPasswordInput.value = "";
+        }
+        if (confirmPasswordError) {
+            confirmPasswordError.classList.add("hidden-error");
+        }
 
         confirmActionModal.hidden = false;
-        if (confirmActionSubmit) {
+        if (confirmPasswordInput && form.dataset.confirmRequirePassword === "true") {
+            window.setTimeout(() => confirmPasswordInput.focus(), 0);
+        } else if (confirmActionSubmit) {
             window.setTimeout(() => confirmActionSubmit.focus(), 0);
         }
     };
@@ -1682,6 +1706,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const form = pendingConfirmForm;
             const submitter = pendingConfirmSubmitter;
+            if (form.dataset.confirmRequirePassword === "true") {
+                const passwordValue = confirmPasswordInput ? confirmPasswordInput.value : "";
+                if (!passwordValue) {
+                    if (confirmPasswordError) {
+                        confirmPasswordError.textContent = "Enter your current password to continue.";
+                        confirmPasswordError.classList.remove("hidden-error");
+                    }
+                    if (confirmPasswordInput) {
+                        confirmPasswordInput.focus();
+                    }
+                    return;
+                }
+                const passwordTarget = form.querySelector("[data-confirm-password-target]");
+                if (passwordTarget) {
+                    passwordTarget.value = passwordValue;
+                }
+            }
             closeConfirmActionModal();
             form.dataset.confirmed = "true";
 

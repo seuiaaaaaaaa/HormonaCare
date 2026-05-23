@@ -9848,6 +9848,18 @@ body.theme-dark .cycle-phases-source a {
     color: var(--muted);
 }
 
+.confirm-password-check {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.confirm-password-check[hidden] {
+    display: none;
+}
+
 .confirm-modal-actions {
     justify-content: flex-end;
     margin-top: 20px;
