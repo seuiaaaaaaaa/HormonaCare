@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-reset-flow-click-fix")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-reset-flow-server-fallback")
 
 
 def app_now():
@@ -5061,11 +5061,195 @@ def register_routes(app):
         if redirect_response:
             return redirect_response
 
-        form_values = {"identifier": normalize_email(session.get("reset_password_email") or pending_verification_email())}
+        form_values = {
+            "identifier": normalize_email(session.get("reset_password_email") or pending_verification_email()),
+            "otp": "",
+        }
+        form_errors = {}
+        reset_step = "identify"
         if request.method == "POST":
-            return redirect(url_for("forgot_password"))
+            action = (request.form.get("reset_action") or "choose_method").strip()
+            identifier = normalize_email(
+                request.form.get("identifier")
+                or request.form.get("identifier_input")
+                or request.form.get("email")
+                or session.get("reset_password_email")
+            )
+            form_values["identifier"] = identifier
+            user = find_user_by_auth_identifier(identifier)
 
-        return render_template("auth/forgot_password.html", **build_auth_context("forgot_password", form_values))
+            if action == "choose_method":
+                if not user or not user.email_verified:
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                else:
+                    session["reset_password_email"] = user.username
+                    form_values["identifier"] = user.username
+                    reset_step = "method"
+
+            elif action == "show_pin":
+                reset_step = "method_pin"
+
+            elif action == "choose_pin":
+                if not user or not user.email_verified:
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                else:
+                    session["reset_password_email"] = user.username
+                    form_values["identifier"] = user.username
+                    reset_step = "pin"
+
+            elif action == "request_otp":
+                if not user or not user.email_verified:
+                    clear_password_reset_state()
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                else:
+                    retry_in = otp_retry_seconds(user.username)
+                    if retry_in > 0:
+                        form_errors["identifier"] = f"Please wait {retry_in} seconds before requesting another code."
+                        reset_step = "method"
+                    else:
+                        try:
+                            send_password_recovery_otp(user.username)
+                        except Exception as error:
+                            log_supabase_otp_error(user.username, error)
+                            if can_use_local_auth_fallback(error):
+                                reset_code = remember_local_otp_challenge(user.username, "password_reset")
+                                session["reset_password_email"] = user.username
+                                session.pop("reset_password_verified", None)
+                                remember_otp_request(user.username)
+                                flash(f"{local_auth_status_message()} Local reset code: {reset_code}", "warning")
+                                form_values["identifier"] = user.username
+                                reset_step = "otp"
+                            else:
+                                form_errors["identifier"] = password_reset_error_message(
+                                    error,
+                                    "We could not send a reset OTP right now. Please try again later.",
+                                )
+                                reset_step = "method"
+                        else:
+                            session["reset_password_email"] = user.username
+                            session.pop("reset_password_verified", None)
+                            session.pop("local_otp_challenge", None)
+                            form_values["identifier"] = user.username
+                            flash("OTP sent.", "success")
+                            reset_step = "otp"
+
+            elif action == "verify_otp":
+                otp = (request.form.get("otp") or "").strip()
+                form_values["otp"] = otp
+                if not user or not user.email_verified:
+                    clear_password_reset_state()
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                elif not re.fullmatch(r"\d{6}", otp):
+                    form_errors["otp"] = "Enter the 6-digit code."
+                    reset_step = "otp"
+                else:
+                    if local_auth_fallback_enabled():
+                        local_verified, local_error = verify_local_otp_challenge(user.username, "password_reset", otp)
+                        if local_verified is True:
+                            remember_local_password_reset_verification(user.username)
+                            reset_step = "password"
+                            flash("Code verified.", "success")
+                        elif local_verified is False:
+                            form_errors["otp"] = local_error or "Invalid or expired code."
+                            reset_step = "otp"
+                    if not form_errors and reset_step != "password":
+                        try:
+                            supabase = get_supabase_client()
+                            auth_response = supabase.auth.verify_otp(
+                                {
+                                    "email": user.username,
+                                    "token": otp,
+                                    "type": "recovery",
+                                }
+                            )
+                            auth_user = response_auth_user(auth_response)
+                            auth_session = response_auth_session(auth_response)
+                            if not auth_user or not auth_session:
+                                form_errors["otp"] = "Invalid or expired code."
+                                reset_step = "otp"
+                            else:
+                                remember_password_reset_verification(user.username, auth_session)
+                                reset_step = "password"
+                                flash("OTP verified.", "success")
+                        except Exception as error:
+                            log_supabase_otp_error(user.username, error)
+                            form_errors["otp"] = "Invalid or expired code." if is_invalid_otp_error(error) else password_reset_error_message(
+                                error,
+                                "We could not verify your code right now. Please try again later.",
+                            )
+                            reset_step = "otp"
+
+            elif action == "verify_pin":
+                security_pin = normalize_pin(request.form.get("security_pin"))
+                if not user or not user.email_verified:
+                    clear_password_reset_state()
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                else:
+                    verified, message = verify_user_pin(user, security_pin)
+                    if verified:
+                        remember_pin_password_reset_verification(user.username)
+                        reset_step = "password"
+                        flash("Security PIN verified.", "success")
+                    else:
+                        form_errors["security_pin"] = message or "Verification failed. Please try again."
+                        reset_step = "pin"
+
+            elif action == "update_password":
+                password = request.form.get("password") or ""
+                confirm_password = request.form.get("confirm_password") or ""
+                verified_state = password_reset_verification_state()
+                if not user or not user.email_verified:
+                    clear_password_reset_state()
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                elif normalize_email(verified_state.get("email")) != user.username:
+                    form_errors["otp"] = "Verify your code first."
+                    reset_step = "otp"
+                elif password != confirm_password:
+                    form_errors["confirm_password"] = "Passwords do not match."
+                    reset_step = "password"
+                else:
+                    password_errors = validate_password_strength(password)
+                    if password_errors:
+                        form_errors["password"] = " ".join(password_errors)
+                        reset_step = "password"
+                    elif verified_state.get("method") in {"local_otp", "security_pin"}:
+                        ensure_local_user(user.username, password=password, full_name=user.full_name)
+                        clear_password_reset_state()
+                        flash("Password updated successfully.", "success")
+                        return redirect(url_for("login"))
+                    else:
+                        try:
+                            supabase = get_supabase_client()
+                            auth_response = supabase.auth.set_session(
+                                verified_state.get("access_token"),
+                                verified_state.get("refresh_token"),
+                            )
+                            auth_user = response_auth_user(auth_response)
+                            update_response = supabase.auth.update_user({"password": password})
+                            auth_user = response_auth_user(update_response) or auth_user
+                        except Exception as error:
+                            log_supabase_otp_error(user.username, error)
+                            form_errors["password"] = password_reset_error_message(
+                                error,
+                                "We could not update your password right now. Please try again later.",
+                            )
+                            reset_step = "password"
+                        else:
+                            ensure_local_user(user.username, password=password, auth_user=auth_user)
+                            clear_password_reset_state()
+                            flash("Password updated successfully.", "success")
+                            return redirect(url_for("login"))
+
+        return render_template(
+            "auth/forgot_password.html",
+            **build_auth_context("forgot_password", form_values, form_errors, reset_step=reset_step),
+        )
 
     @app.route("/reset-password", methods=["GET", "POST"])
     def reset_password():

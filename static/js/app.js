@@ -2404,8 +2404,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
+        const initialActivePanel = panels.find((panel) => panel.classList.contains("is-active"));
+        const initialStep = initialActivePanel ? initialActivePanel.dataset.resetStepPanel : "identify";
         syncIdentifier(hiddenIdentifierInput ? hiddenIdentifierInput.value : "");
-        setStep("identify");
+        setStep(initialStep || "identify");
     }
 
     const resetForm = document.getElementById("reset-password-form");
