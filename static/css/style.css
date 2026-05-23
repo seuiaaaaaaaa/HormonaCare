@@ -853,6 +853,163 @@ html body .settings-password-modal-card .auth-inline-status {
     }
 }
 
+/* Guided recovery hierarchy: visible cards for password/OTP, hidden low-priority PIN fallback */
+html body .settings-password-primary-choice,
+html body .settings-password-recovery-list {
+    display: grid;
+    gap: 14px;
+}
+
+html body .settings-password-method-primary,
+html body .settings-password-method-secondary {
+    min-height: 168px;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 16px;
+    padding: 24px;
+    border-radius: 24px;
+    border: 1px solid rgba(202, 158, 255, 0.46);
+    background: linear-gradient(180deg, #fffaff 0%, #f8f3ff 100%);
+    box-shadow: 0 12px 28px rgba(112, 73, 154, 0.075);
+}
+
+html body .settings-password-method-primary {
+    border-color: rgba(181, 123, 255, 0.58);
+    box-shadow: 0 15px 32px rgba(112, 73, 154, 0.105);
+}
+
+html body .settings-password-method-primary:hover,
+html body .settings-password-method-secondary:hover {
+    border-color: rgba(166, 99, 246, 0.56);
+    box-shadow: 0 16px 34px rgba(112, 73, 154, 0.12);
+}
+
+html body .settings-password-method-primary .settings-password-method-icon,
+html body .settings-password-method-secondary .settings-password-method-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #e62ab1 0%, #9628ed 100%);
+    box-shadow: 0 14px 28px rgba(150, 40, 237, 0.18);
+}
+
+html body .settings-password-method-primary strong,
+html body .settings-password-method-secondary strong {
+    font-size: 1.05rem;
+}
+
+html body .settings-password-method-primary span:last-child,
+html body .settings-password-method-secondary span:last-child {
+    color: #6278a0;
+    font-size: 0.95rem;
+    line-height: 1.52;
+}
+
+html body .settings-recovery-region.reset-recovery-region,
+html body .settings-recovery-region {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+html body .settings-backup-reveal {
+    justify-self: start;
+    min-height: 38px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: #6a7f99;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+html body .settings-backup-reveal:hover,
+html body .settings-backup-reveal:focus-visible {
+    color: #4a6688;
+    text-decoration: underline;
+}
+
+html body .settings-pin-backup-region[hidden] {
+    display: none;
+}
+
+html body .settings-pin-backup-region {
+    display: block;
+}
+
+html body .settings-password-method-backup {
+    min-height: 0;
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 11px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px dashed rgba(155, 169, 189, 0.58);
+    background: #fbfcff;
+    box-shadow: none;
+    opacity: 0.9;
+}
+
+html body .settings-password-method-backup .settings-password-method-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
+    background: #edf2f8;
+}
+
+html body .settings-password-method-backup strong {
+    font-size: 0.9rem;
+}
+
+html body .settings-password-method-backup span:last-child {
+    color: #7a8aa0;
+    font-size: 0.8rem;
+    line-height: 1.42;
+}
+
+html body .settings-security-chip {
+    background: #f2ebff;
+    color: #7a4aa6;
+}
+
+html body .settings-security-chip-muted {
+    background: #f2f5f8;
+    color: #7d8da2;
+}
+
+@media (max-width: 720px) {
+    html body .settings-password-method-primary,
+    html body .settings-password-method-secondary {
+        min-height: 132px;
+        gap: 12px;
+        padding: 18px;
+        border-radius: 20px;
+    }
+
+    html body .settings-password-method-primary .settings-password-method-icon,
+    html body .settings-password-method-secondary .settings-password-method-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 15px;
+    }
+
+    html body .settings-password-method-primary strong,
+    html body .settings-password-method-secondary strong {
+        font-size: 0.98rem;
+    }
+
+    html body .settings-password-method-primary span:last-child,
+    html body .settings-password-method-secondary span:last-child {
+        font-size: 0.86rem;
+    }
+
+    html body .settings-password-primary-choice,
+    html body .settings-password-recovery-list {
+        gap: 12px;
+    }
+}
+
 /* Production dashboard wellness layout refinement */
 html body .content-shell-dashboard {
     max-width: 1160px;

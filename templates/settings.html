@@ -150,14 +150,19 @@
                                 <span>Receive a time-limited 6-digit code at your registered email address.</span>
                             </span>
                         </button>
-                        <button type="button" class="settings-password-method settings-password-method-backup" data-settings-password-method="pin">
-                            <span class="settings-password-method-icon pin" aria-hidden="true"></span>
-                            <span class="settings-password-method-copy">
-                                <span class="settings-security-chip settings-security-chip-muted">Backup Method</span>
-                                <strong>Use Recovery PIN</strong>
-                                <span>Use your registered Security PIN only when email OTP is unavailable.</span>
-                            </span>
+                        <button type="button" class="settings-backup-reveal" data-settings-password-show-pin>
+                            Having trouble accessing your email?
                         </button>
+                        <div class="settings-pin-backup-region" data-settings-password-pin-backup hidden>
+                            <button type="button" class="settings-password-method settings-password-method-backup" data-settings-password-method="pin">
+                                <span class="settings-password-method-icon pin" aria-hidden="true"></span>
+                                <span class="settings-password-method-copy">
+                                    <span class="settings-security-chip settings-security-chip-muted">Backup Recovery Only</span>
+                                    <strong>Use Recovery PIN</strong>
+                                    <span>Use only if email verification is unavailable.</span>
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>

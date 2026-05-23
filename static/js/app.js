@@ -1985,6 +1985,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const backButtons = Array.from(resetFlow.querySelectorAll("[data-reset-back-button]"));
         const methodBackButton = resetFlow.querySelector("[data-reset-method-back]");
         const methodButtons = Array.from(resetFlow.querySelectorAll("[data-reset-method]"));
+        const resetPinBackup = resetFlow.querySelector("[data-reset-pin-backup]");
+        const resetShowPinButton = resetFlow.querySelector("[data-reset-show-pin]");
         let currentStep = "identify";
         let activeRequestCount = 0;
 
@@ -2085,6 +2087,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!identifier) {
                 setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
                 return;
+            }
+            if (resetPinBackup) {
+                resetPinBackup.hidden = true;
             }
             setStep("method");
         };
@@ -2294,6 +2299,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 hideStatus();
                 clearFieldState(otpInput, otpError);
                 clearFieldState(pinInput, pinError);
+                if (resetPinBackup) {
+                    resetPinBackup.hidden = true;
+                }
                 setStep("method");
             });
         });
@@ -2302,7 +2310,17 @@ document.addEventListener("DOMContentLoaded", () => {
             methodBackButton.addEventListener("click", (event) => {
                 event.preventDefault();
                 hideStatus();
+                if (resetPinBackup) {
+                    resetPinBackup.hidden = true;
+                }
                 setStep("identify");
+            });
+        }
+
+        if (resetShowPinButton && resetPinBackup) {
+            resetShowPinButton.addEventListener("click", () => {
+                resetPinBackup.hidden = false;
+                showStatus("Backup recovery is available below. Use it only if email verification is unavailable.", "info");
             });
         }
 
@@ -2427,6 +2445,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const methodButtons = Array.from(settingsPasswordModal.querySelectorAll("[data-settings-password-method]"));
         const recoveryRegion = settingsPasswordModal.querySelector("[data-settings-password-recovery]");
         const showRecoveryButton = settingsPasswordModal.querySelector("[data-settings-password-show-recovery]");
+        const pinBackupRegion = settingsPasswordModal.querySelector("[data-settings-password-pin-backup]");
+        const showPinBackupButton = settingsPasswordModal.querySelector("[data-settings-password-show-pin]");
         const openButtons = Array.from(document.querySelectorAll("[data-settings-password-open]"));
         const backButtons = Array.from(settingsPasswordModal.querySelectorAll("[data-settings-password-back]"));
         const resendButton = settingsPasswordModal.querySelector("[data-settings-resend-otp]");
@@ -2539,6 +2559,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (recoveryRegion) {
                 recoveryRegion.hidden = true;
+            }
+            if (pinBackupRegion) {
+                pinBackupRegion.hidden = true;
             }
             clearSensitiveInputs();
             clearErrors();
@@ -2788,7 +2811,17 @@ document.addEventListener("DOMContentLoaded", () => {
         if (showRecoveryButton && recoveryRegion) {
             showRecoveryButton.addEventListener("click", () => {
                 recoveryRegion.hidden = false;
-                showStatus("Secure recovery options are shown below. Use them only if you cannot verify with your current password.", "info");
+                if (pinBackupRegion) {
+                    pinBackupRegion.hidden = true;
+                }
+                showStatus("Email OTP is the recommended recovery method when you cannot verify with your current password.", "info");
+            });
+        }
+
+        if (showPinBackupButton && pinBackupRegion) {
+            showPinBackupButton.addEventListener("click", () => {
+                pinBackupRegion.hidden = false;
+                showStatus("Backup Recovery PIN is available below. Use it only if email verification is unavailable.", "info");
             });
         }
 
@@ -2801,6 +2834,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 resetPasswordVisibility();
                 if (recoveryRegion) {
                     recoveryRegion.hidden = true;
+                }
+                if (pinBackupRegion) {
+                    pinBackupRegion.hidden = true;
                 }
                 setStep("method");
             });
