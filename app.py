@@ -768,6 +768,27 @@ def should_initialize_runtime_async():
     return should_run_background_services()
 
 
+def acquire_runtime_init_lock(app):
+    if not app.config["SQLALCHEMY_DATABASE_URI"].startswith(("postgresql://", "postgresql+psycopg2://")):
+        return None, True
+    connection = db.engine.connect()
+    try:
+        lock_acquired = connection.execute(text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": 20052026}).scalar()
+        return connection, bool(lock_acquired)
+    except Exception:
+        connection.close()
+        raise
+
+
+def release_runtime_init_lock(connection):
+    if connection is None:
+        return
+    try:
+        connection.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": 20052026})
+    finally:
+        connection.close()
+
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
@@ -808,9 +829,20 @@ def initialize_runtime(app):
 
     try:
         with app.app_context():
-            db.create_all()
-            ensure_runtime_schema()
-            ensure_vapid_config(app)
+            schema_lock_connection, schema_lock_acquired = acquire_runtime_init_lock(app)
+            if not schema_lock_acquired:
+                release_runtime_init_lock(schema_lock_connection)
+                runtime_init_complete = True
+                if should_run_background_services():
+                    start_push_notification_scheduler(app)
+                app.logger.info("Runtime database setup skipped because another app instance is already handling it.")
+                return
+            try:
+                db.create_all()
+                ensure_runtime_schema()
+                ensure_vapid_config(app)
+            finally:
+                release_runtime_init_lock(schema_lock_connection)
         runtime_init_complete = True
         if should_run_background_services():
             start_push_notification_scheduler(app)
