@@ -757,6 +757,17 @@ def resolve_database_uri(app):
         return "sqlite:///" + fallback_path.replace("\\", "/")
 
 
+def should_run_background_services():
+    return os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production" or os.getenv("RENDER")
+
+
+def should_initialize_runtime_async():
+    configured_value = os.getenv("ASYNC_RUNTIME_INIT")
+    if configured_value is not None:
+        return configured_value == "1"
+    return should_run_background_services()
+
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
@@ -777,13 +788,13 @@ def create_app():
 
     db.init_app(app)
 
-    if os.getenv("ASYNC_RUNTIME_INIT") == "1":
+    if should_initialize_runtime_async():
         threading.Thread(target=initialize_runtime, args=(app,), daemon=True).start()
     else:
         initialize_runtime(app)
 
     register_routes(app)
-    if runtime_init_complete and (os.getenv("WERKZEUG_RUN_MAIN") == "true" or os.getenv("FLASK_ENV") == "production" or os.getenv("RENDER")):
+    if runtime_init_complete and should_run_background_services():
         start_push_notification_scheduler(app)
     return app
 
@@ -801,6 +812,8 @@ def initialize_runtime(app):
             ensure_runtime_schema()
             ensure_vapid_config(app)
         runtime_init_complete = True
+        if should_run_background_services():
+            start_push_notification_scheduler(app)
         app.logger.info("Runtime database and notification setup complete.")
     except Exception:
         app.logger.exception("Runtime database and notification setup failed.")
