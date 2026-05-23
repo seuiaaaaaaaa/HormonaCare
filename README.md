@@ -9,15 +9,13 @@ HormonaCare now follows a single-backend approach where Python is the core servi
 - `Core Service`: Flask + SQLAlchemy + machine learning helpers in Python
 - `Web Client`: current server-rendered UI/PWA-ready frontend
 - `Application API Gateway`: Flask `before_request` entrypoint that centralizes API route metadata, protected-route checks, and API identity headers
-- `API Layer`: JSON endpoints for future mobile/web consumers under `/api/*`
-- `Mobile Compatibility`: a future Kivy, BeeWare, React Native, or Flutter client can consume the same Python API
+- `API Layer`: controlled JSON endpoints for account access and health summaries under `/api/*`
 
 ## Features
 
 - Secure registration and login with bcrypt password hashing
 - Session-based authentication
-- JSON API layer for shared core-service access
-- Application-level offline synchronization endpoint for queued PWA changes
+- JSON API layer for controlled core-service access
 - Basic PWA support with a manifest and service worker
 - Dashboard with daily summary, cycle phase, reminders, and quick stats
 - Rule-based alerts page using predefined thresholds and user input
@@ -41,7 +39,6 @@ HormonaCare now follows a single-backend approach where Python is the core servi
 - `static/js/app.js` frontend interactions
 - `static/manifest.json` PWA manifest
 - `static/service-worker.js` offline shell caching
-- Browser local offline queue in `static/js/app.js` with `pending`, `syncing`, `synced`, and `failed` sync states
 
 ## Run Locally
 
@@ -108,7 +105,6 @@ All API routes are served by the same Python backend and currently use the same 
 - `GET /api/mental-health`
 - `GET /api/appointments`
 - `GET /api/ml/health-assessment`
-- `POST /api/sync/batch`
 
 Example:
 
@@ -120,8 +116,8 @@ Protected API routes require an active authenticated session.
 
 ### Mobile-Ready API Notes
 
-- The Flask backend acts as the shared Python Core Service for both the current web UI and future mobile clients.
-- `/api/*` routes are the shared integration layer instead of maintaining separate web and mobile backends.
+- The Flask backend acts as the shared Python Core Service for the current web UI and read-only authenticated API consumers.
+- `/api/*` routes expose controlled account and health-summary access without allowing client-side data sync writes.
 - Mobile clients can create an account and log in through JSON endpoints:
   - `POST /api/auth/register`
   - `POST /api/auth/login`

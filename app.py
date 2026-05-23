@@ -3,7 +3,7 @@ import base64
 from calendar import monthrange
 from collections import Counter
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from functools import wraps
 import json
 import re
@@ -862,6 +862,14 @@ def ensure_runtime_schema():
         connection.execute(text(f"ALTER TABLE {preparer.quote(table_name)} DROP COLUMN {preparer.quote('group_key')}"))
         columns.discard("group_key")
 
+    def drop_unused_client_sync_columns(connection, table_name, columns):
+        if "client_sync_id" in columns:
+            connection.execute(text(f"DROP INDEX IF EXISTS {preparer.quote(f'idx_{table_name}_client_sync_id')}"))
+        for column_name in ("client_sync_id", "client_updated_at"):
+            if column_name in columns:
+                connection.execute(text(f"ALTER TABLE {preparer.quote(table_name)} DROP COLUMN {preparer.quote(column_name)}"))
+                columns.discard(column_name)
+
     if "users" in tables:
         columns = {column["name"] for column in inspector.get_columns("users")}
         with db.engine.begin() as connection:
@@ -1022,30 +1030,10 @@ def ensure_runtime_schema():
         columns = {column["name"] for column in inspector.get_columns(table_name)}
         with db.engine.begin() as connection:
             drop_unused_group_key(connection, table_name, columns)
+            drop_unused_client_sync_columns(connection, table_name, columns)
             if "user_id" not in columns:
                 connection.execute(text(statements["add_column"]))
             connection.execute(text(statements["index"]))
-    offline_sync_tables = {
-        "medications",
-        "medication_logs",
-        "lifestyle_logs",
-        "mental_logs",
-        "cycle_logs",
-        "appointments",
-    }
-    for table_name in offline_sync_tables:
-        if table_name not in tables:
-            continue
-        columns = {column["name"] for column in inspector.get_columns(table_name)}
-        with db.engine.begin() as connection:
-            drop_unused_group_key(connection, table_name, columns)
-            if "client_sync_id" not in columns:
-                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_sync_id VARCHAR(80)"))
-            if "client_updated_at" not in columns:
-                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_updated_at TIMESTAMP"))
-            connection.execute(
-                text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_client_sync_id ON {table_name}(client_sync_id)")
-            )
     for table_name in {"web_push_subscriptions", "push_notification_logs", "admin_notes"}:
         if table_name not in tables:
             continue
@@ -1181,7 +1169,6 @@ def register_routes(app):
         {"method": "GET", "path": "/api/mental-health", "auth_required": True, "purpose": "Return recent mental health logs"},
         {"method": "GET", "path": "/api/appointments", "auth_required": True, "purpose": "Return appointment records"},
         {"method": "GET", "path": "/api/ml/health-assessment", "auth_required": True, "purpose": "Return the current health assessment payload"},
-        {"method": "POST", "path": "/api/sync/batch", "auth_required": True, "purpose": "Synchronize queued offline PWA changes with the Flask core service"},
         {"method": "GET", "path": "/api/notifications/config", "auth_required": True, "purpose": "Return Web Push browser configuration"},
         {"method": "POST", "path": "/api/notifications/subscribe", "auth_required": True, "purpose": "Save the current browser Web Push subscription"},
         {"method": "POST", "path": "/api/notifications/unsubscribe", "auth_required": True, "purpose": "Deactivate a browser Web Push subscription"},
@@ -1445,9 +1432,9 @@ def register_routes(app):
             "backend_language": "Python",
             "api_version": api_version,
             "auth_mode": "session_cookie",
-            "description": "Shared Flask API layer for the current web interface and future mobile clients.",
+            "description": "Controlled Flask API layer for the current web interface and authenticated read-only consumers.",
             "gateway_scope": "Application-level gateway inside Flask; not a separate AWS API Gateway service.",
-            "core_function": "Provide one Python backend so multiple clients can reuse the same data, business logic, and wellness services.",
+            "core_function": "Provide one Python backend for account access, health summaries, business logic, and wellness services.",
             "endpoints": api_gateway_route_catalog,
         }
 
@@ -6176,332 +6163,6 @@ def register_routes(app):
     def api_me():
         user = current_user()
         return api_success(data=serialize_auth_user(user))
-
-    def sync_field(fields, name, default=""):
-        value = fields.get(name, default)
-        if isinstance(value, list):
-            return value[-1] if value else default
-        return default if value is None else value
-
-    def sync_bool(fields, name):
-        value = sync_field(fields, name, "")
-        return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-    def sync_client_timestamp(value):
-        raw_value = str(value or "").strip()
-        if not raw_value:
-            return datetime.utcnow()
-        if raw_value.endswith("Z"):
-            raw_value = raw_value[:-1] + "+00:00"
-        try:
-            parsed_value = datetime.fromisoformat(raw_value)
-        except ValueError:
-            return datetime.utcnow()
-        if parsed_value.tzinfo:
-            parsed_value = parsed_value.astimezone(timezone.utc).replace(tzinfo=None)
-        return parsed_value
-
-    def sync_record_is_stale(record, client_updated_at):
-        stored_updated_at = getattr(record, "client_updated_at", None)
-        return bool(stored_updated_at and client_updated_at and client_updated_at < stored_updated_at)
-
-    def sync_success(sync_id, record_type, record_id=None, status="synced"):
-        payload = {"client_id": sync_id, "type": record_type, "status": status}
-        if record_id is not None:
-            payload["server_id"] = record_id
-        return payload
-
-    def apply_offline_sync_item(user, item):
-        sync_id = str(item.get("client_id") or item.get("id") or "").strip()[:80]
-        request_path = urlparse(str(item.get("path") or "")).path
-        fields = item.get("fields") if isinstance(item.get("fields"), dict) else {}
-        client_updated_at = sync_client_timestamp(item.get("updated_at") or item.get("queued_at"))
-
-        if not sync_id:
-            return {"status": "failed", "error": "missing_client_id"}
-        if not request_path:
-            return {"client_id": sync_id, "status": "failed", "error": "missing_path"}
-        if any(marker in request_path for marker in ("/delete", "/logout")) or request_path == "/settings/password":
-            return {"client_id": sync_id, "status": "failed", "error": "unsupported_destructive_or_security_flow"}
-
-        if request_path == "/lifestyle/water":
-            log = get_or_create_today_lifestyle_log(user)
-            if sync_record_is_stale(log, client_updated_at):
-                return sync_success(sync_id, "lifestyle_water", log.id, status="stale_ignored")
-            glasses = max(0, min(8, parse_int(sync_field(fields, "glasses"), 0)))
-            log.water_intake_liters = round(glasses * 0.25, 2)
-            log.client_sync_id = sync_id
-            log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "lifestyle_water", log.id)
-
-        if request_path == "/lifestyle/sleep":
-            log = get_or_create_today_lifestyle_log(user)
-            if sync_record_is_stale(log, client_updated_at):
-                return sync_success(sync_id, "lifestyle_sleep", log.id, status="stale_ignored")
-            log.sleep_hours = max(0, min(24, parse_float(sync_field(fields, "sleep_hours"), 0)))
-            log.client_sync_id = sync_id
-            log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "lifestyle_sleep", log.id)
-
-        if request_path == "/lifestyle/exercise":
-            log = get_or_create_today_lifestyle_log(user)
-            if sync_record_is_stale(log, client_updated_at):
-                return sync_success(sync_id, "lifestyle_exercise", log.id, status="stale_ignored")
-            evaluation = evaluate_exercise_entry(
-                sync_field(fields, "activity_type", "").strip(),
-                parse_int(sync_field(fields, "duration_minutes") or sync_field(fields, "exercise_minutes"), -1),
-                sync_field(fields, "intensity", "").strip().lower(),
-            )
-            if not evaluation["ok"]:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": evaluation["errors"]}
-            parsed_notes = parse_lifestyle_notes(log.notes)
-            parsed_notes["exercise_entries"].append(evaluation["entry"])
-            log.exercise_minutes = evaluation["entry"]["raw_input"]["duration_minutes"]
-            log.notes = encrypt_text(
-                serialize_lifestyle_notes(
-                    general_notes=parsed_notes["general_notes"],
-                    exercise_entries=parsed_notes["exercise_entries"],
-                    food_entries=parsed_notes["food_entries"],
-                )
-            )
-            log.client_sync_id = sync_id
-            log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "lifestyle_exercise", log.id)
-
-        if request_path == "/lifestyle/quick-food":
-            log = get_or_create_today_lifestyle_log(user)
-            if sync_record_is_stale(log, client_updated_at):
-                return sync_success(sync_id, "lifestyle_food", log.id, status="stale_ignored")
-            evaluation = evaluate_food_entry(
-                sync_field(fields, "food_name", "").strip() or sync_field(fields, "meal_text", "").strip(),
-                sync_field(fields, "portion_size", "").strip().lower() or ("medium" if sync_field(fields, "meal_text", "").strip() else ""),
-                sync_field(fields, "food_category", "").strip().lower() or ("balanced" if sync_field(fields, "meal_text", "").strip() else ""),
-            )
-            if not evaluation["ok"]:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": evaluation["errors"]}
-            parsed_notes = parse_lifestyle_notes(log.notes)
-            parsed_notes["food_entries"].append(evaluation["entry"])
-            category_labels = {
-                "high sugar": "High Sugar",
-                "protein-rich": "Protein-Rich",
-                "balanced": "Balanced",
-                "fast food": "Fast Food",
-            }
-            log.diet_quality = category_labels.get(evaluation["entry"]["raw_input"]["food_category"], log.diet_quality)
-            log.notes = encrypt_text(
-                serialize_lifestyle_notes(
-                    general_notes=parsed_notes["general_notes"],
-                    exercise_entries=parsed_notes["exercise_entries"],
-                    food_entries=parsed_notes["food_entries"],
-                )
-            )
-            log.client_sync_id = sync_id
-            log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "lifestyle_food", log.id)
-
-        if request_path == "/mental-health":
-            log_date, log_date_error = parse_form_date(sync_field(fields, "log_date"), "Log date")
-            if log_date_error:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [log_date_error]}
-            log = MentalLog.query.filter_by(user_id=user.id, log_date=log_date).first()
-            if not log:
-                log = MentalLog(user_id=user.id, log_date=log_date)
-                db.session.add(log)
-            if sync_record_is_stale(log, client_updated_at):
-                return sync_success(sync_id, "mental_health", log.id, status="stale_ignored")
-            mood = sync_field(fields, "mood", "Okay")
-            slider_stress = max(1, min(5, parse_int(sync_field(fields, "stress_level"), 3)))
-            stress_level = min(10, slider_stress * 2)
-            log.mood = mood
-            log.stress_level = stress_level
-            log.wellness_tip = build_mental_tip(mood, stress_level)
-            log.client_sync_id = sync_id
-            log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "mental_health", log.id)
-
-        if request_path == "/calendar":
-            log_date, log_date_error = parse_form_date(sync_field(fields, "log_date"), "Log date")
-            if log_date_error:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [log_date_error]}
-            if sync_bool(fields, "delete_day_log"):
-                return {"client_id": sync_id, "status": "failed", "error": "offline_delete_not_supported"}
-            existing_logs = CycleLog.query.filter_by(user_id=user.id).order_by(CycleLog.log_date.asc()).all()
-            period_start = sync_bool(fields, "period_start") or sync_bool(fields, "mark_period_start")
-            end_period = sync_bool(fields, "end_period")
-            save_day_details = sync_bool(fields, "save_day_details") or end_period
-            cycle_day_value = resolve_cycle_day_value(
-                log_date,
-                cycle_model(existing_logs),
-                requested_cycle_day=parse_int(sync_field(fields, "cycle_day"), default=0),
-                mark_period_start=period_start,
-            )
-            cycle_log = CycleLog.query.filter_by(user_id=user.id, log_date=log_date).first()
-            if not cycle_log:
-                cycle_log = CycleLog(user_id=user.id, log_date=log_date)
-                db.session.add(cycle_log)
-            if sync_record_is_stale(cycle_log, client_updated_at):
-                return sync_success(sync_id, "cycle_log", cycle_log.id, status="stale_ignored")
-            cycle_log.cycle_day = cycle_day_value
-            cycle_log.period_start = period_start
-            if save_day_details:
-                cycle_log.symptoms = pack_cycle_details(sync_field(fields, "symptoms", ""), sync_field(fields, "notes", ""))
-                cycle_log.flow_level = "No Flow" if end_period else normalize_flow_level(sync_field(fields, "flow_level", ""))
-            elif is_explicit_no_flow(cycle_log.flow_level):
-                cycle_log.flow_level = ""
-            cycle_log.client_sync_id = sync_id
-            cycle_log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "cycle_log", cycle_log.id)
-
-        if request_path == "/medications":
-            medication = Medication.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
-            if not medication:
-                medication = Medication(user_id=user.id, client_sync_id=sync_id)
-                db.session.add(medication)
-            if sync_record_is_stale(medication, client_updated_at):
-                return sync_success(sync_id, "medication", medication.id, status="stale_ignored")
-            medication.name = sync_field(fields, "name", "").strip()
-            medication.dosage = sync_field(fields, "dosage", "").strip()
-            medication.time_of_day = datetime.strptime(sync_field(fields, "time_of_day"), "%H:%M").time()
-            medication.notes = encrypt_text(sync_field(fields, "notes", "").strip())
-            medication.status = "pending"
-            medication.reminder_enabled = sync_bool(fields, "reminder_enabled")
-            medication.client_updated_at = client_updated_at
-            return sync_success(sync_id, "medication", medication.id)
-
-        medication_status_match = re.fullmatch(r"/medications/(\d+)/status", request_path)
-        if medication_status_match:
-            medication = owned_record_or_404(Medication, user, int(medication_status_match.group(1)))
-            status_value = sync_field(fields, "status", "").strip().lower()
-            if status_value not in {"pending", "taken", "skipped", "missed"}:
-                return {"client_id": sync_id, "status": "failed", "error": "invalid_medication_status"}
-            existing_log = MedicationLog.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
-            if existing_log and sync_record_is_stale(existing_log, client_updated_at):
-                return sync_success(sync_id, "medication_status", existing_log.id, status="stale_ignored")
-            replace_medication_day_event(
-                user,
-                medication,
-                status_value if status_value in MEDICATION_EVENT_STATUSES else None,
-                event_time=client_updated_at or app_now(),
-            )
-            latest_log = (
-                MedicationLog.query.filter_by(user_id=user.id, medication_id=medication.id)
-                .order_by(MedicationLog.taken_at.desc())
-                .first()
-            )
-            if latest_log:
-                latest_log.client_sync_id = sync_id
-                latest_log.client_updated_at = client_updated_at
-            return sync_success(sync_id, "medication_status", latest_log.id if latest_log else medication.id)
-
-        if request_path == "/appointments":
-            appointment_id = parse_int(sync_field(fields, "appointment_id"), default=0)
-            appointment = None
-            if appointment_id:
-                appointment = user_records(Appointment, user).filter_by(id=appointment_id).first()
-            if not appointment:
-                appointment = Appointment.query.filter_by(user_id=user.id, client_sync_id=sync_id).first()
-            if not appointment:
-                appointment = Appointment(user_id=user.id, client_sync_id=sync_id)
-                db.session.add(appointment)
-            if sync_record_is_stale(appointment, client_updated_at):
-                return sync_success(sync_id, "appointment", appointment.id, status="stale_ignored")
-            appointment_date, appointment_date_error = parse_form_date(sync_field(fields, "appointment_date"), "Appointment date")
-            appointment_time, appointment_time_error = parse_form_time(sync_field(fields, "appointment_time"), "Appointment time")
-            follow_up_date, follow_up_date_error = parse_form_date(sync_field(fields, "follow_up_date"), "Follow-up date", required=False)
-            validation_errors = [
-                error for error in [
-                    "Doctor name is required." if not sync_field(fields, "doctor_name", "").strip() else None,
-                    "Specialty is required." if not sync_field(fields, "specialty", "").strip() else None,
-                    "Location is required." if not sync_field(fields, "location", "").strip() else None,
-                    appointment_date_error,
-                    appointment_time_error,
-                    follow_up_date_error,
-                ]
-                if error
-            ]
-            if validation_errors:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": validation_errors}
-            existing_status = unpack_appointment_notes(appointment.notes).get("status", "scheduled") if appointment.notes else "scheduled"
-            appointment.doctor_name = sync_field(fields, "doctor_name", "").strip()
-            appointment.appointment_date = appointment_date
-            appointment.appointment_time = appointment_time
-            appointment.notes = pack_appointment_notes(
-                specialty=sync_field(fields, "specialty", "").strip(),
-                location=sync_field(fields, "location", "").strip(),
-                reminder_enabled=sync_bool(fields, "reminder_enabled"),
-                status=existing_status,
-                notes_text=sync_field(fields, "notes", "").strip(),
-            )
-            appointment.prescription = encrypt_text(sync_field(fields, "prescription", "").strip())
-            appointment.follow_up_date = follow_up_date
-            appointment.client_updated_at = client_updated_at
-            return sync_success(sync_id, "appointment", appointment.id)
-
-        if request_path == "/profile/personal-info":
-            profile = get_or_create_profile(user)
-            age = parse_profile_age(sync_field(fields, "age", ""))
-            diagnosis_date, diagnosis_error = parse_form_date(sync_field(fields, "diagnosis_date"), "Diagnosed date", required=False)
-            if diagnosis_error:
-                return {"client_id": sync_id, "status": "failed", "error": "validation_error", "details": [diagnosis_error]}
-            user.full_name = normalize_full_name(sync_field(fields, "full_name", user.full_name))
-            profile.age = age
-            profile.diagnosis_date = diagnosis_date
-            return sync_success(sync_id, "profile", profile.id)
-
-        if request_path == "/settings":
-            profile = get_or_create_profile(user)
-            user.full_name = normalize_full_name(sync_field(fields, "full_name", user.full_name))
-            profile.dark_mode = sync_field(fields, "dark_mode", "0") == "1"
-            profile.general_notifications = sync_bool(fields, "general_notifications")
-            return sync_success(sync_id, "settings", profile.id)
-
-        return {"client_id": sync_id, "status": "failed", "error": "unsupported_sync_path", "path": request_path}
-
-    @app.post("/api/sync/batch")
-    @api_login_required
-    def api_sync_batch():
-        payload = api_json_body()
-        if payload is None:
-            return api_error("invalid_request", "Expected a JSON request body.", status=415)
-        records = payload.get("records")
-        if not isinstance(records, list):
-            return api_error("validation_error", "The sync request must include a records array.", status=422)
-        if len(records) > 50:
-            return api_error("validation_error", "A sync batch may contain up to 50 records.", status=422)
-
-        user = current_user()
-        results = []
-        for item in records:
-            if not isinstance(item, dict):
-                results.append({"status": "failed", "error": "invalid_record"})
-                continue
-            try:
-                results.append(apply_offline_sync_item(user, item))
-                db.session.flush()
-                db.session.commit()
-            except Exception as error:
-                db.session.rollback()
-                app.logger.exception("Offline sync item failed.")
-                results.append(
-                    {
-                        "client_id": str(item.get("client_id") or item.get("id") or ""),
-                        "status": "failed",
-                        "error": "sync_exception",
-                        "message": str(error),
-                    }
-                )
-        synced_count = sum(1 for result in results if result.get("status") in {"synced", "stale_ignored"})
-        failed_count = sum(1 for result in results if result.get("status") == "failed")
-        return api_success(
-            data={"results": results},
-            message="Offline sync processed.",
-            meta={
-                "received": len(records),
-                "synced": synced_count,
-                "failed": failed_count,
-                "conflict_policy": "latest_client_update_wins; older queued records are ignored when a newer server/client timestamp exists",
-            },
-        )
 
     @app.get("/api/dashboard")
     @api_login_required
