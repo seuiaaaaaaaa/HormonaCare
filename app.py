@@ -2408,8 +2408,6 @@ def register_routes(app):
     LIFESTYLE_EXERCISE_PREFIX = "__EXERCISE__"
     LIFESTYLE_FOOD_PREFIX = "__FOOD__"
 
-    # Simple PCOS-friendly rule checks for exercise logs. These are wellness prompts,
-    # not medical diagnoses.
     def evaluate_exercise_entry(activity_type, duration_minutes, intensity):
         raw_input = {
             "activity_type": (activity_type or "").strip(),
@@ -2453,7 +2451,6 @@ def register_routes(app):
             },
         }
 
-    # Rule-based meal feedback that stays easy to explain during presentations.
     def evaluate_food_entry(food_name, portion_size, food_category):
         raw_input = {
             "food_name": (food_name or "").strip(),
@@ -2530,7 +2527,6 @@ def register_routes(app):
         normalized["feedback"] = feedback_map.get(normalized.get("feedback"), normalized.get("feedback"))
         return normalized
 
-    # Lifestyle notes keep free-form notes plus structured exercise/food JSON lines.
     def parse_lifestyle_notes(note_blob):
         parsed = {
             "general_notes": "",
@@ -4538,7 +4534,6 @@ def register_routes(app):
                 if existing_user.email_verified:
                     form_errors["email"] = email_taken
                 else:
-                    # Keep related records intact; setup_pin will update this unverified account.
                     pass
             if form_errors:
                 return render_template("auth/register.html", **build_auth_context("register", form_values, form_errors))
@@ -6077,7 +6072,6 @@ def register_routes(app):
             if existing_user.email_verified:
                 field_errors["email"] = email_taken
             else:
-                # Keep related records intact; ensure_local_user can refresh unverified accounts.
                 pass
         if field_errors:
             return api_error("validation_error", "Account registration failed.", status=422, details=field_errors)

@@ -240,7 +240,6 @@ function applyAppointmentFormState(payload = emptyAppointmentFormState, isEdit =
 
     activeAppointmentId = isEdit && normalizedPayload.id ? String(normalizedPayload.id) : null;
 
-    // Create mode must always submit a blank ID so the backend inserts a new record.
     if (appointmentIdField) appointmentIdField.value = activeAppointmentId || "";
     if (dateField) dateField.value = normalizedPayload.appointment_date;
     if (timeField) timeField.value = normalizedPayload.appointment_time;
@@ -280,7 +279,6 @@ function openAppointmentModal(button = null) {
 function closeAppointmentModal() {
     const modal = document.getElementById("appointment-modal");
     if (modal) modal.hidden = true;
-    // Canceling an edit should not leave the old appointment selected.
     resetAppointmentForm();
 }
 
@@ -294,7 +292,6 @@ document.getElementById("appointment-form")?.addEventListener("submit", function
     const appointmentIdField = document.getElementById("appointment-id-field");
     const isEditing = !!activeAppointmentId;
 
-    // Guard against stale hidden-field values when the user started a new appointment mid-edit.
     if (appointmentIdField) {
         appointmentIdField.value = isEditing ? activeAppointmentId : "";
     }

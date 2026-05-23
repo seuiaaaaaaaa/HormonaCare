@@ -141,10 +141,6 @@
         flex-basis: 14px;
     }
 }
-*** End of File
-
-/* Final production fixes: keep late duplicated dashboard/calendar rules from
-   overriding dark mode and narrow viewport behavior. */
 html body.theme-dark .content-shell-dashboard .mini-tag,
 html body.theme-dark .content-shell-dashboard .metric-row span,
 html body.theme-dark .content-shell-dashboard .day-pill,
@@ -267,7 +263,6 @@ html body.theme-dark .settings-password-modal-card .field-error {
     }
 }
 
-/* Final production dashboard refinement layer */
 html body .content-shell-dashboard {
     max-width: 1180px;
 }
@@ -618,7 +613,6 @@ body.theme-dark .content-shell-dashboard .wellness-checkin-trend {
     }
 }
 
-/* Production healthcare security flow refinement */
 html body .settings-password-modal-card {
     width: min(680px, calc(100vw - 28px));
     max-height: min(86vh, 760px);
@@ -978,7 +972,6 @@ html body .settings-password-modal-card .auth-inline-status {
     }
 }
 
-/* Guided recovery hierarchy: visible cards for password/OTP, hidden low-priority PIN fallback */
 html body .settings-password-primary-choice,
 html body .settings-password-recovery-list {
     display: grid;
@@ -1135,7 +1128,6 @@ html body .settings-security-chip-muted {
     }
 }
 
-/* Password modal error readability fixes */
 html body .settings-password-modal-head h2 {
     color: #142943 !important;
 }
@@ -1170,7 +1162,6 @@ body.theme-dark .auth-form-card .auth-inline-status.is-error {
     font-weight: 700;
 }
 
-/* Intelligent wellness trend dashboard redesign */
 html body .content-shell-dashboard .wellness-prediction-card {
     gap: 22px;
     padding: 30px;
@@ -1594,7 +1585,6 @@ body.theme-dark .content-shell-dashboard .wellness-timeline-day.is-complete .wel
     }
 }
 
-/* Production dashboard wellness layout refinement */
 html body .content-shell-dashboard {
     max-width: 1160px;
 }
@@ -1981,7 +1971,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     }
 }
 
-/* Final dashboard spacing overrides */
 .content-shell-dashboard .page-head {
     margin-bottom: 34px;
 }
@@ -2088,7 +2077,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     }
 }
 
-/* Calm, spacious dashboard refresh */
 html body .content-shell-dashboard .page-head {
     margin-bottom: 34px;
 }
@@ -2527,7 +2515,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     box-shadow: 0 14px 28px rgba(255, 79, 135, 0.24);
 }
 
-/* Medication cards must remain content-height, not dashboard-card height. */
 .med-schedule-list .clean-med-card.schedule-card {
     min-height: 0 !important;
     height: auto !important;
@@ -2603,7 +2590,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     }
 }
 
-/* Medication cards must remain content-height, not dashboard-card height. */
 .med-schedule-list .clean-med-card.schedule-card {
     min-height: 0 !important;
     height: auto !important;
@@ -2679,7 +2665,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     }
 }
 
-/* Final medication card layout override: keep cards compact on every viewport. */
 .med-schedule-list {
     gap: 14px;
 }
@@ -2774,7 +2759,6 @@ body.theme-dark .content-shell-dashboard .appointment-item {
     }
 }
 
-/* Responsive medication page polish */
 .med-title-row,
 .med-action-row,
 .med-progress-breakdown {

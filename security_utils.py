@@ -5,7 +5,7 @@ import bcrypt
 
 try:
     from cryptography.fernet import Fernet, InvalidToken
-except Exception:  # pragma: no cover - optional dependency scaffold
+except Exception:
     Fernet = None
     InvalidToken = Exception
 
@@ -65,7 +65,6 @@ def decrypt_text(value):
         return value
     cipher = _build_cipher()
     if not cipher:
-        # Do not leak encrypted tokens into the UI when a deploy is missing the field key.
         return ""
     token = value.replace(ENCRYPTION_PREFIX, "", 1).encode("utf-8")
     try:
@@ -92,8 +91,6 @@ def verify_password(password, password_hash):
 
 
 def validate_strong_password(password):
-    # The project keeps password validation simple and explainable for a capstone:
-    # the password must be long enough and include mixed character types.
     password = password or ""
     errors = []
     if len(password) < 8:

@@ -38,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 window.localStorage.setItem(themeStorageKey, themeName);
             } catch (error) {
-                // Ignore local storage failures and keep the active theme applied.
             }
         }
     };
@@ -81,7 +80,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 };
                 window.localStorage.setItem(apiCacheStorageKey, JSON.stringify(cache));
             } catch (error) {
-                // Cache warm-up should never block the live page.
             }
         };
         const cacheableEndpointNames = [
@@ -111,7 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         writeWarmupCacheEntry(url, payload.data);
                     }
                 }).catch(() => {
-                    // Warm-up is best-effort; normal page behavior should not depend on it.
                 });
             });
     };
@@ -207,7 +204,6 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 window.localStorage.setItem(storageKey, JSON.stringify(value));
             } catch (error) {
-                // Ignore storage failures so notifications still work for the current session.
             }
         };
 
@@ -673,7 +669,6 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 window.focus();
             } catch (error) {
-                // Ignore focus failures on restricted browser contexts.
             }
 
             if (targetUrl) {
@@ -1177,7 +1172,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 );
             } catch (error) {
-                // Keep background polling quiet if the API is temporarily unavailable.
             }
         };
 
@@ -1223,7 +1217,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     );
                 });
             } catch (error) {
-                // Ignore polling errors and keep browser notifications lightweight.
             }
         };
 
@@ -1255,7 +1248,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     );
                 }
             } catch (error) {
-                // Keep polling silent for flaky or unavailable API responses.
             }
         };
 
@@ -1737,7 +1729,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     return;
                 }
             } catch (error) {
-                // Fall back to direct submission if the browser rejects the stored submitter.
             }
 
             form.submit();
@@ -1792,7 +1783,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 try {
                     window.localStorage.setItem(noteStorageKey, signatures);
                 } catch (error) {
-                    // Keep the modal dismissible even when local storage is unavailable.
                 }
             });
         });
@@ -3188,7 +3178,6 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             window.localStorage.setItem(queueStorageKey, JSON.stringify(queue));
         } catch (error) {
-            // Local storage may be unavailable in private browsing or strict browser modes.
         }
     };
 
@@ -3433,7 +3422,6 @@ document.addEventListener("DOMContentLoaded", () => {
 if ("serviceWorker" in navigator) {
     const registerHormonaCareServiceWorker = () => {
         navigator.serviceWorker.register("/static/service-worker.js", { scope: "/" }).catch(() => {
-            // Keep registration failure silent for local demo environments.
         });
     };
 
