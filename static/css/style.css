@@ -141,6 +141,131 @@
         flex-basis: 14px;
     }
 }
+*** End of File
+
+/* Final production fixes: keep late duplicated dashboard/calendar rules from
+   overriding dark mode and narrow viewport behavior. */
+html body.theme-dark .content-shell-dashboard .mini-tag,
+html body.theme-dark .content-shell-dashboard .metric-row span,
+html body.theme-dark .content-shell-dashboard .day-pill,
+html body.theme-dark .content-shell-dashboard .insight-chip,
+html body.theme-dark .content-shell-dashboard .cycle-metric-chip,
+html body.theme-dark .content-shell-dashboard .wellness-factor-chip,
+html body.theme-dark .content-shell-dashboard .wellness-status-badge {
+    background: #17253a !important;
+    border-color: rgba(135, 164, 210, 0.34) !important;
+    color: #dce8f8 !important;
+    box-shadow: none !important;
+}
+
+html body.theme-dark .content-shell-dashboard .cycle-panel,
+html body.theme-dark .content-shell-dashboard .cycle-focus-card {
+    background: #15243a !important;
+    border-color: rgba(135, 164, 210, 0.34) !important;
+    color: #eaf2ff !important;
+}
+
+html body.theme-dark .content-shell-dashboard .cycle-day-ring {
+    background: #0f1a2e !important;
+    border-color: rgba(255, 132, 168, 0.72) !important;
+    color: #ff6f9b !important;
+}
+
+html body.theme-dark .content-shell-dashboard .cycle-focus-card h4,
+html body.theme-dark .content-shell-dashboard .cycle-focus-card p,
+html body.theme-dark .content-shell-dashboard .cycle-focus-caption {
+    color: #dbe8f9 !important;
+}
+
+html body.theme-dark .settings-password-modal-card,
+html body.theme-dark .settings-password-method,
+html body.theme-dark .settings-password-method-primary,
+html body.theme-dark .settings-password-method-secondary,
+html body.theme-dark .settings-password-method-backup {
+    background: #142238 !important;
+    border-color: rgba(135, 164, 210, 0.32) !important;
+    color: #e8f1ff !important;
+}
+
+html body.theme-dark .settings-password-modal-head h2,
+html body.theme-dark .settings-password-modal-head p,
+html body.theme-dark .settings-password-modal-head strong,
+html body.theme-dark .settings-password-method strong,
+html body.theme-dark .settings-password-method span:last-child,
+html body.theme-dark .settings-forgot-trigger,
+html body.theme-dark .settings-backup-reveal,
+html body.theme-dark .auth-text-button {
+    color: #e8f1ff !important;
+}
+
+html body.theme-dark .settings-password-modal-card .auth-inline-status.is-error,
+html body.theme-dark .settings-password-modal-card .field-error {
+    color: #ff6b8f !important;
+}
+
+@media (max-width: 720px) {
+    html body .calendar-layout,
+    html body .calendar-main,
+    html body .calendar-board,
+    html body .calendar-top,
+    html body .calendar-under,
+    html body .cycle-insights-card {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+    }
+
+    html body .calendar-board {
+        padding: 12px !important;
+    }
+
+    html body .calendar-weekdays,
+    html body .calendar-grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+        gap: 5px !important;
+        width: 100%;
+        min-width: 0 !important;
+        max-width: 100%;
+    }
+
+    html body .calendar-cell {
+        min-width: 0 !important;
+        min-height: 42px !important;
+        aspect-ratio: 1 / 1 !important;
+        border-radius: 11px !important;
+        padding: 6px 4px 4px !important;
+        font-size: 0.78rem;
+    }
+
+    html body .calendar-number {
+        margin-bottom: 4px !important;
+        font-size: 0.78rem !important;
+        line-height: 1;
+    }
+}
+
+@media (max-width: 430px) {
+    html body .calendar-board {
+        padding: 10px !important;
+    }
+
+    html body .calendar-weekdays,
+    html body .calendar-grid {
+        gap: 4px !important;
+    }
+
+    html body .calendar-cell {
+        min-height: 36px !important;
+        border-width: 1.5px !important;
+        border-radius: 9px !important;
+        padding: 5px 3px 3px !important;
+    }
+
+    html body .calendar-weekdays {
+        font-size: 0.72rem !important;
+    }
+}
 
 /* Final production dashboard refinement layer */
 html body .content-shell-dashboard {

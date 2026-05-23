@@ -1742,6 +1742,38 @@ def register_routes(app):
             return (user.get("email") or "").strip().lower()
         return (getattr(user, "email", "") or "").strip().lower()
 
+    def normalize_email_otp_type(otp_type):
+        otp_type = (otp_type or "").strip().lower()
+        return otp_type if otp_type in {"signup", "email", "magiclink"} else "email"
+
+    def can_try_next_email_otp_type(error):
+        lowered = error_message_lower(error)
+        type_error = "type" in lowered and any(keyword in lowered for keyword in ("invalid", "unsupported", "not supported", "must be"))
+        return is_invalid_otp_error(error) or type_error
+
+    def verify_supabase_email_otp(email, token, preferred_type="email"):
+        supabase = get_supabase_client()
+        otp_types = []
+        for otp_type in (normalize_email_otp_type(preferred_type), "signup", "email", "magiclink"):
+            if otp_type not in otp_types:
+                otp_types.append(otp_type)
+
+        last_error = None
+        for otp_type in otp_types:
+            try:
+                return supabase.auth.verify_otp(
+                    {
+                        "email": email,
+                        "token": token,
+                        "type": otp_type,
+                    }
+                )
+            except Exception as error:
+                last_error = error
+                if not can_try_next_email_otp_type(error):
+                    raise
+        raise last_error
+
     def supabase_user_verified_at(auth_user):
         if not auth_user:
             return None
@@ -4515,7 +4547,7 @@ def register_routes(app):
                 security_pin=security_pin,
             )
             clear_pending_registration()
-            remember_pending_verification(email, verification_type="email", new_account=True)
+            remember_pending_verification(email, verification_type="signup", new_account=True)
             remember_otp_request(email)
             flash("OTP sent to your email.", "success")
             return redirect(url_for("verify_email"))
@@ -4697,14 +4729,7 @@ def register_routes(app):
         existing_user = User.query.filter_by(username=email).first()
         is_new_account = not existing_user or not existing_user.email_verified
         try:
-            supabase = get_supabase_client()
-            auth_response = supabase.auth.verify_otp(
-                {
-                    "email": email,
-                    "token": otp,
-                    "type": "email",
-                }
-            )
+            auth_response = verify_supabase_email_otp(email, otp, "email")
         except Exception as error:
             return {"error": friendly_supabase_error(error, "Invalid OTP.")}, 401
 
@@ -4726,10 +4751,10 @@ def register_routes(app):
         if active_user and not active_user.email_verified:
             remember_pending_verification(active_user.username, verification_type="email")
 
-        verification_type = (request.args.get("type") or session.get("pending_verification_type") or "email").strip().lower()
-        if verification_type not in {"signup", "email"}:
-            verification_type = "email"
-        effective_verification_type = "email"
+        verification_type = normalize_email_otp_type(
+            request.args.get("type") or session.get("pending_verification_type") or "email"
+        )
+        effective_verification_type = verification_type
 
         form_values = {
             "email": normalize_email(request.args.get("email") or pending_verification_email()),
@@ -4795,14 +4820,7 @@ def register_routes(app):
                     form_errors["token"] = "Enter the 6-digit OTP from your email."
                 if not form_errors:
                     try:
-                        supabase = get_supabase_client()
-                        auth_response = supabase.auth.verify_otp(
-                            {
-                                "email": email,
-                                "token": token,
-                                "type": effective_verification_type,
-                            }
-                        )
+                        auth_response = verify_supabase_email_otp(email, token, effective_verification_type)
                     except Exception as error:
                         form_errors["token"] = friendly_supabase_error(error, "Invalid OTP.")
                     else:
