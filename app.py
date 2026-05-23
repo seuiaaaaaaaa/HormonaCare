@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260508-push-test-subscription")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-reset-flow-click-fix")
 
 
 def app_now():

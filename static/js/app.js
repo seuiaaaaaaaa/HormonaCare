@@ -2365,18 +2365,24 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        methodButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                hideStatus();
-                clearFieldState(otpInput, otpError);
-                clearFieldState(pinInput, pinError);
-                if (button.dataset.resetMethod === "pin") {
-                    if (pinInput) pinInput.value = "";
-                    setStep("pin");
-                } else {
-                    requestOtp();
-                }
-            });
+        const handleResetMethodChoice = (button) => {
+            if (!button || button.disabled) return;
+            hideStatus();
+            clearFieldState(otpInput, otpError);
+            clearFieldState(pinInput, pinError);
+            if (button.dataset.resetMethod === "pin") {
+                if (pinInput) pinInput.value = "";
+                setStep("pin");
+            } else {
+                requestOtp();
+            }
+        };
+
+        resetFlow.addEventListener("click", (event) => {
+            const methodButton = event.target.closest("[data-reset-method]");
+            if (!methodButton || !resetFlow.contains(methodButton)) return;
+            event.preventDefault();
+            handleResetMethodChoice(methodButton);
         });
 
         if (pinInput) {

@@ -1,7 +1,7 @@
 const CACHE_NAME = "hormonacare-static-v49";
 const PAGE_CACHE_NAME = "hormonacare-pages-v49";
 const API_CACHE_NAME = "hormonacare-api-v49";
-const STATIC_VERSION = "20260520-offline-page-api-cache";
+const STATIC_VERSION = "20260523-reset-flow-click-fix";
 const OFFLINE_URL = "/offline";
 const PAGE_FALLBACK_URLS = [
     "/dashboard",
