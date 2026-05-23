@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-otp-password-step")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-server-flow")
 
 
 def app_now():
@@ -5183,14 +5183,29 @@ def register_routes(app):
             return redirect_response
 
         form_values = {
-            "identifier": normalize_email(session.get("reset_password_email") or pending_verification_email()),
+            "identifier": "",
             "otp": "",
         }
         form_errors = {}
         reset_step = "identify"
+        if request.method == "GET":
+            session_identifier = normalize_email(session.get("reset_password_email"))
+            session_user = find_user_by_auth_identifier(session_identifier)
+            if session_user and not password_reset_verification_error(session_user):
+                form_values["identifier"] = session_user.username
+                reset_step = "password"
         if request.method == "POST":
             action = (request.form.get("reset_action") or request.form.get("reset_step_action") or "choose_method").strip()
-            if action == "choose_method":
+            if action == "edit_email":
+                clear_password_reset_state()
+                form_values["identifier"] = ""
+                form_values["otp"] = ""
+                reset_step = "identify"
+                return render_template(
+                    "auth/forgot_password.html",
+                    **build_auth_context("forgot_password", form_values, form_errors, reset_step=reset_step),
+                )
+            if action == "choose_method" and request.form.get("identifier_input") is not None:
                 identifier_source = request.form.get("identifier_input")
             else:
                 identifier_source = (
