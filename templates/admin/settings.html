@@ -111,7 +111,7 @@
         <div class="settings-password-modal-head">
             <span class="status-line">Account Security</span>
             <h2 id="settings-password-modal-title">Change Password</h2>
-            <p>Confirm this change for <strong data-settings-password-email-display>{{ current_user.username }}</strong>. For your security, recovery methods are recommended only if you no longer remember your password.</p>
+            <p>Confirm this change for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</p>
         </div>
 
         <div class="auth-inline-status hidden-error" data-settings-password-status></div>
@@ -160,7 +160,6 @@
                     </div>
                     <p class="field-error hidden-error" data-settings-current-password-error></p>
                 </label>
-                <p class="settings-attempt-helper" data-settings-current-attempts>Up to 5 verification attempts are allowed before a short cooldown.</p>
                 <div class="settings-password-actions">
                     <button type="button" class="auth-text-button" data-settings-password-back>Back to Verification</button>
                     <button type="submit" class="auth-gradient-button">Verify Current Password</button>
@@ -176,7 +175,6 @@
                     </div>
                     <p class="field-error hidden-error" data-settings-otp-error></p>
                 </label>
-                <p class="settings-attempt-helper" data-settings-otp-attempts>Codes expire soon. After 5 failed attempts, we will send a new code.</p>
                 <div class="settings-password-actions settings-password-actions-stack">
                     <button type="submit" class="auth-gradient-button">Verify OTP</button>
                     <button type="button" class="auth-secondary-button" data-settings-resend-otp>Resend OTP</button>

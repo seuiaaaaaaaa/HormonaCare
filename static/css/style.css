@@ -1010,6 +1010,41 @@ html body .settings-security-chip-muted {
     }
 }
 
+/* Password modal error readability fixes */
+html body .settings-password-modal-head h2 {
+    color: #142943 !important;
+}
+
+body.theme-dark .settings-password-modal-head h2 {
+    color: #f7f9ff !important;
+}
+
+body.theme-dark .settings-password-modal-head .status-line,
+body.theme-dark .settings-password-modal-head p {
+    color: #b8c6dc !important;
+}
+
+html body .settings-password-modal-card .field-error,
+body.theme-dark .settings-password-modal-card .field-error {
+    color: #ef4444 !important;
+    font-weight: 700;
+}
+
+html body .settings-password-modal-card .auth-input-wrap.is-invalid {
+    border-color: rgba(239, 68, 68, 0.72) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+html body .settings-password-modal-card .auth-inline-status.is-error,
+body.theme-dark .settings-password-modal-card .auth-inline-status.is-error,
+html body .auth-form-card .auth-inline-status.is-error,
+body.theme-dark .auth-form-card .auth-inline-status.is-error {
+    border-color: rgba(239, 68, 68, 0.45) !important;
+    background: rgba(254, 226, 226, 0.96) !important;
+    color: #b91c1c !important;
+    font-weight: 700;
+}
+
 /* Production dashboard wellness layout refinement */
 html body .content-shell-dashboard {
     max-width: 1160px;
