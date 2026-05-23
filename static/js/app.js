@@ -2368,6 +2368,14 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
 
+        methodButtons.forEach((button) => {
+            button.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                handleResetMethodChoice(button);
+            });
+        });
+
         resetFlow.addEventListener("click", (event) => {
             const methodButton = event.target.closest("[data-reset-method]");
             if (!methodButton || !resetFlow.contains(methodButton)) return;
@@ -2381,6 +2389,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         resetFlow.addEventListener("submit", (event) => {
             event.preventDefault();
+            const submitter = event.submitter;
+            const submitAction = submitter ? submitter.value || submitter.dataset.resetSubmitAction : "";
+            if (submitAction === "request_otp") {
+                requestOtp();
+                return;
+            }
+            if (submitAction === "choose_pin") {
+                if (pinInput) pinInput.value = "";
+                setStep("pin");
+                return;
+            }
             if (currentStep === "identify") {
                 chooseMethod();
             } else if (currentStep === "method") {
