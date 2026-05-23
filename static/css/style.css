@@ -1320,6 +1320,10 @@ html body .content-shell-dashboard .wellness-rhythm-bars span.is-missing {
     );
 }
 
+html body .content-shell-dashboard .wellness-insight-strip-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 body.theme-dark .settings-password-modal-card,
 body.theme-dark .settings-password-method-primary,
 body.theme-dark .settings-password-method-secondary,
