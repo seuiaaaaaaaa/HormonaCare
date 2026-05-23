@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-reset-flow-server-fallback")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-native-submit")
 
 
 def app_now():
@@ -5151,7 +5151,13 @@ def register_routes(app):
                     reset_step = "method"
 
             elif action == "show_pin":
-                reset_step = "method_pin"
+                if not user or not user.email_verified:
+                    form_errors["identifier"] = "This account is not registered. Please sign up."
+                    reset_step = "identify"
+                else:
+                    session["reset_password_email"] = user.username
+                    form_values["identifier"] = user.username
+                    reset_step = "method_pin"
 
             elif action == "choose_pin":
                 if not user or not user.email_verified:

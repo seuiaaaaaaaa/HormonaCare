@@ -2018,6 +2018,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const methodButtons = Array.from(resetFlow.querySelectorAll("[data-reset-method]"));
         const resetPinBackup = resetFlow.querySelector("[data-reset-pin-backup]");
         const resetShowPinButton = resetFlow.querySelector("[data-reset-show-pin]");
+        const nativeResetActions = new Set(["choose_method", "request_otp", "choose_pin", "verify_otp", "verify_pin", "update_password"]);
         let currentStep = "identify";
         let activeRequestCount = 0;
 
@@ -2170,7 +2171,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStep("otp");
                 showStatus(data.message || "A 6-digit code has been sent to your email.", "success");
             } catch (error) {
-                setFieldState(identifierInput, identifierError, false, error.message || "We could not send a reset code right now.");
+                if (error.field === "identifier") {
+                    setStep("identify");
+                    setFieldState(identifierInput, identifierError, false, error.message || "This account is not registered. Please sign up.");
+                    showStatus(error.message || "This account is not registered. Please sign up.", "error");
+                } else {
+                    setFieldState(identifierInput, identifierError, false, error.message || "We could not send a reset code right now.");
+                }
             } finally {
                 setBusy(false);
             }
@@ -2319,6 +2326,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (resendButton) {
             resendButton.addEventListener("click", (event) => {
+                if (resendButton.type === "submit") return;
                 event.preventDefault();
                 requestOtp();
             });
@@ -2349,7 +2357,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (resetShowPinButton && resetPinBackup) {
-            resetShowPinButton.addEventListener("click", () => {
+            resetShowPinButton.addEventListener("click", (event) => {
+                event.preventDefault();
                 resetPinBackup.hidden = false;
                 showStatus("Backup recovery is available below. Use it only if email verification is unavailable.", "info");
             });
@@ -2371,6 +2380,7 @@ document.addEventListener("DOMContentLoaded", () => {
         methodButtons.forEach((button) => {
             button.addEventListener("keydown", (event) => {
                 if (event.key !== "Enter" && event.key !== " ") return;
+                if (button.type === "submit") return;
                 event.preventDefault();
                 handleResetMethodChoice(button);
             });
@@ -2379,6 +2389,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resetFlow.addEventListener("click", (event) => {
             const methodButton = event.target.closest("[data-reset-method]");
             if (!methodButton || !resetFlow.contains(methodButton)) return;
+            if (methodButton.type === "submit") return;
             event.preventDefault();
             handleResetMethodChoice(methodButton);
         });
@@ -2388,9 +2399,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resetFlow.addEventListener("submit", (event) => {
-            event.preventDefault();
             const submitter = event.submitter;
             const submitAction = submitter ? submitter.value || submitter.dataset.resetSubmitAction : "";
+            if (!submitAction || nativeResetActions.has(submitAction)) {
+                return;
+            }
+            event.preventDefault();
             if (submitAction === "request_otp") {
                 requestOtp();
                 return;
