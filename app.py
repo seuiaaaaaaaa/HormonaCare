@@ -4278,9 +4278,8 @@ def register_routes(app):
                 if existing_user.email_verified:
                     form_errors["email"] = email_taken
                 else:
-                    db.session.delete(existing_user)
-                    db.session.commit()
-                    existing_user = None
+                    # Keep related records intact; setup_pin will update this unverified account.
+                    pass
             if form_errors:
                 return render_template("auth/register.html", **build_auth_context("register", form_values, form_errors))
 
@@ -5605,9 +5604,8 @@ def register_routes(app):
             if existing_user.email_verified:
                 field_errors["email"] = email_taken
             else:
-                db.session.delete(existing_user)
-                db.session.commit()
-                existing_user = None
+                # Keep related records intact; ensure_local_user can refresh unverified accounts.
+                pass
         if field_errors:
             return api_error("validation_error", "Account registration failed.", status=422, details=field_errors)
 
