@@ -2286,10 +2286,10 @@ def register_routes(app):
         )
 
     def local_auth_status_message():
-        return "Auth email service is unavailable. Using local demo recovery for now."
+        return "Auth email service is temporarily unavailable. Using temporary local recovery for now."
 
     def demo_email_otp_enabled():
-        configured = (os.getenv("ENABLE_DEMO_EMAIL_OTP") or "1").strip().lower()
+        configured = (os.getenv("ENABLE_DEMO_EMAIL_OTP") or "0").strip().lower()
         return configured not in {"0", "false", "no", "off"}
 
     def remember_local_otp_challenge(email, purpose):
@@ -2302,16 +2302,6 @@ def register_routes(app):
             "attempts": 0,
         }
         return code
-
-    def remember_demo_email_verification_code(email):
-        if not demo_email_otp_enabled():
-            return None
-        code = remember_local_otp_challenge(email, "email_verification")
-        session["local_email_verification_demo_code"] = code
-        return code
-
-    def local_email_verification_code():
-        return session.get("local_email_verification_demo_code") if demo_email_otp_enabled() else None
 
     def verify_local_email_challenge(email, token):
         local_verified, _ = verify_local_otp_challenge(email, "email_verification", token)
@@ -4587,13 +4577,9 @@ def register_routes(app):
                         security_pin=security_pin,
                         account_username=pending.get("account_username", ""),
                     )
-                    demo_code = remember_demo_email_verification_code(email)
                     clear_pending_registration()
                     remember_pending_verification(email, verification_type="email", new_account=True)
-                    if demo_code:
-                        flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
-                    else:
-                        flash("Verification email requested. Check your inbox and spam folder.", "info")
+                    flash("Verification email requested. Check your inbox and spam folder.", "info")
                     return redirect(url_for("verify_email"))
 
                 form_errors["email"] = friendly_supabase_error(
@@ -4621,12 +4607,9 @@ def register_routes(app):
                 else:
                     form_errors["email"] = otp_send_error_message(otp_error)
                     return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
-            demo_code = remember_demo_email_verification_code(email)
             clear_pending_registration()
             remember_pending_verification(email, verification_type="signup", new_account=True)
-            if demo_code:
-                flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
-            elif otp_send_warning:
+            if otp_send_warning:
                 flash(f"Account created. {otp_send_warning}", "warning")
             else:
                 flash("Verification email requested. Check your inbox and spam folder.", "info")
@@ -4889,16 +4872,12 @@ def register_routes(app):
                             log_supabase_otp_error(email, error)
                             form_errors["email"] = otp_send_error_message(error)
                         else:
-                            demo_code = remember_demo_email_verification_code(email)
                             remember_pending_verification(
                                 email,
                                 verification_type=verification_type,
                                 new_account=bool(session.get("pending_new_account")),
                             )
-                            if demo_code:
-                                flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
-                            else:
-                                flash("Verification email requested. Check your inbox and spam folder.", "info")
+                            flash("Verification email requested. Check your inbox and spam folder.", "info")
                             return redirect(url_for("verify_email"))
             else:
                 token = (request.form.get("token") or "").strip()
@@ -4937,7 +4916,6 @@ def register_routes(app):
                 form_errors,
                 otp_retry_seconds=retry_in,
                 verification_email=form_values["email"],
-                local_demo_code=local_email_verification_code(),
             ),
         )
 
@@ -6876,7 +6854,7 @@ def register_routes(app):
                 flash(email_help, "danger")
                 return redirect(url_for("settings"))
             if requested_email != user.username:
-                flash("Email changes are disabled in this demo so verification stays consistent.", "warning")
+                flash("Email changes are currently disabled so verification stays consistent.", "warning")
                 return redirect(url_for("settings"))
             existing_user = User.query.filter(User.username == requested_email, User.id != user.id).first()
             if existing_user:
