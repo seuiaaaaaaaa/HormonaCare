@@ -4407,6 +4407,10 @@ def register_routes(app):
 
     @app.route("/register", methods=["GET", "POST"])
     def register():
+        if request.method == "GET" and request.args.get("fresh") == "1":
+            clear_authenticated_session()
+            clear_pending_registration()
+            clear_pending_verification()
         redirect_response = redirect_authenticated_user()
         if redirect_response:
             return redirect_response
