@@ -2355,7 +2355,8 @@ def register_routes(app):
         except ValueError:
             session.pop("local_otp_challenge", None)
             return False, "Expired OTP."
-        if datetime.utcnow() > expires_at:
+        now = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.utcnow()
+        if now > expires_at:
             session.pop("local_otp_challenge", None)
             return False, "Expired OTP."
         if not verify_password(otp, challenge.get("code_hash")):
