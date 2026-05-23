@@ -1630,6 +1630,7 @@ def register_routes(app):
             "pending_new_account",
             "otp_request_state",
             "otp_email",
+            "local_email_verification_demo_code",
         ):
             session.pop(key, None)
 
@@ -2287,6 +2288,10 @@ def register_routes(app):
     def local_auth_status_message():
         return "Auth email service is unavailable. Using local demo recovery for now."
 
+    def demo_email_otp_enabled():
+        configured = (os.getenv("ENABLE_DEMO_EMAIL_OTP") or "1").strip().lower()
+        return configured not in {"0", "false", "no", "off"}
+
     def remember_local_otp_challenge(email, purpose):
         code = f"{secrets.randbelow(1000000):06d}"
         session["local_otp_challenge"] = {
@@ -2297,6 +2302,27 @@ def register_routes(app):
             "attempts": 0,
         }
         return code
+
+    def remember_demo_email_verification_code(email):
+        if not demo_email_otp_enabled():
+            return None
+        code = remember_local_otp_challenge(email, "email_verification")
+        session["local_email_verification_demo_code"] = code
+        return code
+
+    def local_email_verification_code():
+        return session.get("local_email_verification_demo_code") if demo_email_otp_enabled() else None
+
+    def verify_local_email_challenge(email, token):
+        local_verified, _ = verify_local_otp_challenge(email, "email_verification", token)
+        if local_verified is not True:
+            return None
+        user = ensure_local_user(email)
+        user.email_verified = True
+        user.email_verified_at = datetime.utcnow()
+        db.session.commit()
+        session.pop("local_email_verification_demo_code", None)
+        return user
 
     def verify_local_otp_challenge(email, purpose, otp):
         challenge = session.get("local_otp_challenge") or {}
@@ -4566,9 +4592,13 @@ def register_routes(app):
                         security_pin=security_pin,
                         account_username=pending.get("account_username", ""),
                     )
+                    demo_code = remember_demo_email_verification_code(email)
                     clear_pending_registration()
                     remember_pending_verification(email, verification_type="email", new_account=True)
-                    flash("OTP sent to your email.", "success")
+                    if demo_code:
+                        flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
+                    else:
+                        flash("Verification email requested. Check your inbox and spam folder.", "info")
                     return redirect(url_for("verify_email"))
 
                 form_errors["email"] = friendly_supabase_error(
@@ -4596,12 +4626,15 @@ def register_routes(app):
                 else:
                     form_errors["email"] = otp_send_error_message(otp_error)
                     return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
+            demo_code = remember_demo_email_verification_code(email)
             clear_pending_registration()
             remember_pending_verification(email, verification_type="signup", new_account=True)
-            if otp_send_warning:
+            if demo_code:
+                flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
+            elif otp_send_warning:
                 flash(f"Account created. {otp_send_warning}", "warning")
             else:
-                flash("OTP sent to your email.", "success")
+                flash("Verification email requested. Check your inbox and spam folder.", "info")
             return redirect(url_for("verify_email"))
         return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values))
 
@@ -4780,6 +4813,11 @@ def register_routes(app):
 
         existing_user = User.query.filter_by(username=email).first()
         is_new_account = not existing_user or not existing_user.email_verified
+        local_verified_user = verify_local_email_challenge(email, otp)
+        if local_verified_user:
+            clear_failed_login(email)
+            start_authenticated_session(local_verified_user, new_account=is_new_account)
+            return {"message": "Login successful"}
         try:
             auth_response = verify_supabase_email_otp(email, otp, "email")
         except Exception as error:
@@ -4856,12 +4894,16 @@ def register_routes(app):
                             log_supabase_otp_error(email, error)
                             form_errors["email"] = otp_send_error_message(error)
                         else:
+                            demo_code = remember_demo_email_verification_code(email)
                             remember_pending_verification(
                                 email,
                                 verification_type=verification_type,
                                 new_account=bool(session.get("pending_new_account")),
                             )
-                            flash("OTP sent to your email.", "success")
+                            if demo_code:
+                                flash(f"Verification email requested. Demo verification code: {demo_code}", "warning")
+                            else:
+                                flash("Verification email requested. Check your inbox and spam folder.", "info")
                             return redirect(url_for("verify_email"))
             else:
                 token = (request.form.get("token") or "").strip()
@@ -4871,12 +4913,20 @@ def register_routes(app):
                 if not token:
                     form_errors["token"] = "Enter the 6-digit OTP from your email."
                 if not form_errors:
+                    local_verified_user = verify_local_email_challenge(email, token)
+                    if local_verified_user:
+                        new_account = bool(session.get("pending_new_account"))
+                        clear_failed_login(email)
+                        start_authenticated_session(local_verified_user, new_account=new_account)
+                        flash("Email verified successfully.", "success")
+                        return redirect(url_for("admin_dashboard" if is_admin_user(local_verified_user) else "dashboard"))
                     try:
                         auth_response = verify_supabase_email_otp(email, token, effective_verification_type)
                     except Exception as error:
                         form_errors["token"] = friendly_supabase_error(error, "Invalid OTP.")
                     else:
                         user = ensure_local_user(email, auth_user=response_auth_user(auth_response))
+                        session.pop("local_email_verification_demo_code", None)
                         new_account = bool(session.get("pending_new_account"))
                         clear_failed_login(email)
                         start_authenticated_session(user, new_account=new_account)
@@ -4892,6 +4942,7 @@ def register_routes(app):
                 form_errors,
                 otp_retry_seconds=retry_in,
                 verification_email=form_values["email"],
+                local_demo_code=local_email_verification_code(),
             ),
         )
 
