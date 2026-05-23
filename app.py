@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-server-flow")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-active-submit")
 
 
 def app_now():
@@ -5195,7 +5195,16 @@ def register_routes(app):
                 form_values["identifier"] = session_user.username
                 reset_step = "password"
         if request.method == "POST":
-            action = (request.form.get("reset_action") or request.form.get("reset_step_action") or "choose_method").strip()
+            submitted_action = (request.form.get("reset_action") or "").strip()
+            step_action = (request.form.get("reset_step_action") or "").strip()
+            action = submitted_action or step_action or "choose_method"
+            if submitted_action == "choose_method" and step_action in {"verify_otp", "verify_pin", "update_password"}:
+                if step_action == "verify_otp" and request.form.get("otp"):
+                    action = "verify_otp"
+                elif step_action == "verify_pin" and request.form.get("security_pin"):
+                    action = "verify_pin"
+                elif step_action == "update_password" and (request.form.get("password") or request.form.get("confirm_password")):
+                    action = "update_password"
             if action == "edit_email":
                 clear_password_reset_state()
                 form_values["identifier"] = ""
