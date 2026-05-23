@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-native-submit")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-current-input")
 
 
 def app_now():
@@ -4906,18 +4906,34 @@ def register_routes(app):
             ),
         )
 
+    def password_reset_identifier_from_request(payload=None):
+        payload = payload or {}
+        return normalize_email(
+            request.form.get("identifier_input")
+            or request.form.get("identifier")
+            or request.form.get("email")
+            or request.values.get("identifier_input")
+            or request.values.get("identifier")
+            or request.values.get("email")
+            or payload.get("identifier")
+            or payload.get("email")
+            or payload.get("username")
+        )
+
+    @app.post("/auth/password-reset/check-account")
+    def password_reset_check_account():
+        payload = request.get_json(silent=True) if request.is_json else {}
+        identifier = password_reset_identifier_from_request(payload)
+        user = find_user_by_auth_identifier(identifier)
+        if not user or not user.email_verified:
+            clear_password_reset_state()
+            return {"field": "identifier", "message": "This account is not registered. Please sign up."}, 404
+        return {"message": "Account found.", "identifier": user.username}
+
     @app.post("/auth/password-reset/request-otp")
     def password_reset_request_otp():
         payload = request.get_json(silent=True) if request.is_json else {}
-        identifier = normalize_email(
-            request.form.get("identifier")
-            or request.form.get("email")
-            or request.values.get("identifier")
-            or request.values.get("email")
-            or (payload or {}).get("identifier")
-            or (payload or {}).get("email")
-            or (payload or {}).get("username")
-        )
+        identifier = password_reset_identifier_from_request(payload)
         user = find_user_by_auth_identifier(identifier)
         if not user or not user.email_verified:
             clear_password_reset_state()
@@ -5133,8 +5149,8 @@ def register_routes(app):
         if request.method == "POST":
             action = (request.form.get("reset_action") or "choose_method").strip()
             identifier = normalize_email(
-                request.form.get("identifier")
-                or request.form.get("identifier_input")
+                request.form.get("identifier_input")
+                or request.form.get("identifier")
                 or request.form.get("email")
                 or session.get("reset_password_email")
             )

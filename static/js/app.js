@@ -1991,6 +1991,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const resetFlow = document.querySelector("[data-password-reset-flow]");
     if (resetFlow) {
+        const checkUrl = resetFlow.dataset.checkUrl;
         const requestUrl = resetFlow.dataset.requestUrl;
         const verifyUrl = resetFlow.dataset.verifyUrl;
         const verifyPinUrl = resetFlow.dataset.verifyPinUrl;
@@ -2012,6 +2013,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const confirmError = resetFlow.querySelector("[data-reset-confirm-error]");
         const panels = Array.from(resetFlow.querySelectorAll("[data-reset-step-panel]"));
         const chips = Array.from(resetFlow.querySelectorAll("[data-reset-step-chip]"));
+        const identifyButton = resetFlow.querySelector("[data-reset-primary-button='identify']");
         const resendButton = resetFlow.querySelector("[data-reset-resend-button]");
         const backButtons = Array.from(resetFlow.querySelectorAll("[data-reset-back-button]"));
         const methodBackButton = resetFlow.querySelector("[data-reset-method-back]");
@@ -2021,6 +2023,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const nativeResetActions = new Set(["choose_method", "request_otp", "choose_pin", "verify_otp", "verify_pin", "update_password"]);
         let currentStep = "identify";
         let activeRequestCount = 0;
+        let accountCheckTimer = null;
+        let accountCheckController = null;
+        let accountCheckSequence = 0;
+        let validatedIdentifier = "";
+        const identifyButtonLabel = identifyButton ? identifyButton.textContent : "Continue";
 
         const subtitleByStep = {
             identify: "Enter your email or username to choose a reset method.",
@@ -2050,6 +2057,12 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         };
 
+        const setIdentifyBusy = (isBusy) => {
+            if (!identifyButton) return;
+            identifyButton.disabled = isBusy;
+            identifyButton.textContent = isBusy ? "Checking..." : identifyButtonLabel;
+        };
+
         const showStatus = (message, tone = "info") => {
             if (!statusNode) return;
             statusNode.textContent = message;
@@ -2064,12 +2077,13 @@ document.addEventListener("DOMContentLoaded", () => {
             statusNode.classList.remove("is-error", "is-success", "is-info");
         };
 
-        const syncIdentifier = (value) => {
+        const syncIdentifier = (value, options = {}) => {
+            const updateVisibleInput = options.updateVisibleInput !== false;
             const cleanValue = (value || "").trim().toLowerCase();
             if (hiddenIdentifierInput) {
                 hiddenIdentifierInput.value = cleanValue;
             }
-            if (identifierInput) {
+            if (identifierInput && updateVisibleInput) {
                 identifierInput.value = cleanValue;
             }
             identifierDisplays.forEach((node) => {
@@ -2112,18 +2126,105 @@ document.addEventListener("DOMContentLoaded", () => {
             return data;
         };
 
-        const chooseMethod = () => {
+        const resetAccountValidation = () => {
+            validatedIdentifier = "";
+            accountCheckSequence += 1;
+            if (accountCheckTimer) {
+                window.clearTimeout(accountCheckTimer);
+                accountCheckTimer = null;
+            }
+            if (accountCheckController) {
+                accountCheckController.abort();
+                accountCheckController = null;
+            }
+            setIdentifyBusy(false);
             hideStatus();
             clearFieldState(identifierInput, identifierError);
+            clearFieldState(otpInput, otpError);
+            clearFieldState(pinInput, pinError);
+            if (resetPinBackup) {
+                resetPinBackup.hidden = true;
+            }
+        };
+
+        const validateAccount = async ({ advance = false, quiet = false } = {}) => {
+            const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
+            if (!identifier) {
+                resetAccountValidation();
+                if (advance) {
+                    setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
+                }
+                return false;
+            }
+
+            if (validatedIdentifier === identifier) {
+                clearFieldState(identifierInput, identifierError);
+                if (advance) {
+                    setStep("method");
+                }
+                return true;
+            }
+
+            const requestSequence = ++accountCheckSequence;
+            if (accountCheckController) {
+                accountCheckController.abort();
+            }
+            accountCheckController = new AbortController();
+            if (!quiet) {
+                hideStatus();
+            }
+            clearFieldState(identifierInput, identifierError);
+            setIdentifyBusy(true);
+
+            try {
+                const response = await fetch(checkUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ identifier }),
+                    signal: accountCheckController.signal,
+                });
+                const data = await parseResponse(response);
+                const latestIdentifier = (identifierInput ? identifierInput.value : "").trim().toLowerCase();
+                if (requestSequence !== accountCheckSequence || latestIdentifier !== identifier) {
+                    return false;
+                }
+                validatedIdentifier = data.identifier || identifier;
+                syncIdentifier(validatedIdentifier, { updateVisibleInput: advance });
+                clearFieldState(identifierInput, identifierError);
+                hideStatus();
+                if (advance) {
+                    setStep("method");
+                }
+                return true;
+            } catch (error) {
+                if (error && error.name === "AbortError") {
+                    return false;
+                }
+                const latestIdentifier = (identifierInput ? identifierInput.value : "").trim().toLowerCase();
+                if (requestSequence !== accountCheckSequence || latestIdentifier !== identifier) {
+                    return false;
+                }
+                validatedIdentifier = "";
+                setStep("identify");
+                const message = error.message || "This account is not registered. Please sign up.";
+                setFieldState(identifierInput, identifierError, false, message);
+                return false;
+            } finally {
+                if (requestSequence === accountCheckSequence) {
+                    accountCheckController = null;
+                    setIdentifyBusy(false);
+                }
+            }
+        };
+
+        const chooseMethod = () => {
+            resetAccountValidation();
             const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
             if (!identifier) {
                 setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
                 return;
             }
-            if (resetPinBackup) {
-                resetPinBackup.hidden = true;
-            }
-            setStep("method");
+            validateAccount({ advance: true });
         };
 
         const validatePassword = () => {
@@ -2324,6 +2425,19 @@ document.addEventListener("DOMContentLoaded", () => {
             confirmInput.addEventListener("input", validateConfirm);
         }
 
+        if (identifierInput) {
+            identifierInput.addEventListener("input", () => {
+                const identifier = syncIdentifier(identifierInput.value, { updateVisibleInput: false });
+                resetAccountValidation();
+                if (!identifier) {
+                    return;
+                }
+                accountCheckTimer = window.setTimeout(() => {
+                    validateAccount({ advance: false, quiet: true });
+                }, 350);
+            });
+        }
+
         if (resendButton) {
             resendButton.addEventListener("click", (event) => {
                 if (resendButton.type === "submit") return;
@@ -2401,6 +2515,11 @@ document.addEventListener("DOMContentLoaded", () => {
         resetFlow.addEventListener("submit", (event) => {
             const submitter = event.submitter;
             const submitAction = submitter ? submitter.value || submitter.dataset.resetSubmitAction : "";
+            if (submitAction === "choose_method") {
+                event.preventDefault();
+                chooseMethod();
+                return;
+            }
             if (!submitAction || nativeResetActions.has(submitAction)) {
                 return;
             }
