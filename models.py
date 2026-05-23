@@ -12,6 +12,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(120), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    account_username = db.Column(db.String(30))
     password_hash = db.Column(db.String(255), nullable=False)
     pin_number = db.Column(db.String(255))
     security_pin_hash = db.Column(db.String(255))

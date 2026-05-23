@@ -854,12 +854,24 @@ def initialize_runtime(app):
 def ensure_runtime_schema():
     inspector = inspect(db.engine)
     tables = set(inspector.get_table_names())
+    preparer = db.engine.dialect.identifier_preparer
+
+    def drop_unused_group_key(connection, table_name, columns):
+        if "group_key" not in columns:
+            return
+        connection.execute(text(f"ALTER TABLE {preparer.quote(table_name)} DROP COLUMN {preparer.quote('group_key')}"))
+        columns.discard("group_key")
+
     if "users" in tables:
         columns = {column["name"] for column in inspector.get_columns("users")}
         with db.engine.begin() as connection:
+            drop_unused_group_key(connection, "users", columns)
             if "username" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR(80)"))
                 columns.add("username")
+            if "account_username" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN account_username VARCHAR(30)"))
+                columns.add("account_username")
             if "supabase_user_id" not in columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN supabase_user_id VARCHAR(80)"))
                 columns.add("supabase_user_id")
@@ -922,6 +934,16 @@ def ensure_runtime_schema():
                     "WHERE username IS NULL OR username = ''"
                 )
             )
+            if db.engine.dialect.name == "postgresql":
+                connection.execute(
+                    text(
+                        "UPDATE users "
+                        "SET account_username = left("
+                        "regexp_replace(split_part(username, '@', 1), '[^A-Za-z0-9._-]', '', 'g') || id, 30"
+                        ") "
+                        "WHERE account_username IS NULL OR account_username = ''"
+                    )
+                )
             admin_emails = [
                 admin_email.strip().lower()
                 for admin_email in (os.getenv("ADMIN_EMAILS") or "").split(",")
@@ -944,6 +966,7 @@ def ensure_runtime_schema():
                 "id",
                 "full_name",
                 "username",
+                "account_username",
                 "password_hash",
                 "pin_number",
                 "security_pin_hash",
@@ -955,7 +978,6 @@ def ensure_runtime_schema():
                 "email_verified_at",
                 "created_at",
             }
-            preparer = db.engine.dialect.identifier_preparer
             for column in inspector.get_columns("users"):
                 column_name = column["name"]
                 if column_name in expected_columns or column.get("nullable", True):
@@ -999,6 +1021,7 @@ def ensure_runtime_schema():
             continue
         columns = {column["name"] for column in inspector.get_columns(table_name)}
         with db.engine.begin() as connection:
+            drop_unused_group_key(connection, table_name, columns)
             if "user_id" not in columns:
                 connection.execute(text(statements["add_column"]))
             connection.execute(text(statements["index"]))
@@ -1015,6 +1038,7 @@ def ensure_runtime_schema():
             continue
         columns = {column["name"] for column in inspector.get_columns(table_name)}
         with db.engine.begin() as connection:
+            drop_unused_group_key(connection, table_name, columns)
             if "client_sync_id" not in columns:
                 connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN client_sync_id VARCHAR(80)"))
             if "client_updated_at" not in columns:
@@ -1022,6 +1046,12 @@ def ensure_runtime_schema():
             connection.execute(
                 text(f"CREATE INDEX IF NOT EXISTS idx_{table_name}_client_sync_id ON {table_name}(client_sync_id)")
             )
+    for table_name in {"web_push_subscriptions", "push_notification_logs", "admin_notes"}:
+        if table_name not in tables:
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table_name)}
+        with db.engine.begin() as connection:
+            drop_unused_group_key(connection, table_name, columns)
     if "user_profiles" in tables:
         columns = {column["name"] for column in inspector.get_columns("user_profiles")}
         required_columns = {
@@ -1033,8 +1063,9 @@ def ensure_runtime_schema():
             "notify_alerts": "ALTER TABLE user_profiles ADD COLUMN notify_alerts BOOLEAN",
         }
         missing = [ddl for name, ddl in required_columns.items() if name not in columns]
-        if missing:
+        if missing or "group_key" in columns:
             with db.engine.begin() as connection:
+                drop_unused_group_key(connection, "user_profiles", columns)
                 for ddl in missing:
                     connection.execute(text(ddl))
         with db.engine.begin() as connection:
@@ -1401,6 +1432,7 @@ def register_routes(app):
             "id": user.id,
             "full_name": user.full_name,
             "username": user.username,
+            "account_username": user.account_username,
             "email": user.username,
             "email_verified": safe_bool(user.email_verified),
             "dark_mode": safe_bool(profile.dark_mode),
@@ -1892,10 +1924,11 @@ def register_routes(app):
             "verified_at": datetime.utcnow().isoformat(),
         }
 
-    def ensure_local_user(email, password=None, full_name="", auth_user=None, security_pin=None):
+    def ensure_local_user(email, password=None, full_name="", auth_user=None, security_pin=None, account_username=""):
         normalized_email = normalize_email(email)
         user = User.query.filter_by(username=normalized_email).first()
         resolved_full_name = normalize_full_name(full_name) or auth_user_full_name(auth_user, normalized_email)
+        resolved_account_username = (account_username or "").strip()
         resolved_verified_at = supabase_user_verified_at(auth_user)
         resolved_supabase_user_id = (getattr(auth_user, "id", "") or "").strip() if auth_user else ""
         admin_emails = {
@@ -1909,6 +1942,7 @@ def register_routes(app):
             user = User(
                 full_name=resolved_full_name or fallback_full_name(normalized_email),
                 username=normalized_email,
+                account_username=resolved_account_username or None,
                 password_hash=hash_password(password or os.urandom(16).hex()),
                 pin_number=hash_password(security_pin or "2005"),
                 security_pin_hash=hash_password(security_pin) if security_pin else None,
@@ -1925,6 +1959,9 @@ def register_routes(app):
         changed = False
         if resolved_full_name and user.full_name != resolved_full_name:
             user.full_name = resolved_full_name
+            changed = True
+        if resolved_account_username and user.account_username != resolved_account_username:
+            user.account_username = resolved_account_username
             changed = True
         if resolved_supabase_user_id and user.supabase_user_id != resolved_supabase_user_id:
             user.supabase_user_id = resolved_supabase_user_id
@@ -4527,6 +4564,7 @@ def register_routes(app):
                         email,
                         full_name=full_name,
                         security_pin=security_pin,
+                        account_username=pending.get("account_username", ""),
                     )
                     clear_pending_registration()
                     remember_pending_verification(email, verification_type="email", new_account=True)
@@ -4545,11 +4583,25 @@ def register_routes(app):
                 full_name=full_name,
                 auth_user=response_auth_user(auth_response),
                 security_pin=security_pin,
+                account_username=pending.get("account_username", ""),
             )
+            otp_send_warning = None
+            try:
+                resend_signup_otp(email)
+            except Exception as otp_error:
+                log_supabase_otp_error(email, otp_error)
+                if is_rate_limited_error(otp_error):
+                    otp_send_warning = otp_cooldown_message(otp_error)
+                    remember_otp_request(email)
+                else:
+                    form_errors["email"] = otp_send_error_message(otp_error)
+                    return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values, form_errors))
             clear_pending_registration()
             remember_pending_verification(email, verification_type="signup", new_account=True)
-            remember_otp_request(email)
-            flash("OTP sent to your email.", "success")
+            if otp_send_warning:
+                flash(f"Account created. {otp_send_warning}", "warning")
+            else:
+                flash("OTP sent to your email.", "success")
             return redirect(url_for("verify_email"))
         return render_template("auth/setup_pin.html", **build_auth_context("setup_pin", form_values))
 
@@ -5951,6 +6003,7 @@ def register_routes(app):
 
         full_name = normalize_full_name(payload.get("full_name"))
         email = normalize_email(payload.get("email") or payload.get("username"))
+        account_username = (payload.get("account_username") or "").strip()
         password = payload.get("password") or ""
         confirm_password = payload.get("confirm_password") or ""
         field_errors = {}
@@ -5959,6 +6012,8 @@ def register_routes(app):
             field_errors["full_name"] = full_name_help
         if not valid_email(email):
             field_errors["email"] = email_help
+        if account_username and not valid_account_username(account_username):
+            field_errors["account_username"] = account_username_help()
         if not password:
             field_errors["password"] = "Password is required."
         if password != confirm_password:
@@ -5991,6 +6046,7 @@ def register_routes(app):
             password=password,
             full_name=full_name,
             auth_user=response_auth_user(auth_response),
+            account_username=account_username,
         )
         remember_pending_verification(email, new_account=True)
         remember_otp_request(email)
