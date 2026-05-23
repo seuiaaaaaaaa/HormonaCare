@@ -200,7 +200,7 @@ def build_weekly_display_label(predicted_label, logged_days):
 def build_weekly_badge_label(predicted_label, logged_days):
     if logged_days <= 0:
         return "No recent logs"
-    return "Recent logged data"
+    return "Dataset-trained ML"
 
 
 def build_weekly_result_label(predicted_label, logged_days):
@@ -213,8 +213,8 @@ def build_weekly_trend_label(logged_days):
     if logged_days <= 0:
         return "Trend pending"
     if logged_days <= 5:
-        return "Preliminary Trend"
-    return "Wellness Trend"
+        return "Preliminary ML Trend"
+    return "ML Wellness Trend"
 
 
 def build_weekly_checkin_line(logged_days):

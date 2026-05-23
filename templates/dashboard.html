@@ -19,7 +19,6 @@
         {% set wellness_logged_days = metrics.weekly_wellness_trend.logged_days|default(0) %}
         {% set wellness_completion = ((wellness_logged_days / 7) * 100)|round(0, 'floor') %}
         {% set wellness_result_label = metrics.weekly_wellness_trend.result_label|default(metrics.weekly_wellness_trend.display_label|default(metrics.weekly_wellness_trend.predicted_label)) %}
-        {% set wellness_soft_label = 'Needs attention' if wellness_result_label|lower == 'declining' else wellness_result_label %}
         <div class="wellness-card-header">
             <div class="wellness-card-title-wrap">
                 <div>
@@ -44,9 +43,9 @@
                             {{ metrics.weekly_wellness_trend.trend_label|default('Wellness Trend') }}
                         </p>
                         <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
-                            {{ wellness_soft_label }}
+                            {{ wellness_result_label }}
                         </p>
-                        <p class="wellness-support-context">A supportive trend check from your recent logs.</p>
+                        <p class="wellness-support-context">Dataset-trained ML prediction from your recent logs.</p>
                     </div>
                 </div>
 
