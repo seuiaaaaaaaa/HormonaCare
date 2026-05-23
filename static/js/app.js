@@ -2078,6 +2078,11 @@ document.addEventListener("DOMContentLoaded", () => {
             statusNode.classList.remove("is-error", "is-success", "is-info");
         };
 
+        const updateIdentifierInputName = (stepName) => {
+            if (!identifierInput) return;
+            identifierInput.name = stepName === "identify" ? "identifier_input" : "identifier_input_disabled";
+        };
+
         const syncIdentifier = (value, options = {}) => {
             const updateVisibleInput = options.updateVisibleInput !== false;
             const cleanValue = (value || "").trim().toLowerCase();
@@ -2095,6 +2100,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const setStep = (stepName) => {
             currentStep = stepName;
+            updateIdentifierInputName(stepName);
             if (stepActionInput) {
                 const fallbackByStep = {
                     identify: "choose_method",

@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-fast-submit")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-otp-password-step")
 
 
 def app_now():
@@ -5190,12 +5190,16 @@ def register_routes(app):
         reset_step = "identify"
         if request.method == "POST":
             action = (request.form.get("reset_action") or request.form.get("reset_step_action") or "choose_method").strip()
-            identifier = normalize_email(
-                request.form.get("identifier_input")
-                or request.form.get("identifier")
-                or request.form.get("email")
-                or session.get("reset_password_email")
-            )
+            if action == "choose_method":
+                identifier_source = request.form.get("identifier_input")
+            else:
+                identifier_source = (
+                    request.form.get("identifier")
+                    or request.form.get("email")
+                    or session.get("reset_password_email")
+                    or request.form.get("identifier_input")
+                )
+            identifier = normalize_email(identifier_source)
             form_values["identifier"] = identifier
             user = find_user_by_auth_identifier(identifier)
 
@@ -5286,6 +5290,8 @@ def register_routes(app):
                         local_verified, local_error = verify_local_otp_challenge(user.username, "password_reset", otp)
                         if local_verified is True:
                             remember_local_password_reset_verification(user.username)
+                            form_values["identifier"] = user.username
+                            form_values["otp"] = ""
                             reset_step = "password"
                             flash("Code verified.", "success")
                         elif local_verified is False:
@@ -5308,6 +5314,8 @@ def register_routes(app):
                                 reset_step = "otp"
                             else:
                                 remember_password_reset_verification(user.username, auth_session)
+                                form_values["identifier"] = user.username
+                                form_values["otp"] = ""
                                 reset_step = "password"
                                 flash("OTP verified.", "success")
                         except Exception as error:
