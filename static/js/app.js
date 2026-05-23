@@ -1989,6 +1989,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const nativePasswordResetFlow = document.getElementById("password-reset-flow");
+    if (nativePasswordResetFlow && !nativePasswordResetFlow.matches("[data-password-reset-flow]")) {
+        nativePasswordResetFlow.addEventListener("submit", (event) => {
+            const submitter = event.submitter;
+            if (!submitter || submitter.disabled) return;
+            const action = submitter.value || "";
+            const loadingTextByAction = {
+                choose_method: "Checking...",
+                request_otp: "Sending...",
+                verify_otp: "Verifying...",
+                verify_pin: "Verifying...",
+                update_password: "Updating...",
+            };
+            const loadingText = loadingTextByAction[action];
+            if (!loadingText) return;
+            submitter.dataset.originalText = submitter.textContent;
+            submitter.textContent = loadingText;
+            nativePasswordResetFlow.querySelectorAll("button").forEach((button) => {
+                button.disabled = true;
+            });
+        });
+    }
+
     const resetFlow = document.querySelector("[data-password-reset-flow]");
     if (resetFlow) {
         const checkUrl = resetFlow.dataset.checkUrl;

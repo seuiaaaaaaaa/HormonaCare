@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-active-submit")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-back-cache")
 
 
 def app_now():
@@ -1222,8 +1222,10 @@ def register_routes(app):
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        response.headers["Cache-Control"] = "no-store" if session.get("user_id") else "no-cache"
-        if session.get("user_id"):
+        no_store_paths = {"/forgot-password", "/login", "/reset-password"}
+        should_no_store = bool(session.get("user_id")) or request.path in no_store_paths
+        response.headers["Cache-Control"] = "no-store" if should_no_store else "no-cache"
+        if should_no_store:
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
         if request.path == "/static/service-worker.js":
@@ -4648,6 +4650,8 @@ def register_routes(app):
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
+        if request.method == "GET" and request.args.get("clear_reset") == "1":
+            clear_password_reset_state()
         redirect_response = redirect_authenticated_user()
         if redirect_response:
             return redirect_response
@@ -5182,6 +5186,9 @@ def register_routes(app):
         redirect_response = redirect_authenticated_user()
         if redirect_response:
             return redirect_response
+
+        if request.method == "GET" and request.args.get("fresh") == "1":
+            clear_password_reset_state()
 
         form_values = {
             "identifier": "",
