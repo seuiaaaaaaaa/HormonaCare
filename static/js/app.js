@@ -2425,6 +2425,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const emailDisplays = settingsPasswordModal.querySelectorAll("[data-settings-password-email-display]");
         const panels = Array.from(settingsPasswordModal.querySelectorAll("[data-settings-password-panel]"));
         const methodButtons = Array.from(settingsPasswordModal.querySelectorAll("[data-settings-password-method]"));
+        const recoveryRegion = settingsPasswordModal.querySelector("[data-settings-password-recovery]");
+        const showRecoveryButton = settingsPasswordModal.querySelector("[data-settings-password-show-recovery]");
         const openButtons = Array.from(document.querySelectorAll("[data-settings-password-open]"));
         const backButtons = Array.from(settingsPasswordModal.querySelectorAll("[data-settings-password-back]"));
         const resendButton = settingsPasswordModal.querySelector("[data-settings-resend-otp]");
@@ -2535,6 +2537,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.clearTimeout(closeTimer);
                 closeTimer = null;
             }
+            if (recoveryRegion) {
+                recoveryRegion.hidden = true;
+            }
             clearSensitiveInputs();
             clearErrors();
             hideStatus();
@@ -2605,7 +2610,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStep("new");
                 showStatus(data.message || "Current password verified.", "success");
             } catch (error) {
-                setFieldState(currentPasswordInput, currentPasswordError, false, error.message || "Current password is incorrect.");
+                setFieldState(currentPasswordInput, currentPasswordError, false, error.message || "Verification failed. Please try again.");
             } finally {
                 setBusy(false);
             }
@@ -2619,6 +2624,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             setBusy(true);
             try {
+                if (!sendOtpUrl) {
+                    throw { message: "Email OTP recovery is not available for this account right now." };
+                }
                 const response = await fetch(sendOtpUrl, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2659,7 +2667,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStep("new");
                 showStatus(data.message || "OTP verified.", "success");
             } catch (error) {
-                setFieldState(otpInput, otpError, false, error.message || "Invalid or expired code.");
+                setFieldState(otpInput, otpError, false, error.message || "Verification failed. Please try again.");
             } finally {
                 setBusy(false);
             }
@@ -2689,6 +2697,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             setBusy(true);
             try {
+                if (!verifyPinUrl) {
+                    throw { message: "Recovery PIN is not available for this account right now." };
+                }
                 const response = await fetch(verifyPinUrl, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2703,7 +2714,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 setStep("new");
                 showStatus(data.message || "Security PIN verified.", "success");
             } catch (error) {
-                setFieldState(pinInput, pinError, false, error.message || "Incorrect Security PIN Number.");
+                setFieldState(pinInput, pinError, false, error.message || "Verification failed. Please try again.");
             } finally {
                 setBusy(false);
             }
@@ -2749,7 +2760,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 } else if (error.field === "current_password") {
                     setStep("current");
-                    setFieldState(currentPasswordInput, currentPasswordError, false, error.message || "Current password is incorrect.");
+                    setFieldState(currentPasswordInput, currentPasswordError, false, error.message || "Verification failed. Please try again.");
                 } else {
                     setFieldState(newPasswordInput, newPasswordError, false, error.message || "We could not update your password right now.");
                 }
@@ -2774,6 +2785,13 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
+        if (showRecoveryButton && recoveryRegion) {
+            showRecoveryButton.addEventListener("click", () => {
+                recoveryRegion.hidden = false;
+                showStatus("Secure recovery options are shown below. Use them only if you cannot verify with your current password.", "info");
+            });
+        }
+
         backButtons.forEach((button) => {
             button.addEventListener("click", (event) => {
                 event.preventDefault();
@@ -2781,6 +2799,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 clearErrors();
                 hideStatus();
                 resetPasswordVisibility();
+                if (recoveryRegion) {
+                    recoveryRegion.hidden = true;
+                }
                 setStep("method");
             });
         });

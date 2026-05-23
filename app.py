@@ -2025,6 +2025,122 @@ def register_routes(app):
         if challenge.get("purpose") == "settings_password":
             session.pop("local_otp_challenge", None)
 
+    def settings_password_security_state():
+        state = session.get("settings_password_security") or {}
+        return state if isinstance(state, dict) else {}
+
+    def save_settings_password_security_state(state):
+        session["settings_password_security"] = state
+
+    def clear_settings_password_security_state():
+        session.pop("settings_password_security", None)
+
+    def reset_settings_password_method_security(method):
+        state = settings_password_security_state()
+        state.pop(method, None)
+        save_settings_password_security_state(state)
+
+    def settings_password_method_lock_response(method, field):
+        state = settings_password_security_state()
+        method_state = state.get(method) if isinstance(state.get(method), dict) else {}
+        locked_until = method_state.get("locked_until")
+        if not locked_until:
+            return None
+        try:
+            locked_until_dt = datetime.fromisoformat(locked_until)
+        except ValueError:
+            method_state.pop("locked_until", None)
+            state[method] = method_state
+            save_settings_password_security_state(state)
+            return None
+        if datetime.utcnow() >= locked_until_dt:
+            method_state.pop("locked_until", None)
+            method_state["attempts"] = 0
+            state[method] = method_state
+            save_settings_password_security_state(state)
+            return None
+        remaining_minutes = max(1, int((locked_until_dt - datetime.utcnow()).total_seconds() // 60) + 1)
+        return {
+            "field": field,
+            "message": f"For your security, this verification method is temporarily paused. Try again in {remaining_minutes} minute(s) or use email OTP.",
+        }, 429
+
+    def register_settings_password_failure(method, field, max_attempts, cooldown_minutes):
+        state = settings_password_security_state()
+        method_state = state.get(method) if isinstance(state.get(method), dict) else {}
+        attempts = int(method_state.get("attempts") or 0) + 1
+        if attempts >= max_attempts:
+            method_state["attempts"] = 0
+            method_state["locked_until"] = (datetime.utcnow() + timedelta(minutes=cooldown_minutes)).isoformat()
+            state[method] = method_state
+            save_settings_password_security_state(state)
+            return {
+                "field": field,
+                "message": f"For your security, this verification method is temporarily paused. You may use email OTP or try again in {cooldown_minutes} minutes.",
+            }, 429
+        method_state["attempts"] = attempts
+        method_state.pop("locked_until", None)
+        state[method] = method_state
+        save_settings_password_security_state(state)
+        remaining = max_attempts - attempts
+        return {
+            "field": field,
+            "message": f"Verification failed. Please try again. {remaining} attempt(s) remaining.",
+        }, 401
+
+    def settings_password_otp_send_limit_response(email):
+        state = settings_password_security_state()
+        send_state = state.get("otp_send") if isinstance(state.get("otp_send"), dict) else {}
+        now = datetime.utcnow()
+        window_started_at = send_state.get("window_started_at")
+        try:
+            window_started_dt = datetime.fromisoformat(window_started_at) if window_started_at else now
+        except ValueError:
+            window_started_dt = now
+        if (now - window_started_dt).total_seconds() > 900 or normalize_email(send_state.get("email")) != normalize_email(email):
+            send_state = {"email": normalize_email(email), "window_started_at": now.isoformat(), "count": 0}
+        send_count = int(send_state.get("count") or 0)
+        if send_count >= 5:
+            state["otp_send"] = send_state
+            save_settings_password_security_state(state)
+            return {
+                "field": "otp",
+                "message": "For your security, OTP requests are temporarily limited. Please wait a few minutes before requesting another code.",
+            }, 429
+        send_state["count"] = send_count + 1
+        state["otp_send"] = send_state
+        save_settings_password_security_state(state)
+        return None
+
+    def register_settings_password_otp_failure(user):
+        state = settings_password_security_state()
+        method_state = state.get("otp") if isinstance(state.get("otp"), dict) else {}
+        attempts = int(method_state.get("attempts") or 0) + 1
+        if attempts >= 5:
+            method_state["attempts"] = 0
+            state["otp"] = method_state
+            save_settings_password_security_state(state)
+            try:
+                send_password_recovery_otp(user.username)
+                return {
+                    "field": "otp",
+                    "message": "Verification failed. We sent a new code to your email for your security.",
+                }, 401
+            except Exception as error:
+                log_supabase_otp_error(user.username, error)
+                return {
+                    "field": "otp",
+                    "message": "Verification failed. Please request a new code and try again.",
+                }, 401
+        method_state["attempts"] = attempts
+        state["otp"] = method_state
+        save_settings_password_security_state(state)
+        remaining = 5 - attempts
+        return {
+            "field": "otp",
+            "message": f"Verification failed. Please try again. {remaining} attempt(s) remaining.",
+        }, 401
+
     def remember_settings_password_verification(email, auth_session, method):
         access_token = auth_session_value(auth_session, "access_token")
         refresh_token = auth_session_value(auth_session, "refresh_token")
@@ -2108,7 +2224,7 @@ def register_routes(app):
             "email": normalize_email(email),
             "purpose": purpose,
             "code_hash": hash_password(code),
-            "expires_at": (datetime.utcnow() + timedelta(minutes=10)).isoformat(),
+            "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
             "attempts": 0,
         }
         return code
@@ -6157,6 +6273,9 @@ def register_routes(app):
     @login_required
     def settings_password_verify_current():
         user = current_user()
+        lock_response = settings_password_method_lock_response("current_password", "current_password")
+        if lock_response:
+            return lock_response
         payload = request.get_json(silent=True) if request.is_json else {}
         current_password = (
             request.form.get("current_password")
@@ -6175,8 +6294,9 @@ def register_routes(app):
             auth_user = response_auth_user(auth_response)
             if not auth_session:
                 clear_settings_password_state()
-                return {"field": "current_password", "message": "Current password is incorrect."}, 401
+                return register_settings_password_failure("current_password", "current_password", 5, 10)
             remember_settings_password_verification(user.username, auth_session, "current_password")
+            reset_settings_password_method_security("current_password")
             ensure_local_user(user.username, full_name=user.full_name, auth_user=auth_user)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
@@ -6185,14 +6305,13 @@ def register_routes(app):
                 and verify_password(current_password, user.password_hash)
             ):
                 remember_local_settings_password_verification(user.username, "local_current_password")
+                reset_settings_password_method_security("current_password")
                 return {"message": "Current password verified."}
             clear_settings_password_state()
-            message = (
-                "Current password is incorrect."
-                if is_invalid_login_error(error)
-                else friendly_supabase_error(error, "We could not verify your current password right now.")
-            )
-            return {"field": "current_password", "message": message}, 401 if is_invalid_login_error(error) else 503 if is_timeout_error(error) or is_network_error(error) else 400
+            if is_invalid_login_error(error):
+                return register_settings_password_failure("current_password", "current_password", 5, 10)
+            message = friendly_supabase_error(error, "We could not verify your current password right now.")
+            return {"field": "current_password", "message": message}, 503 if is_timeout_error(error) or is_network_error(error) else 400
 
         return {"message": "Current password verified."}
 
@@ -6203,6 +6322,9 @@ def register_routes(app):
         retry_in = otp_retry_seconds(user.username)
         if retry_in > 0:
             return {"field": "otp", "message": f"Please wait {retry_in} seconds before requesting another code."}, 429
+        otp_send_limit_response = settings_password_otp_send_limit_response(user.username)
+        if otp_send_limit_response:
+            return otp_send_limit_response
 
         clear_settings_password_state()
         try:
@@ -6250,10 +6372,11 @@ def register_routes(app):
             local_verified, local_error = verify_local_otp_challenge(user.username, "settings_password", otp)
             if local_verified is True:
                 remember_local_settings_password_verification(user.username, "local_otp")
+                reset_settings_password_method_security("otp")
                 return {"message": "OTP verified."}
             if local_verified is False:
                 clear_settings_password_state()
-                return {"field": "otp", "message": local_error or "Invalid or expired code."}, 401
+                return register_settings_password_otp_failure(user)
 
         try:
             supabase = get_supabase_client()
@@ -6268,21 +6391,20 @@ def register_routes(app):
             auth_session = response_auth_session(auth_response)
             if not auth_user or not auth_session:
                 clear_settings_password_state()
-                return {"field": "otp", "message": "Invalid or expired code."}, 401
+                return register_settings_password_otp_failure(user)
             remember_settings_password_verification(user.username, auth_session, "otp")
+            reset_settings_password_method_security("otp")
             ensure_local_user(user.username, full_name=user.full_name, auth_user=auth_user)
         except Exception as error:
             clear_settings_password_state()
             log_supabase_otp_error(user.username, error)
-            message = (
-                "Invalid or expired code."
-                if is_invalid_otp_error(error)
-                else password_reset_error_message(
-                    error,
-                    "We could not verify your code right now. Please try again later.",
-                )
+            if is_invalid_otp_error(error):
+                return register_settings_password_otp_failure(user)
+            message = password_reset_error_message(
+                error,
+                "We could not verify your code right now. Please try again later.",
             )
-            return {"field": "otp", "message": message}, 401 if is_invalid_otp_error(error) else 503 if is_timeout_error(error) or is_network_error(error) else 400
+            return {"field": "otp", "message": message}, 503 if is_timeout_error(error) or is_network_error(error) else 400
 
         return {"message": "OTP verified."}
 
@@ -6290,6 +6412,9 @@ def register_routes(app):
     @login_required
     def settings_password_verify_pin():
         user = current_user()
+        lock_response = settings_password_method_lock_response("security_pin", "security_pin")
+        if lock_response:
+            return lock_response
         payload = request.get_json(silent=True) if request.is_json else {}
         security_pin = normalize_pin(
             request.form.get("security_pin")
@@ -6302,8 +6427,14 @@ def register_routes(app):
         verified, message = verify_user_pin(user, security_pin)
         if not verified:
             clear_settings_password_state()
-            return {"field": "security_pin", "message": message or "Incorrect Security PIN Number."}, 401
+            if message and "Too many" in message:
+                return {
+                    "field": "security_pin",
+                    "message": "For your security, Recovery PIN is temporarily paused. Please use email OTP or try again later.",
+                }, 429
+            return register_settings_password_failure("security_pin", "security_pin", 3, 10)
         remember_local_settings_password_verification(user.username, "security_pin")
+        reset_settings_password_method_security("security_pin")
         return {"message": "Security PIN verified."}
 
     @app.post("/settings/password/update")
@@ -6343,6 +6474,7 @@ def register_routes(app):
                 full_name=user.full_name,
             )
             clear_settings_password_state()
+            clear_settings_password_security_state()
             return {"message": "Password changed successfully."}
 
         try:
@@ -6371,6 +6503,7 @@ def register_routes(app):
             auth_user=auth_user,
         )
         clear_settings_password_state()
+        clear_settings_password_security_state()
         return {"message": "Password changed successfully."}
 
     @app.post("/settings/pin/update")

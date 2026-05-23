@@ -493,6 +493,366 @@ body.theme-dark .content-shell-dashboard .wellness-checkin-trend {
     }
 }
 
+/* Production healthcare security flow refinement */
+html body .settings-password-modal-card {
+    width: min(680px, calc(100vw - 28px));
+    max-height: min(86vh, 760px);
+    overflow: auto;
+    padding: 30px;
+    border-radius: 28px;
+    border: 1px solid rgba(207, 220, 238, 0.82);
+    background: #ffffff;
+    box-shadow: 0 28px 70px rgba(31, 51, 83, 0.18);
+}
+
+html body .settings-password-modal-head {
+    gap: 9px;
+    margin-bottom: 20px;
+    padding-right: 34px;
+}
+
+html body .settings-password-modal-head .status-line {
+    color: #6f87a5;
+    font-size: 0.82rem;
+    font-weight: 720;
+    letter-spacing: 0;
+}
+
+html body .settings-password-modal-head h2 {
+    color: #142943;
+    font-size: 1.7rem;
+    line-height: 1.18;
+    font-weight: 760;
+    letter-spacing: 0;
+}
+
+html body .settings-password-modal-head p {
+    max-width: 58ch;
+    color: #61748d;
+    font-size: 0.95rem;
+    line-height: 1.58;
+}
+
+html body .settings-password-flow {
+    gap: 18px;
+}
+
+html body .settings-password-panel.is-active {
+    gap: 16px;
+}
+
+html body .settings-password-primary-choice {
+    display: grid;
+    gap: 12px;
+}
+
+html body .settings-password-method {
+    border-radius: 22px;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+html body .settings-password-method:hover {
+    transform: translateY(-1px);
+}
+
+html body .settings-password-method-primary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    padding: 22px;
+    border: 1px solid rgba(90, 132, 178, 0.26);
+    background: linear-gradient(145deg, #fbfdff 0%, #f4f9ff 100%);
+    box-shadow: 0 18px 38px rgba(57, 89, 128, 0.11);
+    color: #172d48;
+}
+
+html body .settings-password-method-primary:hover {
+    border-color: rgba(75, 118, 166, 0.42);
+    box-shadow: 0 20px 44px rgba(57, 89, 128, 0.15);
+}
+
+html body .settings-password-method-copy {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+html body .settings-password-method strong {
+    color: #142943;
+    font-size: 1.02rem;
+    line-height: 1.28;
+    font-weight: 740;
+    letter-spacing: 0;
+}
+
+html body .settings-password-method span:last-child {
+    color: #627790;
+    font-size: 0.9rem;
+    line-height: 1.48;
+}
+
+html body .settings-security-chip {
+    width: max-content;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #eaf5f4;
+    color: #42736d;
+    font-size: 0.7rem;
+    font-weight: 760;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+html body .settings-security-chip-muted {
+    background: #f3f6fa;
+    color: #7c8da3;
+}
+
+html body .settings-password-method-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #6ba7a3 0%, #5279aa 100%);
+    box-shadow: 0 12px 24px rgba(77, 120, 160, 0.18);
+}
+
+html body .settings-password-method-secondary .settings-password-method-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #6387bd 0%, #5f9ca0 100%);
+    box-shadow: 0 10px 20px rgba(72, 105, 151, 0.12);
+}
+
+html body .settings-password-method-backup .settings-password-method-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: #edf2f7;
+    box-shadow: none;
+}
+
+html body .settings-password-method-backup .settings-password-method-icon::before {
+    border-color: #73849a;
+}
+
+html body .settings-password-method-backup .settings-password-method-icon::after {
+    background: #73849a;
+    box-shadow: 0 7px 0 #73849a;
+}
+
+html body .settings-forgot-trigger {
+    justify-self: start;
+    min-height: 40px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: #56789e;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+html body .settings-forgot-trigger:hover,
+html body .settings-forgot-trigger:focus-visible {
+    color: #315f8d;
+    text-decoration: underline;
+}
+
+html body .settings-recovery-region {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 16px;
+    border: 1px solid rgba(219, 229, 241, 0.92);
+    border-radius: 22px;
+    background: #fbfdff;
+}
+
+html body .settings-recovery-region[hidden] {
+    display: none;
+}
+
+html body .settings-recovery-copy {
+    display: grid;
+    gap: 4px;
+}
+
+html body .settings-recovery-copy > span {
+    color: #4f6681;
+    font-size: 0.84rem;
+    font-weight: 750;
+}
+
+html body .settings-recovery-copy p {
+    margin: 0;
+    color: #7a8ba0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+html body .settings-password-recovery-list {
+    display: grid;
+    gap: 10px;
+}
+
+html body .settings-password-method-secondary,
+html body .settings-password-method-backup {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 13px;
+    padding: 15px;
+    border: 1px solid rgba(216, 226, 240, 0.9);
+    background: #ffffff;
+    box-shadow: none;
+}
+
+html body .settings-password-method-secondary:hover {
+    border-color: rgba(94, 130, 176, 0.34);
+    box-shadow: 0 12px 26px rgba(57, 89, 128, 0.07);
+}
+
+html body .settings-password-method-backup {
+    width: min(100%, 520px);
+    padding: 12px 14px;
+    border-style: dashed;
+    background: #fcfdff;
+    opacity: 0.92;
+}
+
+html body .settings-password-method-backup strong {
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+html body .settings-password-method-backup span:last-child {
+    font-size: 0.82rem;
+}
+
+html body .settings-attempt-helper {
+    margin: -4px 0 0;
+    color: #7d8da2;
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+html body .settings-password-actions {
+    gap: 12px;
+}
+
+html body .settings-password-actions .auth-gradient-button {
+    min-width: 210px;
+    background: linear-gradient(135deg, #5d8da9 0%, #6ba7a3 100%);
+    box-shadow: 0 14px 30px rgba(85, 133, 158, 0.2);
+}
+
+html body .settings-password-actions .auth-secondary-button {
+    border-color: rgba(91, 124, 163, 0.22);
+    background: #f7fafc;
+    color: #4f6681;
+}
+
+html body .settings-password-actions .auth-text-button {
+    color: #647893;
+}
+
+html body .settings-password-modal-card .auth-inline-status {
+    border-radius: 16px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+    html body .settings-password-modal-card {
+        width: min(100%, calc(100vw - 18px));
+        max-height: 88vh;
+        padding: 20px;
+        border-radius: 22px;
+    }
+
+    html body .settings-password-modal-head {
+        gap: 7px;
+        margin-bottom: 15px;
+        padding-right: 30px;
+    }
+
+    html body .settings-password-modal-head h2 {
+        font-size: 1.35rem;
+    }
+
+    html body .settings-password-modal-head p {
+        font-size: 0.86rem;
+        line-height: 1.5;
+    }
+
+    html body .settings-password-panel.is-active,
+    html body .settings-password-primary-choice,
+    html body .settings-password-flow {
+        gap: 12px;
+    }
+
+    html body .settings-password-method-primary {
+        gap: 12px;
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    html body .settings-password-method-secondary,
+    html body .settings-password-method-backup {
+        gap: 10px;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    html body .settings-recovery-region {
+        padding: 12px;
+        border-radius: 18px;
+    }
+
+    html body .settings-password-method-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 14px;
+    }
+
+    html body .settings-password-method-secondary .settings-password-method-icon,
+    html body .settings-password-method-backup .settings-password-method-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 11px;
+    }
+
+    html body .settings-password-method strong {
+        font-size: 0.94rem;
+    }
+
+    html body .settings-password-method span:last-child,
+    html body .settings-attempt-helper {
+        font-size: 0.78rem;
+    }
+
+    html body .settings-security-chip {
+        padding: 4px 8px;
+        font-size: 0.66rem;
+    }
+
+    html body .settings-password-actions {
+        display: grid;
+        gap: 9px;
+    }
+
+    html body .settings-password-actions .auth-gradient-button,
+    html body .settings-password-actions .auth-secondary-button,
+    html body .settings-password-actions .auth-text-button {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
 /* Production dashboard wellness layout refinement */
 html body .content-shell-dashboard {
     max-width: 1160px;

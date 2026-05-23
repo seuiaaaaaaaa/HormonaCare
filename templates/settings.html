@@ -117,29 +117,48 @@
         <div class="settings-password-modal-head">
             <span class="status-line">Account Security</span>
             <h2 id="settings-password-modal-title">Change Password</h2>
-            <p>Choose how you want to verify this change for <strong data-settings-password-email-display>{{ current_user.username }}</strong>.</p>
+            <p>Confirm this change for <strong data-settings-password-email-display>{{ current_user.username }}</strong>. For your security, recovery methods are recommended only if you no longer remember your password.</p>
         </div>
 
         <div class="auth-inline-status hidden-error" data-settings-password-status></div>
 
         <form class="settings-password-flow" data-settings-password-flow novalidate>
             <section class="settings-password-panel is-active" data-settings-password-panel="method">
-                <div class="settings-password-method-grid">
-                    <button type="button" class="settings-password-method" data-settings-password-method="current">
+                <div class="settings-password-primary-choice">
+                    <button type="button" class="settings-password-method settings-password-method-primary" data-settings-password-method="current">
                         <span class="settings-password-method-icon lock" aria-hidden="true"></span>
-                        <strong>Enter Current Password</strong>
-                        <span>Use your existing password to unlock the reset form.</span>
+                        <span class="settings-password-method-copy">
+                            <span class="settings-security-chip">Recommended</span>
+                            <strong>Enter Current Password</strong>
+                            <span>Use your existing password to securely unlock the password reset form.</span>
+                        </span>
                     </button>
-                    <button type="button" class="settings-password-method" data-settings-password-method="otp">
-                        <span class="settings-password-method-icon mail" aria-hidden="true"></span>
-                        <strong>Send OTP to Email</strong>
-                        <span>Receive a 6-digit code at your registered email address.</span>
-                    </button>
-                    <button type="button" class="settings-password-method" data-settings-password-method="pin">
-                        <span class="settings-password-method-icon pin" aria-hidden="true"></span>
-                        <strong>Verify Using PIN Number</strong>
-                        <span>Use your registered Security PIN Number to continue.</span>
-                    </button>
+                    <button type="button" class="settings-forgot-trigger" data-settings-password-show-recovery>Forgot password?</button>
+                </div>
+
+                <div class="settings-recovery-region" data-settings-password-recovery hidden>
+                    <div class="settings-recovery-copy">
+                        <span>Recovery options</span>
+                        <p>Use these only when you cannot verify with your current password.</p>
+                    </div>
+                    <div class="settings-password-recovery-list">
+                        <button type="button" class="settings-password-method settings-password-method-secondary settings-password-method-otp" data-settings-password-method="otp">
+                            <span class="settings-password-method-icon mail" aria-hidden="true"></span>
+                            <span class="settings-password-method-copy">
+                                <span class="settings-security-chip">Secure Recovery Method</span>
+                                <strong>Send OTP to Email</strong>
+                                <span>Receive a time-limited 6-digit code at your registered email address.</span>
+                            </span>
+                        </button>
+                        <button type="button" class="settings-password-method settings-password-method-backup" data-settings-password-method="pin">
+                            <span class="settings-password-method-icon pin" aria-hidden="true"></span>
+                            <span class="settings-password-method-copy">
+                                <span class="settings-security-chip settings-security-chip-muted">Backup Method</span>
+                                <strong>Use Recovery PIN</strong>
+                                <span>Use your registered Security PIN only when email OTP is unavailable.</span>
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </section>
 
@@ -157,8 +176,9 @@
                     </div>
                     <p class="field-error hidden-error" data-settings-current-password-error></p>
                 </label>
+                <p class="settings-attempt-helper" data-settings-current-attempts>Up to 5 verification attempts are allowed before a short cooldown.</p>
                 <div class="settings-password-actions">
-                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="button" class="auth-text-button" data-settings-password-back>Back to Verification</button>
                     <button type="submit" class="auth-gradient-button">Verify Current Password</button>
                 </div>
             </section>
@@ -174,16 +194,17 @@
                     </div>
                     <p class="field-error hidden-error" data-settings-otp-error></p>
                 </label>
+                <p class="settings-attempt-helper" data-settings-otp-attempts>Codes expire soon. After 5 failed attempts, we will send a new code.</p>
                 <div class="settings-password-actions settings-password-actions-stack">
                     <button type="submit" class="auth-gradient-button">Verify OTP</button>
                     <button type="button" class="auth-secondary-button" data-settings-resend-otp>Resend OTP</button>
-                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="button" class="auth-text-button" data-settings-password-back>Back to Verification</button>
                 </div>
             </section>
 
             <section class="settings-password-panel" data-settings-password-panel="pin">
                 <div class="auth-step-context">
-                    Enter the Security PIN Number registered to <strong data-settings-password-email-display>{{ current_user.username }}</strong>.
+                    Backup recovery for <strong data-settings-password-email-display>{{ current_user.username }}</strong>. OTP is recommended when available.
                 </div>
                 <label>Security PIN Number
                     <div class="auth-input-wrap">
@@ -195,9 +216,10 @@
                     </div>
                     <p class="field-error hidden-error" data-settings-pin-error></p>
                 </label>
+                <p class="settings-attempt-helper" data-settings-pin-attempts>For safety, Recovery PIN allows 3 attempts before a short lock.</p>
                 <div class="settings-password-actions">
-                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
-                    <button type="submit" class="auth-gradient-button">Verify PIN</button>
+                    <button type="button" class="auth-text-button" data-settings-password-back>Back to Verification</button>
+                    <button type="submit" class="auth-secondary-button">Verify Backup PIN</button>
                 </div>
             </section>
 
@@ -226,7 +248,7 @@
                     <p class="field-error hidden-error" data-settings-confirm-password-error></p>
                 </label>
                 <div class="settings-password-actions">
-                    <button type="button" class="auth-text-button" data-settings-password-back>Choose Another Method</button>
+                    <button type="button" class="auth-text-button" data-settings-password-back>Back to Verification</button>
                     <button type="submit" class="auth-gradient-button">Save New Password</button>
                 </div>
             </section>
