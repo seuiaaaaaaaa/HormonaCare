@@ -36,9 +36,15 @@
                 <p class="wellness-status-result wellness-status-result-{{ metrics.weekly_wellness_trend.tone }}">
                     {{ metrics.weekly_wellness_trend.result_label|default(metrics.weekly_wellness_trend.display_label|default(metrics.weekly_wellness_trend.predicted_label)) }}
                 </p>
+                <p class="wellness-support-context">Supportive trend check based on your recent logs, not a medical diagnosis.</p>
                 <div class="wellness-summary-lines">
                     <span>{{ metrics.weekly_wellness_trend.checkin_line|default(metrics.weekly_wellness_trend.explanation) }}</span>
                     <span>Confidence: {{ metrics.weekly_wellness_trend.confidence_level|default(metrics.weekly_wellness_trend.confidence_label|default('Needs more data')) }}</span>
+                </div>
+                <div class="wellness-mini-metrics" aria-label="Wellness trend context">
+                    <span>{{ metrics.weekly_wellness_trend.chart_window_label|default('Recent activity') }}</span>
+                    <span>{{ metrics.weekly_wellness_trend.confidence_level|default(metrics.weekly_wellness_trend.confidence_label|default('Needs more data')) }}</span>
+                    <span>Self-reported logs</span>
                 </div>
                 <p class="wellness-compact-note" title="{{ metrics.weekly_wellness_trend.disclaimer|default('') }}">
                     {{ metrics.weekly_wellness_trend.footer_note|default('This insight does not replace medical advice.') }}
@@ -68,6 +74,7 @@
             <div class="wellness-status-visual wellness-status-visual-{{ metrics.weekly_wellness_trend.tone }}">
                 <div class="wellness-visual-meta">
                     <span class="wellness-visual-label">{{ metrics.weekly_wellness_trend.chart_window_label }}</span>
+                    <span class="wellness-visual-soft-label">Activity rhythm</span>
                 </div>
                 <div class="wellness-checkin-trend">
                     {% for point in metrics.weekly_wellness_trend.chart_points %}

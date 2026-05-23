@@ -142,6 +142,744 @@
     }
 }
 
+/* Final production dashboard refinement layer */
+html body .content-shell-dashboard {
+    max-width: 1180px;
+}
+
+html body .content-shell-dashboard .page-head {
+    margin-bottom: 26px;
+}
+
+html body .content-shell-dashboard .page-head h1 {
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .overview-wellness-grid {
+    margin: 0 0 24px;
+}
+
+html body .content-shell-dashboard .overview-top-grid,
+html body .content-shell-dashboard .overview-bottom-grid {
+    gap: 22px;
+    margin-bottom: 26px;
+}
+
+html body .content-shell-dashboard .wellness-prediction-card {
+    display: grid;
+    gap: 20px;
+    padding: 28px 30px;
+    border-radius: 28px;
+    border: 1px solid rgba(207, 220, 238, 0.78);
+    background: linear-gradient(145deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 18px 42px rgba(31, 51, 83, 0.058);
+}
+
+html body .content-shell-dashboard .wellness-prediction-card::before,
+html body .content-shell-dashboard .wellness-prediction-card::after {
+    display: none;
+}
+
+html body .content-shell-dashboard .wellness-card-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0;
+    border: 0;
+}
+
+html body .content-shell-dashboard .wellness-card-title-wrap h3 {
+    color: #172b45;
+    font-size: 1.06rem;
+    font-weight: 740;
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .wellness-status-badge {
+    margin-left: auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(216, 226, 240, 0.9);
+    background: #f8fbff;
+    color: #637894;
+    box-shadow: none;
+    font-size: 0.74rem;
+    font-weight: 650;
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .wellness-status-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.02fr) minmax(300px, 0.98fr);
+    align-items: stretch;
+    gap: 22px;
+    margin: 0;
+}
+
+html body .content-shell-dashboard .wellness-status-copy {
+    max-width: none;
+    min-height: 100%;
+    display: grid;
+    align-content: center;
+    gap: 11px;
+    padding: 20px 22px;
+    border-radius: 24px;
+    border: 1px solid rgba(224, 232, 243, 0.82);
+    background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+}
+
+html body .content-shell-dashboard .wellness-trend-label {
+    margin: 0;
+    color: #76889f;
+    font-size: 0.72rem;
+    font-weight: 720;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+html body .content-shell-dashboard .wellness-status-result {
+    margin: 0;
+    color: #344d69;
+    font-size: 1.62rem;
+    line-height: 1.16;
+    font-weight: 720;
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .wellness-status-result-warning {
+    color: #986166;
+}
+
+html body .content-shell-dashboard .wellness-status-result-success {
+    color: #2c7551;
+}
+
+html body .content-shell-dashboard .wellness-status-result-info {
+    color: #3f6caa;
+}
+
+html body .content-shell-dashboard .wellness-support-context {
+    margin: -2px 0 0;
+    color: #71839a;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+html body .content-shell-dashboard .wellness-summary-lines {
+    display: grid;
+    gap: 7px;
+    margin: 2px 0 0;
+    color: #5f738d;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    font-weight: 540;
+}
+
+html body .content-shell-dashboard .wellness-mini-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 3px;
+}
+
+html body .content-shell-dashboard .wellness-mini-metrics span {
+    min-width: 0;
+    padding: 9px 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(216, 226, 240, 0.88);
+    background: #f7faff;
+    color: #5f748f;
+    font-size: 0.73rem;
+    font-weight: 660;
+    line-height: 1.25;
+    text-align: center;
+}
+
+html body .content-shell-dashboard .wellness-compact-note,
+html body .content-shell-dashboard .wellness-data-helper {
+    margin: 0;
+    color: #8291a5;
+    font-size: 0.78rem;
+    line-height: 1.48;
+    font-weight: 520;
+}
+
+html body .content-shell-dashboard .wellness-status-visual {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    align-content: center;
+    gap: 14px;
+    padding: 20px 22px;
+    border-radius: 24px;
+    border: 1px solid rgba(216, 226, 240, 0.9);
+    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    box-shadow: none;
+}
+
+html body .content-shell-dashboard .wellness-visual-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid rgba(224, 232, 243, 0.88);
+}
+
+html body .content-shell-dashboard .wellness-visual-label,
+html body .content-shell-dashboard .wellness-visual-soft-label {
+    color: #7789a1;
+    font-size: 0.68rem;
+    font-weight: 720;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+html body .content-shell-dashboard .wellness-visual-soft-label {
+    color: #9aa8ba;
+    font-weight: 650;
+}
+
+html body .content-shell-dashboard .wellness-checkin-trend {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 9px;
+    margin: 0;
+    padding: 13px;
+    border-radius: 18px;
+    border: 1px solid rgba(224, 232, 243, 0.82);
+    background: #ffffff;
+}
+
+html body .content-shell-dashboard .wellness-checkin-day {
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+}
+
+html body .content-shell-dashboard .wellness-checkin-dot {
+    width: 11px;
+    height: 11px;
+    border-width: 2px;
+    box-shadow: none;
+    opacity: 0.84;
+}
+
+html body .content-shell-dashboard .wellness-checkin-label {
+    color: #8494a8;
+    font-size: 0.62rem;
+    font-weight: 720;
+    line-height: 1;
+}
+
+html body .content-shell-dashboard .feature-card,
+html body .content-shell-dashboard .panel-card:not(.wellness-prediction-card) {
+    padding: 23px;
+    border-radius: 24px;
+    border-color: rgba(207, 220, 238, 0.72);
+    box-shadow: 0 14px 34px rgba(31, 51, 83, 0.052);
+}
+
+html body .content-shell-dashboard .feature-card {
+    min-height: 162px;
+}
+
+html body .content-shell-dashboard .feature-card h3,
+html body .content-shell-dashboard .panel-card h3 {
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .feature-card p,
+html body .content-shell-dashboard .panel-card p {
+    line-height: 1.56;
+}
+
+body.theme-dark .content-shell-dashboard .wellness-status-copy,
+body.theme-dark .content-shell-dashboard .wellness-status-visual,
+body.theme-dark .content-shell-dashboard .wellness-checkin-trend {
+    background: #152033;
+    border-color: rgba(129, 153, 190, 0.22);
+}
+
+@media (max-width: 980px) {
+    html body .content-shell-dashboard .wellness-status-row {
+        grid-template-columns: 1fr;
+    }
+
+    html body .content-shell-dashboard .wellness-status-copy {
+        align-content: start;
+    }
+}
+
+@media (max-width: 720px) {
+    html body .content-shell-dashboard .page-head {
+        margin-bottom: 16px;
+    }
+
+    html body .content-shell-dashboard .overview-wellness-grid,
+    html body .content-shell-dashboard .overview-top-grid,
+    html body .content-shell-dashboard .overview-bottom-grid {
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    html body .content-shell-dashboard .wellness-prediction-card,
+    html body .content-shell-dashboard .feature-card,
+    html body .content-shell-dashboard .panel-card:not(.wellness-prediction-card) {
+        padding: 17px;
+        border-radius: 20px;
+    }
+
+    html body .content-shell-dashboard .wellness-prediction-card {
+        gap: 14px;
+    }
+
+    html body .content-shell-dashboard .wellness-card-header {
+        display: grid;
+        gap: 9px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-badge {
+        width: max-content;
+        margin-left: 0;
+    }
+
+    html body .content-shell-dashboard .wellness-status-row {
+        gap: 12px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-copy,
+    html body .content-shell-dashboard .wellness-status-visual {
+        padding: 15px;
+        border-radius: 18px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-result {
+        font-size: 1.28rem;
+        line-height: 1.18;
+    }
+
+    html body .content-shell-dashboard .wellness-support-context,
+    html body .content-shell-dashboard .wellness-summary-lines {
+        font-size: 0.82rem;
+    }
+
+    html body .content-shell-dashboard .wellness-mini-metrics {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    html body .content-shell-dashboard .wellness-mini-metrics span {
+        padding: 8px 9px;
+        text-align: left;
+    }
+
+    html body .content-shell-dashboard .wellness-visual-meta {
+        padding-bottom: 10px;
+    }
+
+    html body .content-shell-dashboard .wellness-checkin-trend {
+        gap: 6px;
+        padding: 10px;
+    }
+
+    html body .content-shell-dashboard .wellness-checkin-dot {
+        width: 10px;
+        height: 10px;
+    }
+
+    html body .content-shell-dashboard .feature-card {
+        min-height: 0;
+    }
+}
+
+/* Production dashboard wellness layout refinement */
+html body .content-shell-dashboard {
+    max-width: 1160px;
+}
+
+html body .content-shell-dashboard .page-head {
+    margin-bottom: 28px;
+}
+
+html body .content-shell-dashboard .page-head h1 {
+    font-weight: 760;
+    letter-spacing: 0;
+}
+
+html body .content-shell-dashboard .page-head p {
+    color: #647893;
+    line-height: 1.58;
+}
+
+html body .content-shell-dashboard .overview-wellness-grid {
+    margin: 0 0 26px;
+    padding: 0;
+}
+
+html body .content-shell-dashboard .overview-top-grid,
+html body .content-shell-dashboard .overview-bottom-grid {
+    gap: 22px;
+    margin-bottom: 28px;
+}
+
+html body .content-shell-dashboard .wellness-prediction-card {
+    display: grid;
+    gap: 0;
+    padding: 28px;
+    border: 1px solid rgba(204, 217, 235, 0.82);
+    border-radius: 28px;
+    background: linear-gradient(145deg, #ffffff 0%, #f9fbff 100%);
+    box-shadow: 0 18px 42px rgba(27, 47, 78, 0.065);
+}
+
+html body .content-shell-dashboard .wellness-prediction-card::before,
+html body .content-shell-dashboard .wellness-prediction-card::after {
+    display: none;
+}
+
+html body .content-shell-dashboard .wellness-card-header {
+    display: flex;
+    align-items: center;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(221, 230, 243, 0.86);
+}
+
+html body .content-shell-dashboard .wellness-card-title-wrap h3 {
+    font-size: 1.08rem;
+    font-weight: 740;
+    color: #152944;
+}
+
+html body .content-shell-dashboard .wellness-status-badge {
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #f8fbff;
+    border: 1px solid rgba(211, 222, 239, 0.9);
+    color: #627894;
+    font-size: 0.76rem;
+    font-weight: 650;
+    box-shadow: none;
+}
+
+html body .content-shell-dashboard .wellness-status-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(285px, 0.92fr);
+    align-items: stretch;
+    gap: 22px;
+    margin-top: 22px;
+}
+
+html body .content-shell-dashboard .wellness-status-copy {
+    max-width: none;
+    min-height: 100%;
+    padding: 4px 0;
+    display: grid;
+    align-content: center;
+    gap: 10px;
+}
+
+html body .content-shell-dashboard .wellness-trend-label {
+    margin: 0;
+    color: #74869e;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+html body .content-shell-dashboard .wellness-status-result {
+    margin: 0;
+    color: #2d4664;
+    font-size: 1.78rem;
+    line-height: 1.12;
+    font-weight: 720;
+}
+
+html body .content-shell-dashboard .wellness-status-result-warning {
+    color: #9d5d62;
+}
+
+html body .content-shell-dashboard .wellness-status-result-success {
+    color: #24734b;
+}
+
+html body .content-shell-dashboard .wellness-status-result-info {
+    color: #3767a8;
+}
+
+html body .content-shell-dashboard .wellness-support-context {
+    margin: -2px 0 2px;
+    color: #71839a;
+    font-size: 0.86rem;
+    line-height: 1.48;
+}
+
+html body .content-shell-dashboard .wellness-summary-lines {
+    gap: 8px;
+    margin-top: 2px;
+    color: #5f738c;
+    font-size: 0.9rem;
+    font-weight: 540;
+    line-height: 1.56;
+}
+
+html body .content-shell-dashboard .wellness-mini-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+html body .content-shell-dashboard .wellness-mini-metrics span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #f7faff;
+    border: 1px solid rgba(216, 226, 240, 0.88);
+    color: #60758f;
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+html body .content-shell-dashboard .wellness-compact-note {
+    margin-top: 2px;
+    color: #8291a5;
+    font-size: 0.78rem;
+    line-height: 1.48;
+    font-weight: 520;
+}
+
+html body .content-shell-dashboard .wellness-status-visual {
+    width: 100%;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid rgba(216, 226, 240, 0.9);
+    border-radius: 22px;
+    background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
+    box-shadow: none;
+}
+
+html body .content-shell-dashboard .wellness-visual-meta {
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(224, 232, 243, 0.88);
+}
+
+html body .content-shell-dashboard .wellness-visual-label,
+html body .content-shell-dashboard .wellness-visual-soft-label {
+    color: #788aa1;
+    font-size: 0.68rem;
+    font-weight: 720;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+html body .content-shell-dashboard .wellness-visual-soft-label {
+    color: #9aa8ba;
+    font-weight: 650;
+}
+
+html body .content-shell-dashboard .wellness-checkin-trend {
+    gap: 11px;
+    margin-top: 16px;
+}
+
+html body .content-shell-dashboard .wellness-checkin-day {
+    gap: 8px;
+}
+
+html body .content-shell-dashboard .wellness-checkin-dot {
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+    box-shadow: none;
+    opacity: 0.82;
+}
+
+html body .content-shell-dashboard .wellness-checkin-label {
+    color: #8494a8;
+    font-size: 0.62rem;
+    font-weight: 720;
+}
+
+html body .content-shell-dashboard .wellness-data-helper {
+    margin-top: 13px;
+    color: #8291a5;
+    font-size: 0.78rem;
+    line-height: 1.46;
+    font-weight: 520;
+}
+
+html body .content-shell-dashboard .feature-card,
+html body .content-shell-dashboard .panel-card {
+    padding: 24px;
+    border: 1px solid rgba(204, 217, 235, 0.78);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 16px 36px rgba(29, 48, 78, 0.055);
+}
+
+html body .content-shell-dashboard .feature-card {
+    min-height: 168px;
+    gap: 12px;
+}
+
+html body .content-shell-dashboard .feature-card-top,
+html body .content-shell-dashboard .panel-head {
+    gap: 14px;
+}
+
+html body .content-shell-dashboard .feature-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+}
+
+html body .content-shell-dashboard .feature-card h3,
+html body .content-shell-dashboard .panel-card h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 730;
+    line-height: 1.32;
+}
+
+html body .content-shell-dashboard .feature-card p,
+html body .content-shell-dashboard .panel-card p {
+    color: #637893;
+    line-height: 1.58;
+}
+
+html body .content-shell-dashboard .mini-tag,
+html body .content-shell-dashboard .med-status-badge {
+    padding: 6px 10px;
+    border: 1px solid rgba(216, 226, 240, 0.88);
+    border-radius: 999px;
+    background: #f8fbff;
+    color: #627894;
+    font-size: 0.78rem;
+    font-weight: 650;
+    box-shadow: none;
+}
+
+html body .content-shell-dashboard .metric-row {
+    gap: 8px;
+}
+
+html body .content-shell-dashboard .metric-row span {
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #f7faff;
+    color: #546b87;
+    font-size: 0.82rem;
+}
+
+html body .content-shell-dashboard .cycle-focus-card,
+html body .content-shell-dashboard .appointment-item {
+    border: 1px solid rgba(216, 226, 240, 0.82);
+    box-shadow: none;
+}
+
+html body .content-shell-dashboard .cycle-focus-card {
+    padding: 24px;
+    background: #fff9fb;
+}
+
+html body .content-shell-dashboard .appointment-item {
+    padding: 16px;
+    background: #fbfdff;
+}
+
+body.theme-dark .content-shell-dashboard .wellness-prediction-card,
+body.theme-dark .content-shell-dashboard .wellness-status-visual,
+body.theme-dark .content-shell-dashboard .feature-card,
+body.theme-dark .content-shell-dashboard .panel-card,
+body.theme-dark .content-shell-dashboard .appointment-item {
+    background: #152033;
+    border-color: rgba(129, 153, 190, 0.22);
+}
+
+@media (max-width: 900px) {
+    html body .content-shell-dashboard .wellness-status-row {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-copy {
+        align-content: start;
+    }
+}
+
+@media (max-width: 720px) {
+    html body .content-shell-dashboard .page-head {
+        margin-bottom: 18px;
+    }
+
+    html body .content-shell-dashboard .overview-wellness-grid,
+    html body .content-shell-dashboard .overview-top-grid,
+    html body .content-shell-dashboard .overview-bottom-grid {
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    html body .content-shell-dashboard .wellness-prediction-card,
+    html body .content-shell-dashboard .feature-card,
+    html body .content-shell-dashboard .panel-card {
+        padding: 18px;
+        border-radius: 20px;
+    }
+
+    html body .content-shell-dashboard .wellness-card-header {
+        display: grid;
+        gap: 10px;
+        padding-bottom: 14px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-row {
+        margin-top: 16px;
+    }
+
+    html body .content-shell-dashboard .wellness-status-result {
+        font-size: 1.45rem;
+    }
+
+    html body .content-shell-dashboard .wellness-summary-lines {
+        font-size: 0.84rem;
+    }
+
+    html body .content-shell-dashboard .wellness-mini-metrics {
+        gap: 6px;
+    }
+
+    html body .content-shell-dashboard .wellness-mini-metrics span {
+        min-height: 28px;
+        padding: 6px 9px;
+        font-size: 0.72rem;
+    }
+
+    html body .content-shell-dashboard .wellness-status-visual {
+        padding: 14px;
+        border-radius: 18px;
+    }
+
+    html body .content-shell-dashboard .wellness-checkin-trend {
+        gap: 7px;
+        margin-top: 12px;
+    }
+
+    html body .content-shell-dashboard .feature-card {
+        min-height: 0;
+    }
+
+    html body .content-shell-dashboard .feature-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
+    }
+}
+
 /* Final dashboard spacing overrides */
 .content-shell-dashboard .page-head {
     margin-bottom: 34px;
