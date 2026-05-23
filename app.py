@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-otp-error-priority")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-step-routing")
 
 
 def app_now():
@@ -5189,7 +5189,7 @@ def register_routes(app):
         form_errors = {}
         reset_step = "identify"
         if request.method == "POST":
-            action = (request.form.get("reset_action") or "choose_method").strip()
+            action = (request.form.get("reset_action") or request.form.get("reset_step_action") or "choose_method").strip()
             identifier = normalize_email(
                 request.form.get("identifier_input")
                 or request.form.get("identifier")
@@ -5240,8 +5240,10 @@ def register_routes(app):
                 else:
                     retry_in = otp_retry_seconds(user.username)
                     if retry_in > 0:
-                        form_errors["identifier"] = f"Please wait {retry_in} seconds before requesting another code."
-                        reset_step = "method"
+                        session["reset_password_email"] = user.username
+                        form_values["identifier"] = user.username
+                        form_errors["otp"] = f"Please wait {retry_in} seconds before requesting another code."
+                        reset_step = "otp"
                     else:
                         try:
                             send_password_recovery_otp(user.username)

@@ -2000,6 +2000,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const subtitle = document.querySelector("[data-reset-subtitle]");
         const statusNode = resetFlow.querySelector("[data-reset-status]");
         const hiddenIdentifierInput = resetFlow.querySelector("[data-reset-identifier-value]");
+        const stepActionInput = resetFlow.querySelector("[data-reset-step-action]");
         const identifierInput = resetFlow.querySelector("[data-reset-identifier-input]");
         const identifierDisplays = resetFlow.querySelectorAll("[data-reset-identifier-display]");
         const identifierError = resetFlow.querySelector("[data-reset-identifier-error]");
@@ -2094,6 +2095,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const setStep = (stepName) => {
             currentStep = stepName;
+            if (stepActionInput) {
+                const fallbackByStep = {
+                    identify: "choose_method",
+                    method: "choose_method",
+                    otp: "verify_otp",
+                    pin: "verify_pin",
+                    password: "update_password",
+                };
+                stepActionInput.value = fallbackByStep[stepName] || "choose_method";
+            }
             panels.forEach((panel) => {
                 panel.classList.toggle("is-active", panel.dataset.resetStepPanel === stepName);
             });
@@ -2276,6 +2287,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     setStep("identify");
                     setFieldState(identifierInput, identifierError, false, error.message || "This account is not registered. Please sign up.");
                     showStatus(error.message || "This account is not registered. Please sign up.", "error");
+                } else if (error.field === "otp") {
+                    setStep("otp");
+                    setFieldState(otpInput, otpError, false, error.message || "Please wait before requesting another code.");
                 } else {
                     setFieldState(identifierInput, identifierError, false, error.message || "We could not send a reset code right now.");
                 }
