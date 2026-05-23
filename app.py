@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-complete-flow")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-otp-error-priority")
 
 
 def app_now():
@@ -1725,6 +1725,17 @@ def register_routes(app):
         invalid_keywords = ("invalid", "expired", "not found", "mismatch")
         return any(keyword in lowered for keyword in token_keywords) and any(keyword in lowered for keyword in invalid_keywords)
 
+    def password_reset_otp_error_message(error):
+        lowered = error_message_lower(error)
+        if "expired" in lowered and "invalid" not in lowered:
+            return "Expired OTP."
+        if is_invalid_otp_error(error):
+            return "Invalid OTP."
+        return password_reset_error_message(
+            error,
+            "We could not verify your code right now. Please try again later.",
+        )
+
     def friendly_supabase_error(error, fallback):
         message = error_message_text(error)
         if not message or "object at 0x" in message:
@@ -2343,7 +2354,7 @@ def register_routes(app):
             expires_at = datetime.fromisoformat(challenge.get("expires_at") or "")
         except ValueError:
             session.pop("local_otp_challenge", None)
-            return False, "Invalid or expired code."
+            return False, "Expired OTP."
         if datetime.utcnow() > expires_at:
             session.pop("local_otp_challenge", None)
             return False, "Expired OTP."
@@ -5037,7 +5048,7 @@ def register_routes(app):
                 remember_local_password_reset_verification(user.username)
                 return {"message": "Code verified.", "identifier": user.username}
             if local_verified is False:
-                return {"field": "otp", "message": local_error or "Invalid or expired code."}, 401
+                return {"field": "otp", "message": local_error or "Invalid OTP."}, 401
 
         try:
             supabase = get_supabase_client()
@@ -5055,10 +5066,7 @@ def register_routes(app):
             remember_password_reset_verification(user.username, auth_session)
         except Exception as error:
             log_supabase_otp_error(user.username, error)
-            message = "Expired OTP." if "expired" in error_message_lower(error) else "Invalid OTP." if is_invalid_otp_error(error) else password_reset_error_message(
-                error,
-                "We could not verify your code right now. Please try again later.",
-            )
+            message = password_reset_otp_error_message(error)
             status_code = 401 if is_invalid_otp_error(error) else 503 if is_timeout_error(error) or is_network_error(error) else 400
             return {"field": "otp", "message": message}, status_code
 
@@ -5279,7 +5287,7 @@ def register_routes(app):
                             reset_step = "password"
                             flash("Code verified.", "success")
                         elif local_verified is False:
-                            form_errors["otp"] = local_error or "Invalid or expired code."
+                            form_errors["otp"] = local_error or "Invalid OTP."
                             reset_step = "otp"
                     if not form_errors and reset_step != "password":
                         try:
@@ -5302,10 +5310,7 @@ def register_routes(app):
                                 flash("OTP verified.", "success")
                         except Exception as error:
                             log_supabase_otp_error(user.username, error)
-                            form_errors["otp"] = "Expired OTP." if "expired" in error_message_lower(error) else "Invalid OTP." if is_invalid_otp_error(error) else password_reset_error_message(
-                                error,
-                                "We could not verify your code right now. Please try again later.",
-                            )
+                            form_errors["otp"] = password_reset_otp_error_message(error)
                             reset_step = "otp"
 
             elif action == "verify_pin":
