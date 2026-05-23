@@ -2441,14 +2441,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (identifierInput) {
             identifierInput.addEventListener("input", () => {
-                const identifier = syncIdentifier(identifierInput.value, { updateVisibleInput: false });
                 resetAccountValidation();
-                if (!identifier) {
-                    return;
-                }
-                accountCheckTimer = window.setTimeout(() => {
-                    validateAccount({ advance: false, quiet: true });
-                }, 350);
+                syncIdentifier(identifierInput.value, { updateVisibleInput: false });
             });
         }
 
@@ -2530,8 +2524,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const submitter = event.submitter;
             const submitAction = submitter ? submitter.value || submitter.dataset.resetSubmitAction : "";
             if (submitAction === "choose_method") {
-                event.preventDefault();
-                chooseMethod();
+                const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
+                if (!identifier) {
+                    event.preventDefault();
+                    setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
+                }
                 return;
             }
             if (!submitAction || nativeResetActions.has(submitAction)) {
