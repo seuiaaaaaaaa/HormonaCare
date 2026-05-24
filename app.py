@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260523-forgot-password-back-cache")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260524-forgot-password-rebuild")
 
 
 def app_now():
@@ -5187,7 +5187,7 @@ def register_routes(app):
         if redirect_response:
             return redirect_response
 
-        if request.method == "GET" and request.args.get("fresh") == "1":
+        if request.method == "GET":
             clear_password_reset_state()
 
         form_values = {

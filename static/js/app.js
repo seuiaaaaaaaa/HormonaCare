@@ -2044,13 +2044,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const methodButtons = Array.from(resetFlow.querySelectorAll("[data-reset-method]"));
         const resetPinBackup = resetFlow.querySelector("[data-reset-pin-backup]");
         const resetShowPinButton = resetFlow.querySelector("[data-reset-show-pin]");
-        const nativeResetActions = new Set(["choose_method", "request_otp", "choose_pin", "verify_otp", "verify_pin", "update_password"]);
         let currentStep = "identify";
         let activeRequestCount = 0;
         let accountCheckTimer = null;
         let accountCheckController = null;
         let accountCheckSequence = 0;
         let validatedIdentifier = "";
+        let otpRequestInFlight = false;
         const identifyButtonLabel = identifyButton ? identifyButton.textContent : "Continue";
 
         const subtitleByStep = {
@@ -2059,6 +2059,7 @@ document.addEventListener("DOMContentLoaded", () => {
             otp: "Enter the 6-digit code sent to your email.",
             pin: "Enter your registered Security PIN Number.",
             password: "Choose a new password for your account.",
+            success: "Password changed successfully.",
         };
 
         const setFieldState = (input, errorNode, isValid, message) => {
@@ -2073,12 +2074,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const clearFieldState = (input, errorNode) => setFieldState(input, errorNode, true, "");
 
+        const syncStepControls = () => {
+            panels.forEach((panel) => {
+                const isActive = panel.dataset.resetStepPanel === currentStep;
+                panel.querySelectorAll("button, input, a.auth-gradient-button").forEach((control) => {
+                    if (control.matches("input[type='hidden']")) return;
+                    if (control.tagName === "A") {
+                        control.classList.toggle("is-disabled", !isActive);
+                        control.setAttribute("aria-disabled", String(!isActive));
+                    } else {
+                        control.disabled = !isActive;
+                    }
+                });
+            });
+        };
+
         const setBusy = (isBusy) => {
             activeRequestCount = isBusy ? activeRequestCount + 1 : Math.max(0, activeRequestCount - 1);
             const disabled = activeRequestCount > 0;
+            if (disabled) {
+                resetFlow.querySelectorAll("button").forEach((button) => {
+                    button.disabled = true;
+                });
+                return;
+            }
             resetFlow.querySelectorAll("button").forEach((button) => {
-                button.disabled = disabled;
+                if (button.dataset.originalText) {
+                    button.textContent = button.dataset.originalText;
+                    delete button.dataset.originalText;
+                }
             });
+            syncStepControls();
+        };
+
+        const markSubmitterBusy = (submitter, label) => {
+            if (!submitter || !label) return;
+            submitter.dataset.originalText = submitter.textContent;
+            submitter.textContent = label;
         };
 
         const setIdentifyBusy = (isBusy) => {
@@ -2131,6 +2163,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     otp: "verify_otp",
                     pin: "verify_pin",
                     password: "update_password",
+                    success: "choose_method",
                 };
                 stepActionInput.value = fallbackByStep[stepName] || "choose_method";
             }
@@ -2143,6 +2176,9 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             if (subtitle) {
                 subtitle.textContent = subtitleByStep[stepName] || subtitleByStep.identify;
+            }
+            if (activeRequestCount === 0) {
+                syncStepControls();
             }
 
             if (stepName === "identify" && identifierInput) {
@@ -2290,10 +2326,15 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         const requestOtp = async () => {
+            if (otpRequestInFlight || activeRequestCount > 0) {
+                return;
+            }
+            otpRequestInFlight = true;
             hideStatus();
             clearFieldState(identifierInput, identifierError);
             const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
             if (!identifier) {
+                otpRequestInFlight = false;
                 setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
                 return;
             }
@@ -2323,6 +2364,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     setFieldState(identifierInput, identifierError, false, error.message || "We could not send a reset code right now.");
                 }
             } finally {
+                otpRequestInFlight = false;
                 setBusy(false);
             }
         };
@@ -2434,10 +2476,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     }),
                 });
                 const data = await parseResponse(response);
+                if (passwordInput) passwordInput.value = "";
+                if (confirmInput) confirmInput.value = "";
                 showStatus(data.message || "Password changed successfully. You can now login.", "success");
-                window.setTimeout(() => {
-                    window.location.href = data.redirect_url || loginUrl || "/login";
-                }, 1200);
+                setStep("success");
             } catch (error) {
                 const targetField = error.field;
                 const message = error.message || "We could not update your password right now.";
@@ -2471,7 +2513,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (identifierInput) {
             identifierInput.addEventListener("input", () => {
                 resetAccountValidation();
-                syncIdentifier(identifierInput.value, { updateVisibleInput: false });
+                const identifier = syncIdentifier(identifierInput.value, { updateVisibleInput: false });
+                if (!identifier || identifier.length < 3 || currentStep !== "identify") {
+                    return;
+                }
+                accountCheckTimer = window.setTimeout(() => {
+                    validateAccount({ advance: false, quiet: true });
+                }, 350);
             });
         }
 
@@ -2550,20 +2598,29 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         resetFlow.addEventListener("submit", (event) => {
+            event.preventDefault();
             const submitter = event.submitter;
             const submitAction = submitter ? submitter.value || submitter.dataset.resetSubmitAction : "";
-            if (submitAction === "choose_method") {
-                const identifier = syncIdentifier(identifierInput ? identifierInput.value : "");
-                if (!identifier) {
-                    event.preventDefault();
-                    setFieldState(identifierInput, identifierError, false, "Enter your email or username.");
+            const loadingLabelByAction = {
+                choose_method: "Checking...",
+                request_otp: "Sending...",
+                verify_otp: "Verifying...",
+                verify_pin: "Verifying...",
+                update_password: "Updating...",
+            };
+            markSubmitterBusy(submitter, loadingLabelByAction[submitAction]);
+
+            if (submitAction === "choose_method" || currentStep === "identify") {
+                chooseMethod();
+                return;
+            }
+            if (submitAction === "show_pin") {
+                if (resetPinBackup) {
+                    resetPinBackup.hidden = false;
                 }
+                showStatus("Backup recovery is available below. Use it only if email verification is unavailable.", "info");
                 return;
             }
-            if (!submitAction || nativeResetActions.has(submitAction)) {
-                return;
-            }
-            event.preventDefault();
             if (submitAction === "request_otp") {
                 requestOtp();
                 return;
