@@ -2059,7 +2059,6 @@ document.addEventListener("DOMContentLoaded", () => {
             otp: "Enter the 6-digit code sent to your email.",
             pin: "Enter your registered Security PIN Number.",
             password: "Choose a new password for your account.",
-            success: "Password changed successfully.",
         };
 
         const setFieldState = (input, errorNode, isValid, message) => {
@@ -2163,7 +2162,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     otp: "verify_otp",
                     pin: "verify_pin",
                     password: "update_password",
-                    success: "choose_method",
                 };
                 stepActionInput.value = fallbackByStep[stepName] || "choose_method";
             }
@@ -2479,7 +2477,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (passwordInput) passwordInput.value = "";
                 if (confirmInput) confirmInput.value = "";
                 showStatus(data.message || "Password changed successfully. You can now login.", "success");
-                setStep("success");
+                window.setTimeout(() => {
+                    window.location.href = data.redirect_url || loginUrl || "/login?clear_reset=1";
+                }, 700);
             } catch (error) {
                 const targetField = error.field;
                 const message = error.message || "We could not update your password right now.";

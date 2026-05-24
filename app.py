@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260524-forgot-password-rebuild")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260524-forgot-password-no-success-step")
 
 
 def app_now():
