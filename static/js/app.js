@@ -1589,6 +1589,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmActionMessage = document.getElementById("confirm-action-message");
     const confirmActionSubmit = document.querySelector("[data-confirm-submit]");
     const confirmActionCancelButtons = document.querySelectorAll("[data-confirm-cancel]");
+    const confirmActionFooterCancel = document.querySelector(".confirm-modal-actions [data-confirm-cancel]");
     const confirmPasswordWrap = document.querySelector("[data-confirm-password-wrap]");
     const confirmPasswordInput = document.querySelector("[data-confirm-password-input]");
     const confirmPasswordError = document.querySelector("[data-confirm-password-error]");
@@ -1617,6 +1618,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (confirmActionSubmit) {
             confirmActionSubmit.textContent = "Continue";
         }
+        if (confirmActionFooterCancel) {
+            confirmActionFooterCancel.textContent = "Cancel";
+        }
     };
 
     const closeConfirmActionModal = () => {
@@ -1643,6 +1647,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (confirmActionSubmit) {
             confirmActionSubmit.textContent = form.dataset.confirmAction || "Continue";
+        }
+        if (confirmActionFooterCancel) {
+            confirmActionFooterCancel.textContent = form.dataset.confirmCancelAction || "Cancel";
         }
         if (confirmPasswordWrap) {
             confirmPasswordWrap.hidden = form.dataset.confirmRequirePassword !== "true";
