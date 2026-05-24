@@ -91,7 +91,7 @@
                 <a href="{{ url_for('settings') }}" class="{% if request.endpoint == 'settings' %}active{% endif %}"><span class="nav-icon nav-gear"></span><span>Settings</span></a>
                 {% endif %}
                 <div class="nav-divider"></div>
-                <a class="mobile-logout-link" href="{{ url_for('logout') }}"><span class="nav-icon nav-exit"></span><span>Log out</span></a>
+                <button class="mobile-logout-link" type="submit" form="logout-confirm-form"><span class="nav-icon nav-exit"></span><span>Log out</span></button>
             </div>
         </div>
     </div>
@@ -172,10 +172,10 @@
                 </nav>
                 {% endif %}
             </div>
-            <a class="logout-link" href="{{ url_for('logout') }}">
+            <button class="logout-link" type="submit" form="logout-confirm-form">
                 <span class="nav-icon nav-exit"></span>
                 <span>Log out</span>
-            </a>
+            </button>
         </aside>
         <main class="main-content">
             <div class="content-shell content-shell-{{ (request.endpoint or 'default')|replace('_', '-') }}">
@@ -252,6 +252,15 @@
             </div>
         </main>
     </div>
+    <form
+        method="post"
+        action="{{ url_for('logout') }}"
+        id="logout-confirm-form"
+        data-confirm-dialog
+        data-confirm-title="Log out of HormonaCare?"
+        data-confirm-message="You will be signed out from this device."
+        data-confirm-action="Log out"
+    ></form>
     <div class="modal-backdrop" id="confirm-action-modal" hidden>
         <div class="modal-card confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="confirm-action-title" aria-describedby="confirm-action-message">
             <button class="modal-close" type="button" aria-label="Close confirmation" data-confirm-cancel>&times;</button>

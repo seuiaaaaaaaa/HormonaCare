@@ -83,7 +83,7 @@ try:
 except Exception:
     APP_TIMEZONE = None
 
-STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260524-forgot-password-no-success-step")
+STATIC_ASSET_VERSION = os.getenv("STATIC_ASSET_VERSION", "20260524-logout-confirm")
 
 
 def app_now():
@@ -5512,7 +5512,7 @@ def register_routes(app):
 
         return render_template("auth/reset_password.html", **build_auth_context("reset_password", form_values, form_errors))
 
-    @app.route("/logout")
+    @app.route("/logout", methods=["GET", "POST"])
     def logout():
         session.clear()
         flash("You have been logged out.", "info")
